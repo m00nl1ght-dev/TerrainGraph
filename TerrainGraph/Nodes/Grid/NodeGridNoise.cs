@@ -27,6 +27,8 @@ public abstract class NodeGridNoise : NodeBase
     
     [ValueConnectionKnob("Output", Direction.Out, GridFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
+
+    protected virtual double TransformScale => 1;
     
     public double Frequency = 0.021;
     public double Lacunarity = 2;
@@ -80,7 +82,7 @@ public abstract class NodeGridNoise : NodeBase
             SupplierOrValueFixed(PersistenceKnob, Persistence),
             SupplierOrValueFixed(ScaleKnob, Scale),
             SupplierOrValueFixed(BiasKnob, Bias),
-            Octaves, NoiseFunction, CombinedSeed
+            Octaves, NoiseFunction, CombinedSeed, TransformScale
         ));
         return true;
     }
@@ -95,10 +97,11 @@ public abstract class NodeGridNoise : NodeBase
         private readonly ISupplier<double> _bias;
         private readonly int _octaves;
         private readonly int _seed;
+        private readonly double _transformScale;
         private readonly FastRandom _random;
 
         public Output(ISupplier<double> frequency, ISupplier<double> lacunarity, 
-            ISupplier<double> persistence, ISupplier<double> scale, ISupplier<double> bias, int octaves, GridFunction.NoiseFunction noiseFunction, int seed)
+            ISupplier<double> persistence, ISupplier<double> scale, ISupplier<double> bias, int octaves, GridFunction.NoiseFunction noiseFunction, int seed, double transformScale)
         {
             _noiseFunction = noiseFunction;
             _frequency = frequency;
@@ -108,16 +111,18 @@ public abstract class NodeGridNoise : NodeBase
             _bias = bias;
             _octaves = octaves;
             _seed = seed;
+            _transformScale = transformScale;
             _random = new FastRandom(seed);
         }
 
         public IGridFunction<double> Get()
         {
-            return new GridFunction.ScaleWithBias(
-                new GridFunction.NoiseGenerator(
-                    _noiseFunction, _frequency.Get(), _lacunarity.Get(), _persistence.Get(), _octaves, _random.Next()
-                ), 
-                _scale.Get(), _bias.Get()
+            return new GridFunction.Transform<double>(
+                new GridFunction.ScaleWithBias(
+                    new GridFunction.NoiseGenerator(
+                        _noiseFunction, _frequency.Get(), _lacunarity.Get(), _persistence.Get(), _octaves, _random.Next()
+                    ), 
+                    _scale.Get(), _bias.Get()), 0f, 0f, _transformScale, _transformScale
             );
         }
 
