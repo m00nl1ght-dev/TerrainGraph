@@ -1,12 +1,25 @@
 ﻿using UnityEngine;
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Linq;
 
 namespace NodeEditorFramework.Utilities 
 {
-	public static class ReflectionUtility 
+	public static class ReflectionUtility
 	{
+		private static readonly HashSet<Assembly> _searchableAssemblies = new();
+
+		static ReflectionUtility()
+		{
+			_searchableAssemblies.Add(typeof(ReflectionUtility).Assembly);
+		}
+
+		public static void AddSearchableAssembly(Assembly assembly)
+		{
+			_searchableAssemblies.Add(assembly);
+		}
+		
 		public class ReflectionSearchIgnoreAttribute : Attribute
 		{
 			public ReflectionSearchIgnoreAttribute () { }
@@ -17,7 +30,7 @@ namespace NodeEditorFramework.Utilities
 		/// </summary>
 		public static Assembly[] getScriptAssemblies () 
 		{
-			return AppDomain.CurrentDomain.GetAssemblies ()
+			return _searchableAssemblies
 				.Where ((Assembly assembly) => !assembly.FullName.StartsWith ("Unity") && assembly.FullName.EndsWith ("null"))
 				//.Where ((Assembly assembly) => assembly.FullName.Contains ("Assembly"))
 				.ToArray();
