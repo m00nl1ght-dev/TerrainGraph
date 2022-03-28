@@ -19,8 +19,11 @@ namespace NodeEditorFramework
 		public static Color NE_TextColor = new Color(0.8f, 0.8f, 0.8f);
 		public static Color NE_TextColorSelected = new Color(0.6f, 0.6f, 0.6f);
 
-		public static Texture2D Background;
-		public static Texture2D AALineTex;
+		public static Texture2D Background => (Texture2D) _backgroundTex;
+		public static Texture2D AALineTex => (Texture2D) _aaLineTex;
+
+		private static object _backgroundTex;
+		private static object _aaLineTex;
 
 		public static GUISkin nodeSkin { get { return overrideSkin ?? defaultSkin; } }
 		public static GUISkin overrideSkin;
@@ -65,8 +68,8 @@ namespace NodeEditorFramework
 			}
 			overrideSkin.customStyles = customStyles.ToArray();
 
-			Background = ResourceManager.LoadTexture ("Textures/background.png");
-			AALineTex = ResourceManager.LoadTexture ("Textures/AALine.png");
+			_backgroundTex = ResourceManager.LoadTexture ("Textures/background.png");
+			_aaLineTex = ResourceManager.LoadTexture ("Textures/AALine.png");
 			
 			return Background && AALineTex;
 		}
@@ -74,8 +77,8 @@ namespace NodeEditorFramework
 		public static bool CreateDefaultSkin ()
 		{
 			// Textures
-			Background = ResourceManager.LoadTexture ("Textures/background.png");
-			AALineTex = ResourceManager.LoadTexture ("Textures/AALine.png");
+			_backgroundTex = ResourceManager.LoadTexture ("Textures/background.png");
+			_aaLineTex = ResourceManager.LoadTexture ("Textures/AALine.png");
 			Texture2D GUIBox = ResourceManager.LoadTexture ("Textures/NE_Box.png");
 			Texture2D GUISelectedBG = ResourceManager.LoadTexture ("Textures/NE_SelectedBG.png");
 			Texture2D GUIButton = ResourceManager.LoadTexture ("Textures/NE_Button.png");

@@ -88,7 +88,7 @@ namespace NodeEditorFramework.Utilities
 		
 		// GUI variables
 		public static GUIStyle popupBox;
-		public static Texture2D expandRight;
+		public static object expandRight;
 		public static float itemHeight;
 
 		public float minWidth;
@@ -257,7 +257,7 @@ namespace NodeEditorFramework.Utilities
 				
 				if (item.group) 
 				{
-					GUI.DrawTexture (new Rect (labelRect.x+labelRect.width-12, labelRect.y+(labelRect.height-12)/2, 12, 12), expandRight);
+					GUI.DrawTexture (new Rect (labelRect.x+labelRect.width-12, labelRect.y+(labelRect.height-12)/2, 12, 12), (Texture2D) expandRight);
 					if (selected)
 					{
 						item.groupPos = new Rect (groupRect.x+groupRect.width+4, groupRect.y+currentItemHeight-2, 0, 0);

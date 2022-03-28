@@ -720,8 +720,10 @@ namespace NodeEditorFramework.Utilities
 
 		#region Low-Level Drawing
 
-		private static Material lineMaterial;
-		private static Texture2D lineTexture;
+		private static Material lineMaterial => (Material) _lineMaterial;
+		
+		private static object _lineMaterial;
+		private static object _lineTexture;
 
 		private static void SetupLineMat (Texture tex, Color col) 
 		{
@@ -730,10 +732,10 @@ namespace NodeEditorFramework.Utilities
 				Shader lineShader = ResourceManager.LoadResource<Shader>("Shader/LineShader.shader");
 				if (lineShader == null)
 					throw new NotSupportedException("Missing line shader implementation!");
-				lineMaterial = new Material(lineShader);
+				_lineMaterial = new Material(lineShader);
 			}
 			if (tex == null)
-				tex = lineTexture != null? lineTexture : lineTexture = ResourceManager.LoadTexture ("Textures/AALine.png");
+				tex = (Texture2D)(_lineTexture ??= ResourceManager.LoadTexture ("Textures/AALine.png"));
 			lineMaterial.SetTexture ("_LineTexture", tex);
 			lineMaterial.SetColor ("_LineColor", col);
 			lineMaterial.SetPass (0);

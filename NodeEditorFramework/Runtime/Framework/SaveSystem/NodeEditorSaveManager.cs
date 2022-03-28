@@ -17,7 +17,7 @@ namespace NodeEditorFramework
 		
 		#region Scene Saving
 
-		private static GameObject sceneSaveHolder;
+		private static object sceneSaveHolder;
 		private const string sceneSaveHolderName = "NodeEditor_SceneSaveHolder";
 
 		#region Utility
@@ -134,9 +134,11 @@ namespace NodeEditorFramework
 				sceneSaveHolder = new GameObject(sceneSaveHolderName);
 			}
 
-			if (sceneSaveHolder != null)
-				sceneSaveHolder.hideFlags = HideFlags.None;//HideFlags.HideInHierarchy | HideFlags.HideInInspector;
-			return sceneSaveHolder;
+			GameObject sceneSaveHolderObject = (GameObject) sceneSaveHolder;
+
+			if (sceneSaveHolderObject != null)
+				sceneSaveHolderObject.hideFlags = HideFlags.None;//HideFlags.HideInHierarchy | HideFlags.HideInInspector;
+			return sceneSaveHolderObject;
 		}
 
 		#endregion
