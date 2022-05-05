@@ -40,6 +40,7 @@ public class NodeGridPreview : NodeBase
 
     public override void CleanUpGUI()
     {
+        if (_previewTexture != null) Destroy(_previewTexture);
         _previewTexture = null;
         _previewFunction = null;
     }
