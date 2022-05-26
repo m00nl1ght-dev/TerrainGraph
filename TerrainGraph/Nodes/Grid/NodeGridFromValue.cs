@@ -26,6 +26,14 @@ public class NodeGridFromValue : NodeBase
     {
         InputKnob.SetPosition(FirstKnobPosition);
         OutputKnob.SetPosition(FirstKnobPosition);
+        
+        GUILayout.BeginVertical(BoxStyle);
+        
+        GUILayout.BeginHorizontal(BoxStyle);
+        GUILayout.Label("", BoxLayout);
+        GUILayout.EndHorizontal();
+
+        GUILayout.EndVertical();
     }
 
     public override bool Calculate()
