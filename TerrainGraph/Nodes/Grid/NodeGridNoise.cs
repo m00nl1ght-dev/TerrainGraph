@@ -117,6 +117,7 @@ public abstract class NodeGridNoise : NodeBase
 
         public IGridFunction<double> Get()
         {
+            _random.Reinitialise(_seed); // disable different seeds for sequencial get calls
             return new GridFunction.Transform<double>(
                 new GridFunction.ScaleWithBias(
                     new GridFunction.NoiseGenerator(
@@ -128,7 +129,6 @@ public abstract class NodeGridNoise : NodeBase
 
         public void ResetState()
         {
-            _random.Reinitialise(_seed);
             _frequency.ResetState();
             _lacunarity.ResetState();
             _persistence.ResetState();
