@@ -1,5 +1,6 @@
 using System;
 using NodeEditorFramework;
+using NodeEditorFramework.Utilities;
 using TerrainGraph.Util;
 using UnityEngine;
 
@@ -37,6 +38,7 @@ public abstract class NodeGridNoise : NodeBase
     public double Bias = 0.5;
     
     public int Octaves = 6;
+    public bool DynamicSeed;
     
     public override void NodeGUI()
     {
@@ -55,6 +57,29 @@ public abstract class NodeGridNoise : NodeBase
 
         if (GUI.changed)
             canvas.OnNodeChange(this);
+    }
+    
+    public override void FillNodeActionsMenu(NodeEditorInputInfo inputInfo, GenericMenu menu)
+    {
+        base.FillNodeActionsMenu(inputInfo, menu);
+        menu.AddSeparator("");
+        
+        if (!DynamicSeed)
+        {
+            menu.AddItem(new GUIContent ("Enable dynamic seed"), false, () =>
+            {
+                DynamicSeed = true;
+                canvas.OnNodeChange(this);
+            });
+        }
+        else
+        {
+            menu.AddItem(new GUIContent ("Disable dynamic seed"), false, () =>
+            {
+                DynamicSeed = false;
+                canvas.OnNodeChange(this);
+            });
+        }
     }
     
     public override void RefreshPreview()
@@ -82,7 +107,7 @@ public abstract class NodeGridNoise : NodeBase
             SupplierOrValueFixed(PersistenceKnob, Persistence),
             SupplierOrValueFixed(ScaleKnob, Scale),
             SupplierOrValueFixed(BiasKnob, Bias),
-            Octaves, NoiseFunction, CombinedSeed, TransformScale
+            Octaves, NoiseFunction, CombinedSeed, TransformScale, DynamicSeed
         ));
         return true;
     }
@@ -98,10 +123,11 @@ public abstract class NodeGridNoise : NodeBase
         private readonly int _octaves;
         private readonly int _seed;
         private readonly double _transformScale;
+        private readonly bool _dynamicSeed;
         private readonly FastRandom _random;
 
         public Output(ISupplier<double> frequency, ISupplier<double> lacunarity, 
-            ISupplier<double> persistence, ISupplier<double> scale, ISupplier<double> bias, int octaves, GridFunction.NoiseFunction noiseFunction, int seed, double transformScale)
+            ISupplier<double> persistence, ISupplier<double> scale, ISupplier<double> bias, int octaves, GridFunction.NoiseFunction noiseFunction, int seed, double transformScale, bool dynamicSeed)
         {
             _noiseFunction = noiseFunction;
             _frequency = frequency;
@@ -112,12 +138,13 @@ public abstract class NodeGridNoise : NodeBase
             _octaves = octaves;
             _seed = seed;
             _transformScale = transformScale;
+            _dynamicSeed = dynamicSeed;
             _random = new FastRandom(seed);
         }
 
         public IGridFunction<double> Get()
         {
-            _random.Reinitialise(_seed); // disable different seeds for sequencial get calls
+            if (!_dynamicSeed) _random.Reinitialise(_seed);
             return new GridFunction.Transform<double>(
                 new GridFunction.ScaleWithBias(
                     new GridFunction.NoiseGenerator(
@@ -129,6 +156,7 @@ public abstract class NodeGridNoise : NodeBase
 
         public void ResetState()
         {
+            _random.Reinitialise(_seed);
             _frequency.ResetState();
             _lacunarity.ResetState();
             _persistence.ResetState();
