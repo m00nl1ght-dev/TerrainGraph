@@ -1,5 +1,6 @@
 using System;
 using NodeEditorFramework;
+using NodeEditorFramework.Utilities;
 using TerrainGraph.Util;
 using UnityEngine;
 
@@ -12,7 +13,7 @@ public class NodeValueRandom : NodeBase
     public const string ID = "valueRandom";
     public override string GetID => ID;
 
-    public override string Title => "Random Value";
+    public override string Title => (DynamicSeed ? "Dynamic " : "") + "Random Value";
     
     [ValueConnectionKnob("Average", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob AverageKnob;
@@ -25,6 +26,7 @@ public class NodeValueRandom : NodeBase
     
     public double Average = 0.5;
     public double Deviation = 0.5;
+    public bool DynamicSeed = true;
 
     public override void NodeGUI()
     {
@@ -41,10 +43,33 @@ public class NodeValueRandom : NodeBase
             canvas.OnNodeChange(this);
     }
     
+    public override void FillNodeActionsMenu(NodeEditorInputInfo inputInfo, GenericMenu menu)
+    {
+        base.FillNodeActionsMenu(inputInfo, menu);
+        menu.AddSeparator("");
+        
+        if (!DynamicSeed)
+        {
+            menu.AddItem(new GUIContent ("Enable dynamic seed"), false, () =>
+            {
+                DynamicSeed = true;
+                canvas.OnNodeChange(this);
+            });
+        }
+        else
+        {
+            menu.AddItem(new GUIContent ("Disable dynamic seed"), false, () =>
+            {
+                DynamicSeed = false;
+                canvas.OnNodeChange(this);
+            });
+        }
+    }
+    
     public override void RefreshPreview()
     {
-        ISupplier<double> avg = GetIfConnected<double>(AverageKnob);
-        ISupplier<double> dev = GetIfConnected<double>(DeviationKnob);
+        var avg = GetIfConnected<double>(AverageKnob);
+        var dev = GetIfConnected<double>(DeviationKnob);
         
         avg?.ResetState();
         dev?.ResetState();
@@ -58,7 +83,7 @@ public class NodeValueRandom : NodeBase
         OutputKnob.SetValue<ISupplier<double>>(new Output(
             SupplierOrValueFixed(AverageKnob, Average), 
             SupplierOrValueFixed(DeviationKnob, Deviation), 
-            CombinedSeed
+            CombinedSeed, DynamicSeed
         ));
         return true;
     }
@@ -69,17 +94,20 @@ public class NodeValueRandom : NodeBase
         private readonly ISupplier<double> _average;
         private readonly ISupplier<double> _deviation;
         private readonly int _seed;
+        private readonly bool _dynamicSeed;
 
-        public Output(ISupplier<double> average, ISupplier<double> deviation, int seed)
+        public Output(ISupplier<double> average, ISupplier<double> deviation, int seed, bool dynamicSeed)
         {
             _average = average;
             _deviation = deviation;
             _seed = seed;
+            _dynamicSeed = dynamicSeed;
             _random = new FastRandom(seed);
         }
 
         public double Get()
         {
+            if (!_dynamicSeed) _random.Reinitialise(_seed);
             double average = _average.Get();
             double deviation = _deviation.Get();
             return _random.NextDouble(average - deviation, average + deviation);
