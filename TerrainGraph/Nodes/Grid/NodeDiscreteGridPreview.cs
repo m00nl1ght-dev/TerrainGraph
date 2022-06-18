@@ -15,21 +15,21 @@ public abstract class NodeDiscreteGridPreview<T> : NodeBase
     public abstract ValueConnectionKnob OutputKnobRef { get; }
     
     [NonSerialized]
-    private Texture2D _previewTexture;
+    protected Texture2D PreviewTexture;
 
     [NonSerialized] 
-    private IGridFunction<T> _previewFunction;
+    protected IGridFunction<T> PreviewFunction;
 
     public override void PrepareGUI()
     {
-        _previewTexture = new Texture2D(PreviewSize, PreviewSize, TextureFormat.RGB24, false);
+        PreviewTexture = new Texture2D(PreviewSize, PreviewSize, TextureFormat.RGB24, false);
     }
 
     public override void CleanUpGUI()
     {
-        if (_previewTexture != null) Destroy(_previewTexture);
-        _previewTexture = null;
-        _previewFunction = null;
+        if (PreviewTexture != null) Destroy(PreviewTexture);
+        PreviewTexture = null;
+        PreviewFunction = null;
     }
 
     public override void NodeGUI()
@@ -37,10 +37,10 @@ public abstract class NodeDiscreteGridPreview<T> : NodeBase
         InputKnobRef.SetPosition(FirstKnobPosition);
         OutputKnobRef.SetPosition(FirstKnobPosition);
 
-        if (_previewTexture != null)
+        if (PreviewTexture != null)
         {
             Rect pRect = GUILayoutUtility.GetRect(PreviewSize, PreviewSize);
-            GUI.DrawTexture(pRect, _previewTexture);
+            GUI.DrawTexture(pRect, PreviewTexture);
             
             if (Event.current.type == EventType.Repaint)
             {
@@ -52,7 +52,7 @@ public abstract class NodeDiscreteGridPreview<T> : NodeBase
                     double x = Math.Max(0, Math.Min(PreviewSize, pos.x)) * previewRatio;
                     double y = GridSize - Math.Max(0, Math.Min(PreviewSize, pos.y)) * previewRatio;
 
-                    T value = _previewFunction == null ? default : _previewFunction.ValueAt(x, y);
+                    T value = PreviewFunction == null ? default : PreviewFunction.ValueAt(x, y);
                     return MakeTooltip(value, x, y);
                 }, 0f);
             }
@@ -68,17 +68,17 @@ public abstract class NodeDiscreteGridPreview<T> : NodeBase
     public override void RefreshPreview()
     {
         var previewRatio = TerrainCanvas.GridPreviewRatio;
-        _previewFunction = InputKnobRef.connected() ? InputKnobRef.GetValue<ISupplier<IGridFunction<T>>>().ResetAndGet() : Default;
+        PreviewFunction = InputKnobRef.connected() ? InputKnobRef.GetValue<ISupplier<IGridFunction<T>>>().ResetAndGet() : Default;
         
         for (int x = 0; x < TerrainCanvas.GridPreviewSize; x++)
         {
             for (int y = 0; y < TerrainCanvas.GridPreviewSize; y++)
             {
-                Color color = GetColor(_previewFunction.ValueAt(x * previewRatio, y * previewRatio));
-                _previewTexture.SetPixel(x, y, color);
+                Color color = GetColor(PreviewFunction.ValueAt(x * previewRatio, y * previewRatio));
+                PreviewTexture.SetPixel(x, y, color);
             }
         }
         
-        _previewTexture.Apply();
+        PreviewTexture.Apply();
     }
 }

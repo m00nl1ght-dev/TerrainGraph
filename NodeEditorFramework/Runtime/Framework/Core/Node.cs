@@ -371,7 +371,7 @@ namespace NodeEditorFramework
 			UnityEditor.Undo.FlushUndoRecordObjects();
 #endif
 
-			if(Event.current.type == EventType.Repaint)
+			if(AutoLayout && Event.current.type == EventType.Repaint)
 				nodeGUIHeight = GUILayoutUtility.GetLastRect().max + contentOffset;
 
 			// End NodeGUI frame
