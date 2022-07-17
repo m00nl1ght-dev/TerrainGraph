@@ -117,7 +117,7 @@ public class NodeGridPreview : NodeBase
     
     public static void RegisterPreviewModel(IPreviewModel model, string id)
     {
-        PreviewModels.Add(id, model);
+        PreviewModels[id] = model;
     }
 
     static NodeGridPreview()

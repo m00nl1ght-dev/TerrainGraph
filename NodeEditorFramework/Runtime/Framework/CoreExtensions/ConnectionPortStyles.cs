@@ -35,8 +35,6 @@ namespace NodeEditorFramework
 				connectionPortStyles.Add (portStyle.Identifier, portStyle);
 				if (type.IsSubclassOf (typeof(ValueConnectionType)))
 					connectionValueTypes.Add (portStyle.Identifier, (ValueConnectionType)portStyle);
-				if (!portStyle.isValid())
-					Debug.LogError("Style " + portStyle.Identifier + " is invalid!");
 			}
 		}
 

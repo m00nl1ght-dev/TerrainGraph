@@ -234,7 +234,7 @@ namespace NodeEditorFramework
 
 		public override bool isValid ()
 		{
-			bool valid = Type != null && InKnobTex != null && OutKnobTex != null;
+			bool valid = Type != null;
 			if (!valid)
 				Debug.LogError("Type " + Identifier + " is invalid! Type-Null?" + (type == null) + ", InTex-Null?" + (InKnobTex == null) + ", OutTex-Null?" + (OutKnobTex == null));
 			return valid;

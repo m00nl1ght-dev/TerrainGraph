@@ -364,7 +364,6 @@ namespace NodeEditorFramework
 		}
 	}
 
-
 	[ReflectionUtility.ReflectionSearchIgnoreAttribute ()]
 	public class ConnectionKnobStyle : ConnectionPortStyle
 	{
@@ -386,11 +385,6 @@ namespace NodeEditorFramework
 			_outKnobTex = ResourceManager.GetTintedTexture (OutKnobTexPath, Color);
 			if (InKnobTex == null || OutKnobTex == null)
 				Debug.LogError("Invalid style '" + Identifier + "': Could not load knob textures from '" + InKnobTexPath + "' and '" + OutKnobTexPath + "'!");
-		}
-
-		public override bool isValid ()
-		{
-			return InKnobTex != null && OutKnobTex != null;
 		}
 	}
 }
