@@ -9,7 +9,8 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
 [assembly: AssemblyProduct("TerrainGraph")]
-[assembly: AssemblyCopyright("Copyright © 2022 m00nl1ght <https://github.com/m00nl1ght-dev>")]
+[assembly: AssemblyCopyright("Copyright of TerrainGraph © 2022 m00nl1ght <https://github.com/m00nl1ght-dev>, " +
+                             "Copyright of NodeEditorFramework © 2019 Levin Gäher and © 2015 Baste Nesse Buanes")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
