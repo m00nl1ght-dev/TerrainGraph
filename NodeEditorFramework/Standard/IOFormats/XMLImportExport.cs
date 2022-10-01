@@ -7,6 +7,7 @@ using System.Xml;
 using System.Xml.Serialization;
 using System.Xml.XPath;
 using System.Reflection;
+using NodeEditorFramework.Utilities;
 using UnityEngine;
 
 namespace NodeEditorFramework.IO
@@ -172,6 +173,7 @@ namespace NodeEditorFramework.IO
 				{
 					int refID = GetIntegerAttribute(xmlObject, "refID");
 					string typeName = xmlObject.GetAttribute("type");
+					typeName = ReflectionUtility.ApplyIdentifierReplacements(typeName);
 					Type type = Type.GetType(typeName, true);
 					object obj = DeserializeObjectFromXML(xmlObject, type);
 					ObjectData objData = new ObjectData(refID, obj);
@@ -207,6 +209,7 @@ namespace NodeEditorFramework.IO
 						else
 						{ // Deserialize dynamic port
 							string typeName = xmlPort.GetAttribute("type");
+							typeName = ReflectionUtility.ApplyIdentifierReplacements(typeName);
 							Type portType = Type.GetType(typeName, true);
 							if (portType != typeof(ConnectionPort) && !portType.IsSubclassOf(typeof(ConnectionPort)))
 								continue; // Invalid type stored
@@ -249,6 +252,7 @@ namespace NodeEditorFramework.IO
 						else
 						{ // Read value-type variable (old save file only) TODOx: Remove
 							string typeName = xmlVariable.GetAttribute("type");
+							typeName = ReflectionUtility.ApplyIdentifierReplacements(typeName);
 							Type type = Type.GetType(typeName, true);
 							varData.value = DeserializeObjectFromXML(xmlVariable, type);
 						}

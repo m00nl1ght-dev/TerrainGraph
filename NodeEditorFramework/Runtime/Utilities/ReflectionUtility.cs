@@ -8,16 +8,27 @@ namespace NodeEditorFramework.Utilities
 {
 	public static class ReflectionUtility
 	{
-		private static readonly HashSet<Assembly> _searchableAssemblies = new();
+		private static readonly HashSet<Assembly> SearchableAssemblies = new();
+		private static readonly Dictionary<string, string> IdentifierReplacements = new();
 
 		static ReflectionUtility()
 		{
-			_searchableAssemblies.Add(typeof(ReflectionUtility).Assembly);
+			SearchableAssemblies.Add(typeof(ReflectionUtility).Assembly);
 		}
 
 		public static void AddSearchableAssembly(Assembly assembly)
 		{
-			_searchableAssemblies.Add(assembly);
+			SearchableAssemblies.Add(assembly);
+		}
+		
+		public static void AddIdentifierReplacement(string oldName, string newName)
+		{
+			IdentifierReplacements[oldName] = newName;
+		}
+
+		public static string ApplyIdentifierReplacements(string input)
+		{
+			return IdentifierReplacements.Aggregate(input, (current, replacement) => current.Replace(replacement.Key, replacement.Value));
 		}
 		
 		public class ReflectionSearchIgnoreAttribute : Attribute
@@ -30,7 +41,7 @@ namespace NodeEditorFramework.Utilities
 		/// </summary>
 		public static Assembly[] getScriptAssemblies () 
 		{
-			return _searchableAssemblies
+			return SearchableAssemblies
 				.Where ((Assembly assembly) => !assembly.FullName.StartsWith ("Unity") && assembly.FullName.EndsWith ("null"))
 				//.Where ((Assembly assembly) => assembly.FullName.Contains ("Assembly"))
 				.ToArray();
