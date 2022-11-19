@@ -270,13 +270,51 @@ public static class GridFunction
             ScaleX = scaleX;
             ScaleZ = scaleZ;
         }
+        
+        public Transform(IGridFunction<T> input, double scale)
+        {
+            Input = input;
+            ScaleX = scale;
+            ScaleZ = scale;
+        }
 
         public T ValueAt(double x, double z)
         {
             return Input.ValueAt(x * ScaleX + TranslateX, z * ScaleZ + TranslateZ);
         }
     }
-    
+
+    public class Cache<T> : IGridFunction<T>
+    {
+        public readonly int SizeX;
+        public readonly int SizeZ;
+        public readonly T[,] Grid;
+        public readonly T Fallback;
+        
+        public Cache(T[,] grid, T fallback = default)
+        {
+            SizeX = grid.GetLength(0);
+            SizeZ = grid.GetLength(1);
+            Grid = grid;
+            Fallback = fallback;
+        }
+
+        public Cache(int sizeX, int sizeZ, T fallback = default)
+        {
+            SizeX = sizeX;
+            SizeZ = sizeZ;
+            Grid = new T[sizeX, sizeZ];
+            Fallback = fallback;
+        }
+
+        public T ValueAt(double x, double z)
+        {
+            var ix = (int) Math.Round(x);
+            var iz = (int) Math.Round(z);
+            return ix < 0 || ix >= SizeX || iz < 0 || iz >= SizeZ ? Fallback : Grid[ix, iz];
+        }
+    }
+
     public static double DegToRad(double angle) {
         return (Math.PI / 180) * angle;
     }

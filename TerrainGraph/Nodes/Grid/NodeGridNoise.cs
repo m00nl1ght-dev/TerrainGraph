@@ -150,7 +150,7 @@ public abstract class NodeGridNoise : NodeBase
                     new GridFunction.NoiseGenerator(
                         _noiseFunction, _frequency.Get(), _lacunarity.Get(), _persistence.Get(), _octaves, _random.Next()
                     ), 
-                    _scale.Get(), _bias.Get()), 0f, 0f, _transformScale, _transformScale
+                    _scale.Get(), _bias.Get()), _transformScale
             );
         }
 
