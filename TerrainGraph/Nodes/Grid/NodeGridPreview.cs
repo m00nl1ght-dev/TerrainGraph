@@ -15,8 +15,7 @@ public class NodeGridPreview : NodeBase
     public override string GetID => ID;
 
     public override string Title => "Preview";
-    public int PreviewSize => TerrainCanvas?.GridPreviewSize ?? 100;
-    public override Vector2 DefaultSize => new(PreviewSize, PreviewSize + 20);
+    public override Vector2 DefaultSize => new(_previewSize, _previewSize + 20);
     public override bool AutoLayout => false;
     
     [ValueConnectionKnob("Input", Direction.In, GridFunctionConnection.Id)]
@@ -28,6 +27,12 @@ public class NodeGridPreview : NodeBase
     public string PreviewModelId = "Default";
     
     [NonSerialized]
+    private int _previewSize = 100;
+    
+    [NonSerialized]
+    private Color[] _previewBuffer;
+    
+    [NonSerialized]
     private Texture2D _previewTexture;
 
     [NonSerialized] 
@@ -35,13 +40,16 @@ public class NodeGridPreview : NodeBase
 
     public override void PrepareGUI()
     {
-        _previewTexture = new Texture2D(PreviewSize, PreviewSize, TextureFormat.RGB24, false);
+        _previewSize = TerrainCanvas?.GridPreviewSize ?? 100;
+        _previewBuffer = new Color[_previewSize * _previewSize];
+        _previewTexture = new Texture2D(_previewSize, _previewSize, TextureFormat.RGB24, false);
     }
 
     public override void CleanUpGUI()
     {
         if (_previewTexture != null) Destroy(_previewTexture);
         _previewTexture = null;
+        _previewBuffer = null;
         _previewFunction = null;
     }
 
@@ -50,25 +58,31 @@ public class NodeGridPreview : NodeBase
         InputKnob.SetPosition(FirstKnobPosition);
         OutputKnob.SetPosition(FirstKnobPosition);
 
+        var pRect = GUILayoutUtility.GetRect(_previewSize, _previewSize);
+        
         if (_previewTexture != null)
         {
-            Rect pRect = GUILayoutUtility.GetRect(PreviewSize, PreviewSize);
             GUI.DrawTexture(pRect, _previewTexture);
             
             if (Event.current.type == EventType.Repaint)
             {
                 ActiveTooltipHandler?.Invoke(pRect, () =>
                 {
-                    Vector2 pos = NodeEditor.ScreenToCanvasSpace(Event.current.mousePosition) - rect.min - contentOffset;
+                    var pos = NodeEditor.ScreenToCanvasSpace(Event.current.mousePosition) - rect.min - contentOffset;
                     double previewRatio = TerrainCanvas.GridPreviewRatio;
                     
-                    double x = Math.Max(0, Math.Min(PreviewSize, pos.x)) * previewRatio;
-                    double y = GridSize - Math.Max(0, Math.Min(PreviewSize, pos.y)) * previewRatio;
+                    double x = Math.Max(0, Math.Min(_previewSize, pos.x)) * previewRatio;
+                    double y = GridSize - Math.Max(0, Math.Min(_previewSize, pos.y)) * previewRatio;
 
                     double value = _previewFunction?.ValueAt(x, y) ?? 0;
                     return Math.Round(value, 2) + " ( " + Math.Round(x, 0) + " | " + Math.Round(y, 0) + " )";
                 }, 0f);
             }
+        }
+
+        if (OngoingPreviewTask != null)
+        {
+            TerrainCanvas.PreviewScheduler.DrawLoadingIndicator(this, pRect);
         }
     }
     
@@ -95,21 +109,31 @@ public class NodeGridPreview : NodeBase
     public override void RefreshPreview()
     {
         var previewRatio = TerrainCanvas.GridPreviewRatio;
-        PreviewModels.TryGetValue(PreviewModelId, out IPreviewModel previewModel);
+        PreviewModels.TryGetValue(PreviewModelId, out var previewModel);
         previewModel ??= DefaultModel;
         
-        _previewFunction = InputKnob.connected() ? InputKnob.GetValue<ISupplier<IGridFunction<double>>>().ResetAndGet() : GridFunction.Zero;
-        
-        for (int x = 0; x < TerrainCanvas.GridPreviewSize; x++)
-        {
-            for (int y = 0; y < TerrainCanvas.GridPreviewSize; y++)
-            {
-                var val = (float) _previewFunction.ValueAt(x * previewRatio, y * previewRatio);
-                _previewTexture.SetPixel(x, y, previewModel.GetColorFor(val, x, y));
-            }
-        }
-        
+        _previewTexture.SetPixels(_previewBuffer);
         _previewTexture.Apply();
+        
+        var supplier = InputKnob.connected() ? InputKnob.GetValue<ISupplier<IGridFunction<double>>>() : null;
+        
+        TerrainCanvas.PreviewScheduler.ScheduleTask(new PreviewTask(this, () => 
+        {
+            _previewFunction = supplier != null ? supplier.ResetAndGet() : GridFunction.Zero;
+            
+            for (int x = 0; x < _previewSize; x++)
+            {
+                for (int y = 0; y < _previewSize; y++)
+                {
+                    var val = (float) _previewFunction.ValueAt(x * previewRatio, y * previewRatio);
+                    _previewBuffer[y * _previewSize + x] = previewModel.GetColorFor(val, x, y);
+                }
+            }
+        }, () =>
+        {
+            _previewTexture.SetPixels(_previewBuffer);
+            _previewTexture.Apply();
+        }));
     }
 
     private static readonly Dictionary<string, IPreviewModel> PreviewModels = new();

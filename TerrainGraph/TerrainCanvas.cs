@@ -21,6 +21,8 @@ public class TerrainCanvas : NodeCanvas
     public int RandSeed = NodeBase.SeedSource.Next();
     public bool HasActiveGUI { get; private set; }
 
+    public virtual IPreviewScheduler PreviewScheduler => BasicPreviewScheduler.Instance;
+
     protected override void OnCreate() 
     {
         ValidateSelf();

@@ -23,8 +23,8 @@ namespace NodeEditorFramework.Utilities
 		private static Func<Rect> topmostRectDelegate;
 
 		// Delegate accessors
-		public static Rect getTopRect { get { return (Rect)GetTopRectDelegate.Invoke (); } }
-		public static Rect getTopRectScreenSpace { get { return (Rect)topmostRectDelegate.Invoke (); } }
+		public static Rect getTopRect => GetTopRectDelegate.Invoke ();
+		public static Rect getTopRectScreenSpace => topmostRectDelegate.Invoke ();
 
 		// Rect stack for manipulating groups
 		public static List<Rect> currentRectStack { get; private set; }
@@ -53,13 +53,13 @@ namespace NodeEditorFramework.Utilities
 			adjustedGUILayout = new List<bool> ();
 
 			// Fetch rect acessors using Reflection
-			Assembly UnityEngine = Assembly.GetAssembly (typeof (UnityEngine.GUI));
-			Type GUIClipType = UnityEngine.GetType ("UnityEngine.GUIClip", true);
+			Assembly UnityEngine = Assembly.GetAssembly (typeof (GUI));
+			Type GUIClipType = UnityEngine.GetType ("UnityEngine.GUIClip", false);
 
-			PropertyInfo topmostRect = GUIClipType.GetProperty ("topmostRect", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-			MethodInfo GetTopmostRect = topmostRect != null? (topmostRect.GetGetMethod(false) ?? topmostRect.GetGetMethod(true)) : null;
-			MethodInfo GetTopRect = GUIClipType.GetMethod ("GetTopRect", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-			MethodInfo ClipRect = GUIClipType.GetMethod ("Clip", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic, Type.DefaultBinder, new Type[] { typeof(Rect) }, new ParameterModifier[] {});
+			PropertyInfo topmostRect = GUIClipType?.GetProperty ("topmostRect", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+			MethodInfo GetTopmostRect = topmostRect != null ? (topmostRect.GetGetMethod(false) ?? topmostRect.GetGetMethod(true)) : null;
+			MethodInfo GetTopRect = GUIClipType?.GetMethod ("GetTopRect", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+			MethodInfo ClipRect = GUIClipType?.GetMethod ("Clip", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic, Type.DefaultBinder, new[] { typeof(Rect) }, new ParameterModifier[] {});
 
 			if (GUIClipType == null || topmostRect == null || GetTopRect == null || ClipRect == null) 
 			{
@@ -77,7 +77,6 @@ namespace NodeEditorFramework.Utilities
 			if (GetTopRectDelegate == null || topmostRectDelegate == null)
 			{
 				Debug.LogWarning ("GUIScaleUtility cannot run on this system! Compability mode enabled. For you that means you're not able to use the Node Editor inside more than one group:( Please PM me (Seneral @UnityForums) so I can figure out what causes this! Thanks!");
-				Debug.LogWarning ((GUIClipType == null? "GUIClipType is Null, " : "") + (topmostRect == null? "topmostRect is Null, " : "") + (GetTopRect == null? "GetTopRect is Null, " : "") + (ClipRect == null? "ClipRect is Null, " : ""));
 				compabilityMode = true;
 				initiated = true;
 				return;
@@ -102,7 +101,7 @@ namespace NodeEditorFramework.Utilities
 
 		#region Scale Area
 
-		public static Vector2 getCurrentScale { get { return new Vector2 (1/GUI.matrix.GetColumn (0).magnitude, 1/GUI.matrix.GetColumn (1).magnitude); } } 
+		public static Vector2 getCurrentScale => new Vector2 (1/GUI.matrix.GetColumn (0).magnitude, 1/GUI.matrix.GetColumn (1).magnitude);
 
 		/// <summary>
 		/// Begins a scaled local area. 
@@ -125,8 +124,8 @@ namespace NodeEditorFramework.Utilities
 			}
 			else
 			{ // If it's supported, we take the completely generic way using reflected calls
-				GUIScaleUtility.BeginNoClip ();
-				screenRect = GUIScaleUtility.GUIToScaledSpace (rect);
+				BeginNoClip ();
+				screenRect = GUIToScaledSpace (rect);
 			}
 
 			rect = Scale (screenRect, screenRect.position + zoomPivot, new Vector2 (zoom, zoom));
@@ -190,7 +189,7 @@ namespace NodeEditorFramework.Utilities
 			}
 			else
 			{ // Else, restore the clips (groups)
-				GUIScaleUtility.RestoreClips ();
+				RestoreClips ();
 			}
 		}
 

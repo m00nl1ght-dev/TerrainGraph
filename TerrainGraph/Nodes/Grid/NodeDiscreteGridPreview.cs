@@ -7,12 +7,17 @@ namespace TerrainGraph;
 [Serializable]
 public abstract class NodeDiscreteGridPreview<T> : NodeBase
 {
-    public int PreviewSize => TerrainCanvas?.GridPreviewSize ?? 100;
     public override Vector2 DefaultSize => new(PreviewSize, PreviewSize + 20);
     public override bool AutoLayout => false;
     
     public abstract ValueConnectionKnob InputKnobRef { get; }
     public abstract ValueConnectionKnob OutputKnobRef { get; }
+    
+    [NonSerialized]
+    protected int PreviewSize = 100;
+    
+    [NonSerialized]
+    protected Color[] PreviewBuffer;
     
     [NonSerialized]
     protected Texture2D PreviewTexture;
@@ -22,6 +27,8 @@ public abstract class NodeDiscreteGridPreview<T> : NodeBase
 
     public override void PrepareGUI()
     {
+        PreviewSize = TerrainCanvas?.GridPreviewSize ?? 100;
+        PreviewBuffer = new Color[PreviewSize * PreviewSize];
         PreviewTexture = new Texture2D(PreviewSize, PreviewSize, TextureFormat.RGB24, false);
     }
 
@@ -29,6 +36,7 @@ public abstract class NodeDiscreteGridPreview<T> : NodeBase
     {
         if (PreviewTexture != null) Destroy(PreviewTexture);
         PreviewTexture = null;
+        PreviewBuffer = null;
         PreviewFunction = null;
     }
 
@@ -37,25 +45,31 @@ public abstract class NodeDiscreteGridPreview<T> : NodeBase
         InputKnobRef.SetPosition(FirstKnobPosition);
         OutputKnobRef.SetPosition(FirstKnobPosition);
 
+        var pRect = GUILayoutUtility.GetRect(PreviewSize, PreviewSize);
+        
         if (PreviewTexture != null)
         {
-            Rect pRect = GUILayoutUtility.GetRect(PreviewSize, PreviewSize);
             GUI.DrawTexture(pRect, PreviewTexture);
             
             if (Event.current.type == EventType.Repaint)
             {
                 ActiveTooltipHandler?.Invoke(pRect, () =>
                 {
-                    Vector2 pos = NodeEditor.ScreenToCanvasSpace(Event.current.mousePosition) - rect.min - contentOffset;
+                    var pos = NodeEditor.ScreenToCanvasSpace(Event.current.mousePosition) - rect.min - contentOffset;
                     double previewRatio = TerrainCanvas.GridPreviewRatio;
                     
                     double x = Math.Max(0, Math.Min(PreviewSize, pos.x)) * previewRatio;
                     double y = GridSize - Math.Max(0, Math.Min(PreviewSize, pos.y)) * previewRatio;
 
-                    T value = PreviewFunction == null ? default : PreviewFunction.ValueAt(x, y);
+                    var value = PreviewFunction == null ? default : PreviewFunction.ValueAt(x, y);
                     return MakeTooltip(value, x, y);
                 }, 0f);
             }
+        }
+        
+        if (OngoingPreviewTask != null)
+        {
+            TerrainCanvas.PreviewScheduler.DrawLoadingIndicator(this, pRect);
         }
     }
 
@@ -68,17 +82,24 @@ public abstract class NodeDiscreteGridPreview<T> : NodeBase
     public override void RefreshPreview()
     {
         var previewRatio = TerrainCanvas.GridPreviewRatio;
-        PreviewFunction = InputKnobRef.connected() ? InputKnobRef.GetValue<ISupplier<IGridFunction<T>>>().ResetAndGet() : Default;
+        var supplier = InputKnobRef.connected() ? InputKnobRef.GetValue<ISupplier<IGridFunction<T>>>() : null;
         
-        for (int x = 0; x < TerrainCanvas.GridPreviewSize; x++)
+        TerrainCanvas.PreviewScheduler.ScheduleTask(new PreviewTask(this, () => 
         {
-            for (int y = 0; y < TerrainCanvas.GridPreviewSize; y++)
+            PreviewFunction = supplier != null ? supplier.ResetAndGet() : Default;
+            
+            for (int x = 0; x < PreviewSize; x++)
             {
-                Color color = GetColor(PreviewFunction.ValueAt(x * previewRatio, y * previewRatio));
-                PreviewTexture.SetPixel(x, y, color);
+                for (int y = 0; y < PreviewSize; y++)
+                {
+                    var color = GetColor(PreviewFunction.ValueAt(x * previewRatio, y * previewRatio));
+                    PreviewBuffer[y * PreviewSize + x] = color;
+                }
             }
-        }
-        
-        PreviewTexture.Apply();
+        }, () =>
+        {
+            PreviewTexture.SetPixels(PreviewBuffer);
+            PreviewTexture.Apply();
+        }));
     }
 }

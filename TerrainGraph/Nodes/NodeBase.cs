@@ -21,7 +21,9 @@ public abstract class NodeBase : Node
     public override bool AutoLayout => true;
 
     public int RandSeed = SeedSource.Next();
-    public int CombinedSeed => RandSeed ^ TerrainCanvas.RandSeed;
+    public int CombinedSeed => RandSeed ^ TerrainCanvas.RandSeed; // TODO use proper hash
+    
+    public PreviewTask OngoingPreviewTask { get; set; }
 
     public const int FirstKnobPosition = 37;
     
