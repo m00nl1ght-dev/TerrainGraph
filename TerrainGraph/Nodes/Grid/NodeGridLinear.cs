@@ -13,34 +13,34 @@ public class NodeGridLinear : NodeBase
     public override string GetID => ID;
 
     public override string Title => Circular ? "Circular Function" : "Linear Function";
-    
+
     [NonSerialized]
     public ValueConnectionKnob BiasKnob;
-    
+
     [NonSerialized]
     public ValueConnectionKnob ClampMinKnob;
-    
+
     [NonSerialized]
     public ValueConnectionKnob ClampMaxKnob;
-    
+
     [NonSerialized]
     public ValueConnectionKnob OriginXKnob;
-    
+
     [NonSerialized]
     public ValueConnectionKnob OriginZKnob;
-    
+
     [NonSerialized]
     public ValueConnectionKnob SpanPxKnob;
-    
+
     [NonSerialized]
     public ValueConnectionKnob SpanNxKnob;
-    
+
     [NonSerialized]
     public ValueConnectionKnob SpanPzKnob;
-    
+
     [NonSerialized]
     public ValueConnectionKnob SpanNzKnob;
-    
+
     private static readonly ValueConnectionKnobAttribute BiasKnobAttribute = new("Bias", Direction.In, ValueFunctionConnection.Id);
     private static readonly ValueConnectionKnobAttribute ClampMinKnobAttribute = new("Clamp min", Direction.In, ValueFunctionConnection.Id);
     private static readonly ValueConnectionKnobAttribute ClampMaxKnobAttribute = new("Clamp max", Direction.In, ValueFunctionConnection.Id);
@@ -53,7 +53,7 @@ public class NodeGridLinear : NodeBase
 
     [ValueConnectionKnob("Output", Direction.Out, GridFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
-    
+
     public double Bias;
     public double ClampMin = double.MinValue;
     public double ClampMax = double.MaxValue;
@@ -63,9 +63,9 @@ public class NodeGridLinear : NodeBase
     public double SpanNx;
     public double SpanPz;
     public double SpanNz;
-    
+
     public bool Circular;
-    
+
     public override void RefreshDynamicKnobs()
     {
         BiasKnob = FindDynamicKnob(BiasKnobAttribute);
@@ -93,9 +93,9 @@ public class NodeGridLinear : NodeBase
     public override void NodeGUI()
     {
         OutputKnob.SetPosition(FirstKnobPosition);
-        
+
         GUILayout.BeginVertical(BoxStyle);
-        
+
         if (BiasKnob != null) KnobValueField(BiasKnob, ref Bias);
         if (ClampMinKnob != null) KnobValueField(ClampMinKnob, ref ClampMin);
         if (ClampMaxKnob != null) KnobValueField(ClampMaxKnob, ref ClampMax);
@@ -105,7 +105,7 @@ public class NodeGridLinear : NodeBase
         if (SpanNxKnob != null) KnobValueField(SpanNxKnob, ref SpanNx, KnobName("Span", "x", "n"));
         if (SpanPzKnob != null) KnobValueField(SpanPzKnob, ref SpanPz, KnobName("Span", "z", "p"));
         if (SpanNzKnob != null) KnobValueField(SpanNzKnob, ref SpanNz, KnobName("Span", "z", "n"));
-        
+
         GUILayout.EndVertical();
 
         if (GUI.changed)
@@ -122,17 +122,17 @@ public class NodeGridLinear : NodeBase
 
     public override void RefreshPreview()
     {
-        ISupplier<double> bias = GetIfConnected<double>(BiasKnob);
-        ISupplier<double> min = GetIfConnected<double>(ClampMinKnob);
-        ISupplier<double> max = GetIfConnected<double>(ClampMaxKnob);
-        ISupplier<double> oX = GetIfConnected<double>(OriginXKnob);
-        ISupplier<double> oZ = GetIfConnected<double>(OriginZKnob);
-        ISupplier<double> sPx = GetIfConnected<double>(SpanPxKnob);
-        ISupplier<double> sNx = GetIfConnected<double>(SpanNxKnob);
-        ISupplier<double> sPz = GetIfConnected<double>(SpanPzKnob);
-        ISupplier<double> sNz = GetIfConnected<double>(SpanNzKnob);
-        
-        foreach (ISupplier<double> supplier in new[]{bias, min, max, oX, oZ, sPx, sNx, sPz, sNz}) supplier?.ResetState();
+        var bias = GetIfConnected<double>(BiasKnob);
+        var min = GetIfConnected<double>(ClampMinKnob);
+        var max = GetIfConnected<double>(ClampMaxKnob);
+        var oX = GetIfConnected<double>(OriginXKnob);
+        var oZ = GetIfConnected<double>(OriginZKnob);
+        var sPx = GetIfConnected<double>(SpanPxKnob);
+        var sNx = GetIfConnected<double>(SpanNxKnob);
+        var sPz = GetIfConnected<double>(SpanPzKnob);
+        var sNz = GetIfConnected<double>(SpanNzKnob);
+
+        foreach (var supplier in new[] { bias, min, max, oX, oZ, sPx, sNx, sPz, sNz }) supplier?.ResetState();
 
         if (bias != null) Bias = bias.Get();
         if (min != null) ClampMin = min.Get();
@@ -144,7 +144,7 @@ public class NodeGridLinear : NodeBase
         if (sPz != null) SpanPz = sPz.Get();
         if (sNz != null) SpanNz = sNz.Get();
     }
-    
+
     public override void FillNodeActionsMenu(NodeEditorInputInfo inputInfo, GenericMenu menu)
     {
         base.FillNodeActionsMenu(inputInfo, menu);
@@ -152,7 +152,7 @@ public class NodeGridLinear : NodeBase
 
         if (OriginZKnob != null)
         {
-            menu.AddItem(new GUIContent ("Switch to 1d"), false, () =>
+            menu.AddItem(new GUIContent("Switch to 1d"), false, () =>
             {
                 DeleteConnectionPort(OriginZKnob);
                 DeleteConnectionPort(SpanPzKnob);
@@ -166,7 +166,7 @@ public class NodeGridLinear : NodeBase
         }
         else
         {
-            menu.AddItem(new GUIContent ("Switch to 2d"), false, () =>
+            menu.AddItem(new GUIContent("Switch to 2d"), false, () =>
             {
                 OriginZKnob ??= (ValueConnectionKnob) CreateConnectionKnob(OriginZKnobAttribute);
                 SpanPzKnob ??= (ValueConnectionKnob) CreateConnectionKnob(SpanPzKnobAttribute);
@@ -174,10 +174,10 @@ public class NodeGridLinear : NodeBase
                 canvas.OnNodeChange(this);
             });
         }
-        
+
         if (SpanNxKnob != null)
         {
-            menu.AddItem(new GUIContent ("Switch to symmetric"), false, () =>
+            menu.AddItem(new GUIContent("Switch to symmetric"), false, () =>
             {
                 DeleteConnectionPort(SpanNxKnob);
                 DeleteConnectionPort(SpanNzKnob);
@@ -189,7 +189,7 @@ public class NodeGridLinear : NodeBase
         }
         else
         {
-            menu.AddItem(new GUIContent ("Switch to asymmetric"), false, () =>
+            menu.AddItem(new GUIContent("Switch to asymmetric"), false, () =>
             {
                 SpanNxKnob ??= (ValueConnectionKnob) CreateConnectionKnob(SpanNxKnobAttribute);
                 if (OriginZKnob != null) SpanNzKnob ??= (ValueConnectionKnob) CreateConnectionKnob(SpanNzKnobAttribute);
@@ -198,12 +198,12 @@ public class NodeGridLinear : NodeBase
                 canvas.OnNodeChange(this);
             });
         }
-        
+
         menu.AddSeparator("");
-        
+
         if (Circular)
         {
-            menu.AddItem(new GUIContent ("Switch to linear"), false, () =>
+            menu.AddItem(new GUIContent("Switch to linear"), false, () =>
             {
                 Circular = false;
                 canvas.OnNodeChange(this);
@@ -211,16 +211,16 @@ public class NodeGridLinear : NodeBase
         }
         else
         {
-            menu.AddItem(new GUIContent ("Switch to circular"), false, () =>
+            menu.AddItem(new GUIContent("Switch to circular"), false, () =>
             {
                 Circular = true;
                 canvas.OnNodeChange(this);
             });
         }
-        
+
         if (ClampMinKnob != null)
         {
-            menu.AddItem(new GUIContent ("Remove clamp"), false, () =>
+            menu.AddItem(new GUIContent("Remove clamp"), false, () =>
             {
                 DeleteConnectionPort(ClampMinKnob);
                 DeleteConnectionPort(ClampMaxKnob);
@@ -232,7 +232,7 @@ public class NodeGridLinear : NodeBase
         }
         else
         {
-            menu.AddItem(new GUIContent ("Add clamp"), false, () =>
+            menu.AddItem(new GUIContent("Add clamp"), false, () =>
             {
                 ClampMinKnob ??= (ValueConnectionKnob) CreateConnectionKnob(ClampMinKnobAttribute);
                 ClampMaxKnob ??= (ValueConnectionKnob) CreateConnectionKnob(ClampMaxKnobAttribute);
@@ -259,7 +259,7 @@ public class NodeGridLinear : NodeBase
         ));
         return true;
     }
-    
+
     private class Output : ISupplier<IGridFunction<double>>
     {
         private readonly ISupplier<double> _bias;
@@ -274,10 +274,12 @@ public class NodeGridLinear : NodeBase
         private readonly bool _circular;
         private readonly double _gridSize;
 
-        public Output(ISupplier<double> bias, ISupplier<double> clampMin, ISupplier<double> clampMax, 
-            ISupplier<double> originX, ISupplier<double> originZ, 
-            ISupplier<double> spanPx, ISupplier<double> spanNx, 
-            ISupplier<double> spanPz, ISupplier<double> spanNz, 
+        public Output(
+            ISupplier<double> bias,
+            ISupplier<double> clampMin, ISupplier<double> clampMax,
+            ISupplier<double> originX, ISupplier<double> originZ,
+            ISupplier<double> spanPx, ISupplier<double> spanNx,
+            ISupplier<double> spanPz, ISupplier<double> spanNz,
             bool circular, double gridSize)
         {
             _bias = bias;

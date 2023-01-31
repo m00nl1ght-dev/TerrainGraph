@@ -12,29 +12,29 @@ public class NodeGridRotate : NodeBase
     public override string GetID => ID;
 
     public override string Title => "Rotate";
-    
+
     [ValueConnectionKnob("Input", Direction.In, GridFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
-    
+
     [ValueConnectionKnob("Angle", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob AngleKnob;
-    
+
     [ValueConnectionKnob("Output", Direction.Out, GridFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
-    
+
     public double Angle;
 
     public override void NodeGUI()
     {
         InputKnob.SetPosition(FirstKnobPosition);
         OutputKnob.SetPosition(FirstKnobPosition);
-        
+
         GUILayout.BeginVertical(BoxStyle);
-        
+
         GUILayout.BeginHorizontal(BoxStyle);
         GUILayout.Label("Input", BoxLayout);
         GUILayout.EndHorizontal();
-        
+
         KnobValueField(AngleKnob, ref Angle);
 
         GUILayout.EndVertical();
@@ -42,23 +42,23 @@ public class NodeGridRotate : NodeBase
         if (GUI.changed)
             canvas.OnNodeChange(this);
     }
-    
+
     public override void RefreshPreview()
     {
-        ISupplier<double> supplier = GetIfConnected<double>(AngleKnob);
+        var supplier = GetIfConnected<double>(AngleKnob);
         if (supplier != null) Angle = supplier.ResetAndGet();
     }
 
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output(
-            SupplierOrGridFixed(InputKnob, GridFunction.Zero), 
+            SupplierOrGridFixed(InputKnob, GridFunction.Zero),
             SupplierOrValueFixed(AngleKnob, Angle),
             GridSize / 2, GridSize / 2
         ));
         return true;
     }
-    
+
     public class Output : ISupplier<IGridFunction<double>>
     {
         private readonly ISupplier<IGridFunction<double>> _input;

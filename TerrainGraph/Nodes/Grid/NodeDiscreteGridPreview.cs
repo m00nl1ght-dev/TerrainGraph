@@ -9,20 +9,20 @@ public abstract class NodeDiscreteGridPreview<T> : NodeBase
 {
     public override Vector2 DefaultSize => new(PreviewSize, PreviewSize + 20);
     public override bool AutoLayout => false;
-    
+
     public abstract ValueConnectionKnob InputKnobRef { get; }
     public abstract ValueConnectionKnob OutputKnobRef { get; }
-    
+
     [NonSerialized]
     protected int PreviewSize = 100;
-    
+
     [NonSerialized]
     protected Color[] PreviewBuffer;
-    
+
     [NonSerialized]
     protected Texture2D PreviewTexture;
 
-    [NonSerialized] 
+    [NonSerialized]
     protected IGridFunction<T> PreviewFunction;
 
     public override void PrepareGUI()
@@ -46,18 +46,18 @@ public abstract class NodeDiscreteGridPreview<T> : NodeBase
         OutputKnobRef.SetPosition(FirstKnobPosition);
 
         var pRect = GUILayoutUtility.GetRect(PreviewSize, PreviewSize);
-        
+
         if (PreviewTexture != null)
         {
             GUI.DrawTexture(pRect, PreviewTexture);
-            
+
             if (Event.current.type == EventType.Repaint)
             {
                 ActiveTooltipHandler?.Invoke(pRect, () =>
                 {
                     var pos = NodeEditor.ScreenToCanvasSpace(Event.current.mousePosition) - rect.min - contentOffset;
                     double previewRatio = TerrainCanvas.GridPreviewRatio;
-                    
+
                     double x = Math.Max(0, Math.Min(PreviewSize, pos.x)) * previewRatio;
                     double y = GridSize - Math.Max(0, Math.Min(PreviewSize, pos.y)) * previewRatio;
 
@@ -66,7 +66,7 @@ public abstract class NodeDiscreteGridPreview<T> : NodeBase
                 }, 0f);
             }
         }
-        
+
         if (OngoingPreviewTask != null)
         {
             TerrainCanvas.PreviewScheduler.DrawLoadingIndicator(this, pRect);
@@ -83,11 +83,11 @@ public abstract class NodeDiscreteGridPreview<T> : NodeBase
     {
         var previewRatio = TerrainCanvas.GridPreviewRatio;
         var supplier = InputKnobRef.connected() ? InputKnobRef.GetValue<ISupplier<IGridFunction<T>>>() : null;
-        
-        TerrainCanvas.PreviewScheduler.ScheduleTask(new PreviewTask(this, () => 
+
+        TerrainCanvas.PreviewScheduler.ScheduleTask(new PreviewTask(this, () =>
         {
             PreviewFunction = supplier != null ? supplier.ResetAndGet() : Default;
-            
+
             for (int x = 0; x < PreviewSize; x++)
             {
                 for (int y = 0; y < PreviewSize; y++)

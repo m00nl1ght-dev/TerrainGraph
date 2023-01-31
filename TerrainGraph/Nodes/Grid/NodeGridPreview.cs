@@ -17,25 +17,25 @@ public class NodeGridPreview : NodeBase
     public override string Title => "Preview";
     public override Vector2 DefaultSize => new(_previewSize, _previewSize + 20);
     public override bool AutoLayout => false;
-    
+
     [ValueConnectionKnob("Input", Direction.In, GridFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
-    
+
     [ValueConnectionKnob("Output", Direction.Out, GridFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
 
     public string PreviewModelId = "Default";
-    
+
     [NonSerialized]
     private int _previewSize = 100;
-    
+
     [NonSerialized]
     private Color[] _previewBuffer;
-    
+
     [NonSerialized]
     private Texture2D _previewTexture;
 
-    [NonSerialized] 
+    [NonSerialized]
     private IGridFunction<double> _previewFunction;
 
     public override void PrepareGUI()
@@ -59,18 +59,18 @@ public class NodeGridPreview : NodeBase
         OutputKnob.SetPosition(FirstKnobPosition);
 
         var pRect = GUILayoutUtility.GetRect(_previewSize, _previewSize);
-        
+
         if (_previewTexture != null)
         {
             GUI.DrawTexture(pRect, _previewTexture);
-            
+
             if (Event.current.type == EventType.Repaint)
             {
                 ActiveTooltipHandler?.Invoke(pRect, () =>
                 {
                     var pos = NodeEditor.ScreenToCanvasSpace(Event.current.mousePosition) - rect.min - contentOffset;
                     double previewRatio = TerrainCanvas.GridPreviewRatio;
-                    
+
                     double x = Math.Max(0, Math.Min(_previewSize, pos.x)) * previewRatio;
                     double y = GridSize - Math.Max(0, Math.Min(_previewSize, pos.y)) * previewRatio;
 
@@ -85,13 +85,13 @@ public class NodeGridPreview : NodeBase
             TerrainCanvas.PreviewScheduler.DrawLoadingIndicator(this, pRect);
         }
     }
-    
+
     public override void FillNodeActionsMenu(NodeEditorInputInfo inputInfo, GenericMenu menu)
     {
         base.FillNodeActionsMenu(inputInfo, menu);
         menu.AddSeparator("");
-        
-        SelectionMenu(menu, PreviewModels.Keys.ToList(), SetModel, e => "Set preview model/"+e);
+
+        SelectionMenu(menu, PreviewModels.Keys.ToList(), SetModel, e => "Set preview model/" + e);
     }
 
     private void SetModel(string id)
@@ -111,16 +111,16 @@ public class NodeGridPreview : NodeBase
         var previewRatio = TerrainCanvas.GridPreviewRatio;
         PreviewModels.TryGetValue(PreviewModelId, out var previewModel);
         previewModel ??= DefaultModel;
-        
+
         _previewTexture.SetPixels(_previewBuffer);
         _previewTexture.Apply();
-        
+
         var supplier = InputKnob.connected() ? InputKnob.GetValue<ISupplier<IGridFunction<double>>>() : null;
-        
-        TerrainCanvas.PreviewScheduler.ScheduleTask(new PreviewTask(this, () => 
+
+        TerrainCanvas.PreviewScheduler.ScheduleTask(new PreviewTask(this, () =>
         {
             _previewFunction = supplier != null ? supplier.ResetAndGet() : GridFunction.Zero;
-            
+
             for (int x = 0; x < _previewSize; x++)
             {
                 for (int y = 0; y < _previewSize; y++)
@@ -138,7 +138,7 @@ public class NodeGridPreview : NodeBase
 
     private static readonly Dictionary<string, IPreviewModel> PreviewModels = new();
     public static readonly IPreviewModel DefaultModel = new DefaultPreviewModel();
-    
+
     public static void RegisterPreviewModel(IPreviewModel model, string id)
     {
         PreviewModels[id] = model;
@@ -148,7 +148,7 @@ public class NodeGridPreview : NodeBase
     {
         RegisterPreviewModel(DefaultModel, "Default");
     }
-    
+
     public interface IPreviewModel
     {
         public Color GetColorFor(float val, int x, int y);
@@ -161,8 +161,8 @@ public class NodeGridPreview : NodeBase
             return val switch
             {
                 < -5f => new Color(0f, 0.5f, 0f),
-                < -1f => new Color(0f, - (val + 1f) / 8f, 0.5f + (val + 1f) / 8f),
-                < 0f => new Color(0f, 0f, - val / 2f),
+                < -1f => new Color(0f, -(val + 1f) / 8f, 0.5f + (val + 1f) / 8f),
+                < 0f => new Color(0f, 0f, -val / 2f),
                 < 1f => new Color(val, val, val),
                 < 2f => new Color(1f, 1f, 2f - val),
                 < 5f => new Color(1f, 1f - (val - 2f) / 3f, 0f),

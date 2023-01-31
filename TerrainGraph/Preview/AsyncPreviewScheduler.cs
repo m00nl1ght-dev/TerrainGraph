@@ -39,7 +39,7 @@ public abstract class AsyncPreviewScheduler : IPreviewScheduler
         }
 
         task.Node.OngoingPreviewTask = task;
-        
+
         _queuedTasks.Enqueue(task);
         _workEvent.Set();
     }
@@ -55,7 +55,7 @@ public abstract class AsyncPreviewScheduler : IPreviewScheduler
                 if (_queuedTasks.Count > 0)
                 {
                     var task = _queuedTasks.Dequeue();
-                    
+
                     if (task.Node.OngoingPreviewTask != task) continue;
 
                     try
@@ -75,7 +75,7 @@ public abstract class AsyncPreviewScheduler : IPreviewScheduler
                             {
                                 task.OnFinished?.Invoke();
                             }
-                            
+
                             if (task.Node.OngoingPreviewTask == task)
                             {
                                 task.Node.OngoingPreviewTask = null;
@@ -110,8 +110,8 @@ public abstract class AsyncPreviewScheduler : IPreviewScheduler
     }
 
     protected abstract void RunOnMainThread(Action action);
-    
+
     protected abstract void OnError(PreviewTask task, Exception exception);
-    
+
     public abstract void DrawLoadingIndicator(NodeBase node, Rect rect);
 }

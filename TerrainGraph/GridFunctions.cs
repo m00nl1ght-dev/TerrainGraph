@@ -9,7 +9,7 @@ public static class GridFunction
     public static readonly Const<double> One = new(1f);
 
     public static Const<T> Of<T>(T value) => new(value);
-    
+
     public class Const<T> : IGridFunction<T>
     {
         public readonly T Value;
@@ -24,7 +24,7 @@ public static class GridFunction
             return Value;
         }
     }
-    
+
     public class Select<T> : IGridFunction<T>
     {
         public readonly IGridFunction<double> Input;
@@ -43,8 +43,9 @@ public static class GridFunction
         public T ValueAt(double x, double z)
         {
             var value = Input.ValueAt(x, z);
-            for (int i = 0; i < Math.Min(Thresholds.Count, Options.Count - 1); i++) 
-                if (value < Thresholds[i]) return PostProcess(Options[i].ValueAt(x, z), i);
+            for (int i = 0; i < Math.Min(Thresholds.Count, Options.Count - 1); i++)
+                if (value < Thresholds[i])
+                    return PostProcess(Options[i].ValueAt(x, z), i);
             return PostProcess(Options[Options.Count - 1].ValueAt(x, z), Options.Count - 1);
         }
     }
@@ -64,7 +65,7 @@ public static class GridFunction
             return A.ValueAt(x, z) + B.ValueAt(x, z);
         }
     }
-    
+
     public class Multiply : IGridFunction<double>
     {
         public readonly IGridFunction<double> A, B;
@@ -80,7 +81,7 @@ public static class GridFunction
             return A.ValueAt(x, z) * B.ValueAt(x, z);
         }
     }
-    
+
     public class ScaleWithBias : IGridFunction<double>
     {
         public readonly IGridFunction<double> Input;
@@ -99,7 +100,7 @@ public static class GridFunction
             return Input.ValueAt(x, z) * Scale + Bias;
         }
     }
-    
+
     public class Min : IGridFunction<double>
     {
         public readonly IGridFunction<double> A, B;
@@ -116,18 +117,18 @@ public static class GridFunction
         {
             return Of(A.ValueAt(x, z), B.ValueAt(x, z), Smoothness);
         }
-        
+
         public static double Of(double a, double b, double smoothness)
         {
             if (smoothness <= 0f) return Math.Min(a, b);
-        
+
             double max = Math.Max(a, b) * smoothness;
             double min = Math.Min(a, b) * smoothness;
-        
+
             return (min - Math.Log(1f + Math.Exp(min - max))) / smoothness;
         }
     }
-    
+
     public class Max : IGridFunction<double>
     {
         public readonly IGridFunction<double> A, B;
@@ -144,18 +145,18 @@ public static class GridFunction
         {
             return Of(A.ValueAt(x, z), B.ValueAt(x, z), Smoothness);
         }
-        
+
         public static double Of(double a, double b, double smoothness)
         {
             if (smoothness <= 0f) return Math.Max(a, b);
-        
+
             double max = Math.Max(a, b) * smoothness;
             double min = Math.Min(a, b) * smoothness;
-        
+
             return (max + Math.Log(1f + Math.Exp(min - max))) / smoothness;
         }
     }
-    
+
     public class Clamp : IGridFunction<double>
     {
         public readonly IGridFunction<double> Input;
@@ -174,7 +175,7 @@ public static class GridFunction
             return Math.Max(ClampMin, Math.Min(ClampMax, Input.ValueAt(x, z)));
         }
     }
-    
+
     public class SpanFunction : IGridFunction<double>
     {
         public readonly double Bias;
@@ -186,7 +187,8 @@ public static class GridFunction
         public readonly double SpanNz;
         public readonly bool Circular;
 
-        public SpanFunction(double bias, double originX, double originZ, double spanPx, double spanNx, 
+        public SpanFunction(
+            double bias, double originX, double originZ, double spanPx, double spanNx,
             double spanPz, double spanNz, bool circular)
         {
             Bias = bias;
@@ -206,7 +208,7 @@ public static class GridFunction
 
             double spanX = diffX < 0 ? SpanNx : SpanPx;
             double spanZ = diffZ < 0 ? SpanNz : SpanPz;
-        
+
             double valX = spanX == 0 ? 0 : Math.Abs(diffX) / spanX;
             double valZ = spanZ == 0 ? 0 : Math.Abs(diffZ) / spanZ;
 
@@ -218,7 +220,7 @@ public static class GridFunction
             return Bias + valX + valZ;
         }
     }
-    
+
     public class Rotate<T> : IGridFunction<T>
     {
         public readonly IGridFunction<T> Input;
@@ -237,23 +239,23 @@ public static class GridFunction
         public T ValueAt(double x, double z)
         {
             double radians = DegToRad(Angle);
-            
+
             double sin = Math.Sin(radians);
             double cos = Math.Cos(radians);
- 
+
             x -= PivotX;
             z -= PivotY;
- 
+
             double nx = x * cos - z * sin;
             double nz = x * sin + z * cos;
-     
+
             nx += PivotX;
             nz += PivotY;
-            
+
             return Input.ValueAt(nx, nz);
         }
     }
-    
+
     public class Transform<T> : IGridFunction<T>
     {
         public readonly IGridFunction<T> Input;
@@ -270,7 +272,7 @@ public static class GridFunction
             ScaleX = scaleX;
             ScaleZ = scaleZ;
         }
-        
+
         public Transform(IGridFunction<T> input, double scale)
         {
             Input = input;
@@ -290,7 +292,7 @@ public static class GridFunction
         public readonly int SizeZ;
         public readonly T[,] Grid;
         public readonly T Fallback;
-        
+
         public Cache(T[,] grid, T fallback = default)
         {
             SizeX = grid.GetLength(0);
@@ -315,7 +317,8 @@ public static class GridFunction
         }
     }
 
-    public static double DegToRad(double angle) {
+    public static double DegToRad(double angle)
+    {
         return (Math.PI / 180) * angle;
     }
 

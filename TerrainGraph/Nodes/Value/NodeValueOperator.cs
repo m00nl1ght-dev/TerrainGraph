@@ -25,7 +25,7 @@ public class NodeValueOperator : NodeOperatorBase
     {
         OutputKnob.SetPosition(FirstKnobPosition);
         while (InputKnobs.Count < 2) CreateNewInputKnob();
-        
+
         GUILayout.BeginVertical(BoxStyle);
 
         if (SmoothnessKnob != null) KnobValueField(SmoothnessKnob, ref Smoothness);
@@ -33,10 +33,10 @@ public class NodeValueOperator : NodeOperatorBase
 
         while (Values.Count < InputKnobs.Count) Values.Add(0f);
         while (Values.Count > InputKnobs.Count) Values.RemoveAt(Values.Count - 1);
-        
+
         for (int i = 0; i < InputKnobs.Count; i++)
         {
-            ValueConnectionKnob knob = InputKnobs[i];
+            var knob = InputKnobs[i];
             var value = Values[i];
             KnobValueField(knob, ref value, i == 0 ? "Base" : "Input " + i);
             Values[i] = value;
@@ -47,13 +47,13 @@ public class NodeValueOperator : NodeOperatorBase
         if (GUI.changed)
             canvas.OnNodeChange(this);
     }
-    
+
     protected override void CreateNewInputKnob()
     {
         CreateValueConnectionKnob(new("Input " + InputKnobs.Count, Direction.In, ValueFunctionConnection.Id));
         RefreshDynamicKnobs();
     }
-    
+
     public override void RefreshPreview()
     {
         base.RefreshPreview();
@@ -61,8 +61,8 @@ public class NodeValueOperator : NodeOperatorBase
 
         for (int i = 0; i < Math.Min(Values.Count, InputKnobs.Count); i++)
         {
-            ValueConnectionKnob knob = InputKnobs[i];
-            ISupplier<double> supplier = GetIfConnected<double>(knob);
+            var knob = InputKnobs[i];
+            var supplier = GetIfConnected<double>(knob);
             supplier?.ResetState();
             suppliers.Add(supplier);
         }
@@ -75,15 +75,15 @@ public class NodeValueOperator : NodeOperatorBase
 
     public override bool Calculate()
     {
-        ISupplier<double> applyChance = SupplierOrValueFixed(ApplyChanceKnob, ApplyChance);
-        ISupplier<double> smoothness = SupplierOrValueFixed(SmoothnessKnob, Smoothness);
-        
+        var applyChance = SupplierOrValueFixed(ApplyChanceKnob, ApplyChance);
+        var smoothness = SupplierOrValueFixed(SmoothnessKnob, Smoothness);
+
         List<ISupplier<double>> inputs = new();
         for (int i = 0; i < Math.Min(Values.Count, InputKnobs.Count); i++)
         {
             inputs.Add(SupplierOrValueFixed(InputKnobs[i], Values[i]));
         }
-        
+
         OutputKnob.SetValue<ISupplier<double>>(new Output(applyChance, inputs, OperationType, smoothness, CombinedSeed));
         return true;
     }
@@ -111,10 +111,10 @@ public class NodeValueOperator : NodeOperatorBase
         {
             double applyChance = _applyChance.Get();
             double smoothness = _smoothness.Get();
-            List<double> inputs = _inputs
+            var inputs = _inputs
                 .Where((e, i) => i == 0 || applyChance >= 1 || _random.NextDouble() < applyChance)
                 .Select(e => e.Get()).ToList();
-            
+
             return inputs.Count switch
             {
                 0 => 0f,
@@ -133,7 +133,7 @@ public class NodeValueOperator : NodeOperatorBase
         public void ResetState()
         {
             _random.Reinitialise(_seed);
-            foreach (ISupplier<double> input in _inputs) input.ResetState();
+            foreach (var input in _inputs) input.ResetState();
             _applyChance.ResetState();
             _smoothness.ResetState();
         }

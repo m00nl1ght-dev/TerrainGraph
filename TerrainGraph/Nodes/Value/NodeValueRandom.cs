@@ -14,16 +14,16 @@ public class NodeValueRandom : NodeBase
     public override string GetID => ID;
 
     public override string Title => (DynamicSeed ? "Dynamic " : "") + "Random Value";
-    
+
     [ValueConnectionKnob("Average", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob AverageKnob;
-    
+
     [ValueConnectionKnob("Deviation", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob DeviationKnob;
-    
+
     [ValueConnectionKnob("Output", Direction.Out, ValueFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
-    
+
     public double Average = 0.5;
     public double Deviation = 0.5;
     public bool DynamicSeed = true;
@@ -31,9 +31,9 @@ public class NodeValueRandom : NodeBase
     public override void NodeGUI()
     {
         OutputKnob.SetPosition(FirstKnobPosition);
-        
+
         GUILayout.BeginVertical(BoxStyle);
-        
+
         KnobValueField(AverageKnob, ref Average);
         KnobValueField(DeviationKnob, ref Deviation);
 
@@ -42,15 +42,15 @@ public class NodeValueRandom : NodeBase
         if (GUI.changed)
             canvas.OnNodeChange(this);
     }
-    
+
     public override void FillNodeActionsMenu(NodeEditorInputInfo inputInfo, GenericMenu menu)
     {
         base.FillNodeActionsMenu(inputInfo, menu);
         menu.AddSeparator("");
-        
+
         if (!DynamicSeed)
         {
-            menu.AddItem(new GUIContent ("Enable dynamic seed"), false, () =>
+            menu.AddItem(new GUIContent("Enable dynamic seed"), false, () =>
             {
                 DynamicSeed = true;
                 canvas.OnNodeChange(this);
@@ -58,19 +58,19 @@ public class NodeValueRandom : NodeBase
         }
         else
         {
-            menu.AddItem(new GUIContent ("Disable dynamic seed"), false, () =>
+            menu.AddItem(new GUIContent("Disable dynamic seed"), false, () =>
             {
                 DynamicSeed = false;
                 canvas.OnNodeChange(this);
             });
         }
     }
-    
+
     public override void RefreshPreview()
     {
         var avg = GetIfConnected<double>(AverageKnob);
         var dev = GetIfConnected<double>(DeviationKnob);
-        
+
         avg?.ResetState();
         dev?.ResetState();
 
@@ -81,13 +81,13 @@ public class NodeValueRandom : NodeBase
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<double>>(new Output(
-            SupplierOrValueFixed(AverageKnob, Average), 
-            SupplierOrValueFixed(DeviationKnob, Deviation), 
+            SupplierOrValueFixed(AverageKnob, Average),
+            SupplierOrValueFixed(DeviationKnob, Deviation),
             CombinedSeed, DynamicSeed
         ));
         return true;
     }
-    
+
     private class Output : ISupplier<double>
     {
         private readonly FastRandom _random;

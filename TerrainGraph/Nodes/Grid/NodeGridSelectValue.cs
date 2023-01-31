@@ -12,7 +12,7 @@ public class NodeGridSelectValue : NodeSelectBase
 {
     public const string ID = "gridSelectValue";
     public override string GetID => ID;
-    
+
     [ValueConnectionKnob("Input", Direction.In, GridFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
@@ -21,16 +21,16 @@ public class NodeGridSelectValue : NodeSelectBase
 
     public override ValueConnectionKnob InputKnobRef => InputKnob;
     public override ValueConnectionKnob OutputKnobRef => OutputKnob;
-    
+
     public List<double> Values = new();
 
     public override void NodeGUI()
     {
         while (OptionKnobs.Count < 2) CreateNewOptionKnob();
-        
+
         while (Values.Count < OptionKnobs.Count) Values.Add(0f);
         while (Values.Count > OptionKnobs.Count) Values.RemoveAt(Values.Count - 1);
-        
+
         base.NodeGUI();
     }
 
@@ -54,14 +54,14 @@ public class NodeGridSelectValue : NodeSelectBase
 
     public override bool Calculate()
     {
-        ISupplier<IGridFunction<double>> input = SupplierOrGridFixed(InputKnob, GridFunction.Zero);
+        var input = SupplierOrGridFixed(InputKnob, GridFunction.Zero);
 
         List<ISupplier<IGridFunction<double>>> options = new();
         for (int i = 0; i < Math.Min(Values.Count, OptionKnobs.Count); i++)
         {
             options.Add(SupplierOrGridFixed(OptionKnobs[i], GridFunction.Of(Values[i])));
         }
-        
+
         OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new GridOutput<double>(input, options, Thresholds));
         return true;
     }

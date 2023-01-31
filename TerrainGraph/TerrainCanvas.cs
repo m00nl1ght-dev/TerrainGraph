@@ -13,7 +13,7 @@ public class TerrainCanvas : NodeCanvas
     public TerrainCanvasTraversal Calculator => (TerrainCanvasTraversal) Traversal;
 
     public override string canvasName => "TerrainGraph";
-    
+
     public virtual int GridFullSize => 100;
     public virtual int GridPreviewSize => 100;
     public double GridPreviewRatio => (double) GridFullSize / GridPreviewSize;
@@ -23,7 +23,7 @@ public class TerrainCanvas : NodeCanvas
 
     public virtual IPreviewScheduler PreviewScheduler => BasicPreviewScheduler.Instance;
 
-    protected override void OnCreate() 
+    protected override void OnCreate()
     {
         ValidateSelf();
     }
@@ -35,18 +35,18 @@ public class TerrainCanvas : NodeCanvas
 
     public virtual void RefreshPreviews()
     {
-        foreach (NodeBase nodeBase in Nodes) nodeBase.RefreshPreview();
+        foreach (var nodeBase in Nodes) nodeBase.RefreshPreview();
     }
-    
+
     public virtual void PrepareGUI()
     {
         HasActiveGUI = true;
-        foreach (NodeBase nodeBase in Nodes) nodeBase.PrepareGUI();
+        foreach (var nodeBase in Nodes) nodeBase.PrepareGUI();
     }
-    
+
     public virtual void CleanUpGUI()
     {
-        foreach (NodeBase nodeBase in Nodes) nodeBase.CleanUpGUI();
+        foreach (var nodeBase in Nodes) nodeBase.CleanUpGUI();
         HasActiveGUI = false;
     }
 

@@ -13,7 +13,7 @@ public class NodeValueSelectValue : NodeSelectBase
 {
     public const string ID = "valueSelectValue";
     public override string GetID => ID;
-    
+
     [ValueConnectionKnob("Input", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
@@ -22,16 +22,16 @@ public class NodeValueSelectValue : NodeSelectBase
 
     public override ValueConnectionKnob InputKnobRef => InputKnob;
     public override ValueConnectionKnob OutputKnobRef => OutputKnob;
-    
+
     public List<double> Values = new();
 
     public override void NodeGUI()
     {
         while (OptionKnobs.Count < 2) CreateNewOptionKnob();
-        
+
         while (Values.Count < OptionKnobs.Count) Values.Add(0f);
         while (Values.Count > OptionKnobs.Count) Values.RemoveAt(Values.Count - 1);
-        
+
         base.NodeGUI();
     }
 
@@ -52,16 +52,16 @@ public class NodeValueSelectValue : NodeSelectBase
         CreateValueConnectionKnob(new("Option " + OptionKnobs.Count, Direction.In, ValueFunctionConnection.Id));
         RefreshDynamicKnobs();
     }
-    
+
     public override void RefreshPreview()
     {
         base.RefreshPreview();
         List<ISupplier<double>> suppliers = new();
-        
+
         for (int i = 0; i < Math.Min(Values.Count, OptionKnobs.Count); i++)
         {
-            ValueConnectionKnob knob = OptionKnobs[i];
-            ISupplier<double> supplier = GetIfConnected<double>(knob);
+            var knob = OptionKnobs[i];
+            var supplier = GetIfConnected<double>(knob);
             supplier?.ResetState();
             suppliers.Add(supplier);
         }
@@ -71,17 +71,17 @@ public class NodeValueSelectValue : NodeSelectBase
             if (suppliers[i] != null) Values[i] = suppliers[i].Get();
         }
     }
-    
+
     public override bool Calculate()
     {
-        ISupplier<double> input = SupplierOrValueFixed(InputKnob, 0d);
+        var input = SupplierOrValueFixed(InputKnob, 0d);
 
         List<ISupplier<double>> options = new();
         for (int i = 0; i < Math.Min(Values.Count, OptionKnobs.Count); i++)
         {
             options.Add(SupplierOrValueFixed(OptionKnobs[i], Values[i]));
         }
-        
+
         OutputKnob.SetValue<ISupplier<double>>(new Output<double>(input, options, Thresholds));
         return true;
     }

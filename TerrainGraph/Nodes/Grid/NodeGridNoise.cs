@@ -10,63 +10,63 @@ namespace TerrainGraph;
 public abstract class NodeGridNoise : NodeBase
 {
     protected abstract GridFunction.NoiseFunction NoiseFunction { get; }
-    
+
     [ValueConnectionKnob("Frequency", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob FrequencyKnob;
-    
+
     [ValueConnectionKnob("Lacunarity", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob LacunarityKnob;
-    
+
     [ValueConnectionKnob("Persistence", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob PersistenceKnob;
-    
+
     [ValueConnectionKnob("Scale", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob ScaleKnob;
-    
+
     [ValueConnectionKnob("Bias", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob BiasKnob;
-    
+
     [ValueConnectionKnob("Output", Direction.Out, GridFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
 
     protected virtual double TransformScale => 1;
-    
+
     public double Frequency = 0.021;
     public double Lacunarity = 2;
     public double Persistence = 0.5;
     public double Scale = 0.5;
     public double Bias = 0.5;
-    
+
     public int Octaves = 6;
     public bool DynamicSeed;
-    
+
     public override void NodeGUI()
     {
         OutputKnob.SetPosition(FirstKnobPosition);
-        
+
         GUILayout.BeginVertical(BoxStyle);
-        
+
         KnobValueField(FrequencyKnob, ref Frequency);
         KnobValueField(LacunarityKnob, ref Lacunarity);
         KnobValueField(PersistenceKnob, ref Persistence);
         KnobValueField(ScaleKnob, ref Scale);
         KnobValueField(BiasKnob, ref Bias);
         IntField("Octaves", ref Octaves);
-        
+
         GUILayout.EndVertical();
 
         if (GUI.changed)
             canvas.OnNodeChange(this);
     }
-    
+
     public override void FillNodeActionsMenu(NodeEditorInputInfo inputInfo, GenericMenu menu)
     {
         base.FillNodeActionsMenu(inputInfo, menu);
         menu.AddSeparator("");
-        
+
         if (!DynamicSeed)
         {
-            menu.AddItem(new GUIContent ("Enable dynamic seed"), false, () =>
+            menu.AddItem(new GUIContent("Enable dynamic seed"), false, () =>
             {
                 DynamicSeed = true;
                 canvas.OnNodeChange(this);
@@ -74,24 +74,24 @@ public abstract class NodeGridNoise : NodeBase
         }
         else
         {
-            menu.AddItem(new GUIContent ("Disable dynamic seed"), false, () =>
+            menu.AddItem(new GUIContent("Disable dynamic seed"), false, () =>
             {
                 DynamicSeed = false;
                 canvas.OnNodeChange(this);
             });
         }
     }
-    
+
     public override void RefreshPreview()
     {
-        ISupplier<double> freq = GetIfConnected<double>(FrequencyKnob);
-        ISupplier<double> lac = GetIfConnected<double>(LacunarityKnob);
-        ISupplier<double> pers = GetIfConnected<double>(PersistenceKnob);
-        ISupplier<double> scale = GetIfConnected<double>(ScaleKnob);
-        ISupplier<double> bias = GetIfConnected<double>(BiasKnob);
-        
-        foreach (ISupplier<double> supplier in new[]{freq, lac, pers, scale, bias}) supplier?.ResetState();
-        
+        var freq = GetIfConnected<double>(FrequencyKnob);
+        var lac = GetIfConnected<double>(LacunarityKnob);
+        var pers = GetIfConnected<double>(PersistenceKnob);
+        var scale = GetIfConnected<double>(ScaleKnob);
+        var bias = GetIfConnected<double>(BiasKnob);
+
+        foreach (var supplier in new[] { freq, lac, pers, scale, bias }) supplier?.ResetState();
+
         if (freq != null) Frequency = freq.Get();
         if (lac != null) Lacunarity = lac.Get();
         if (pers != null) Persistence = pers.Get();
@@ -111,7 +111,7 @@ public abstract class NodeGridNoise : NodeBase
         ));
         return true;
     }
-    
+
     private class Output : ISupplier<IGridFunction<double>>
     {
         private readonly GridFunction.NoiseFunction _noiseFunction;
@@ -126,7 +126,8 @@ public abstract class NodeGridNoise : NodeBase
         private readonly bool _dynamicSeed;
         private readonly FastRandom _random;
 
-        public Output(ISupplier<double> frequency, ISupplier<double> lacunarity, 
+        public Output(
+            ISupplier<double> frequency, ISupplier<double> lacunarity,
             ISupplier<double> persistence, ISupplier<double> scale, ISupplier<double> bias, int octaves, GridFunction.NoiseFunction noiseFunction, int seed, double transformScale, bool dynamicSeed)
         {
             _noiseFunction = noiseFunction;
@@ -149,7 +150,7 @@ public abstract class NodeGridNoise : NodeBase
                 new GridFunction.ScaleWithBias(
                     new GridFunction.NoiseGenerator(
                         _noiseFunction, _frequency.Get(), _lacunarity.Get(), _persistence.Get(), _octaves, _random.Next()
-                    ), 
+                    ),
                     _scale.Get(), _bias.Get()), _transformScale
             );
         }

@@ -10,12 +10,12 @@ public class NodeGridFromValue : NodeBase
 {
     public const string ID = "gridFromValue";
     public override string GetID => ID;
-    
+
     public override Vector2 DefaultSize => new(60, 55);
     public override bool AutoLayout => false;
 
     public override string Title => "Grid";
-    
+
     [ValueConnectionKnob("Input", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
@@ -26,9 +26,9 @@ public class NodeGridFromValue : NodeBase
     {
         InputKnob.SetPosition(FirstKnobPosition);
         OutputKnob.SetPosition(FirstKnobPosition);
-        
+
         GUILayout.BeginVertical(BoxStyle);
-        
+
         GUILayout.BeginHorizontal(BoxStyle);
         GUILayout.Label("", BoxLayout);
         GUILayout.EndHorizontal();
@@ -43,7 +43,7 @@ public class NodeGridFromValue : NodeBase
         ));
         return true;
     }
-    
+
     private class Output : ISupplier<IGridFunction<double>>
     {
         private readonly ISupplier<double> _input;

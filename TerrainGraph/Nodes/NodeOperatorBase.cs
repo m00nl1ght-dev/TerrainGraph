@@ -11,13 +11,13 @@ namespace TerrainGraph;
 public abstract class NodeOperatorBase : NodeBase
 {
     public override string Title => OperationType.ToString().Replace('_', ' ');
-    
+
     private static readonly ValueConnectionKnobAttribute ApplyChanceAttribute = new("Apply chance", Direction.In, ValueFunctionConnection.Id);
     private static readonly ValueConnectionKnobAttribute SmoothnessAttribute = new("Smoothness", Direction.In, ValueFunctionConnection.Id);
 
     [NonSerialized]
     public ValueConnectionKnob ApplyChanceKnob;
-    
+
     [NonSerialized]
     public ValueConnectionKnob SmoothnessKnob;
 
@@ -41,7 +41,7 @@ public abstract class NodeOperatorBase : NodeBase
     {
         OutputKnobRef.SetPosition(FirstKnobPosition);
         while (InputKnobs.Count < 2) CreateNewInputKnob();
-        
+
         GUILayout.BeginVertical(BoxStyle);
 
         if (SmoothnessKnob != null) KnobValueField(SmoothnessKnob, ref Smoothness);
@@ -49,7 +49,7 @@ public abstract class NodeOperatorBase : NodeBase
 
         for (int i = 0; i < InputKnobs.Count; i++)
         {
-            ValueConnectionKnob knob = InputKnobs[i];
+            var knob = InputKnobs[i];
             GUILayout.BeginHorizontal(BoxStyle);
             GUILayout.Label(i == 0 ? "Base" : ("Input " + i), BoxLayout);
             knob.SetPosition();
@@ -68,12 +68,12 @@ public abstract class NodeOperatorBase : NodeBase
     {
         base.FillNodeActionsMenu(inputInfo, menu);
         menu.AddSeparator("");
-        
+
         SelectionMenu<Operation>(menu, SetOperation, "Change operation/");
 
         if (ApplyChanceKnob != null)
         {
-            menu.AddItem(new GUIContent ("Remove apply chance"), false, () =>
+            menu.AddItem(new GUIContent("Remove apply chance"), false, () =>
             {
                 DeleteConnectionPort(ApplyChanceKnob);
                 RefreshDynamicKnobs();
@@ -83,24 +83,24 @@ public abstract class NodeOperatorBase : NodeBase
         }
         else
         {
-            menu.AddItem(new GUIContent ("Add apply chance"), false, () =>
+            menu.AddItem(new GUIContent("Add apply chance"), false, () =>
             {
                 ApplyChanceKnob ??= (ValueConnectionKnob) CreateConnectionKnob(ApplyChanceAttribute);
                 canvas.OnNodeChange(this);
             });
         }
-        
+
         menu.AddSeparator("");
-        
-        if (InputKnobs.Count < 20) 
+
+        if (InputKnobs.Count < 20)
         {
-            menu.AddItem(new GUIContent ("Add input"), false, CreateNewInputKnob);
+            menu.AddItem(new GUIContent("Add input"), false, CreateNewInputKnob);
             canvas.OnNodeChange(this);
         }
-        
-        if (InputKnobs.Count > 2) 
+
+        if (InputKnobs.Count > 2)
         {
-            menu.AddItem(new GUIContent ("Remove input"), false, () =>
+            menu.AddItem(new GUIContent("Remove input"), false, () =>
             {
                 DeleteConnectionPort(InputKnobs[InputKnobs.Count - 1]);
                 RefreshDynamicKnobs();
@@ -112,7 +112,7 @@ public abstract class NodeOperatorBase : NodeBase
     protected void SetOperation(Operation operation)
     {
         OperationType = operation;
-        
+
         if (operation is Operation.Smooth_Min or Operation.Smooth_Max)
         {
             SmoothnessKnob ??= (ValueConnectionKnob) CreateConnectionKnob(SmoothnessAttribute);
@@ -123,15 +123,15 @@ public abstract class NodeOperatorBase : NodeBase
             RefreshDynamicKnobs();
             Smoothness = 0;
         }
-        
+
         canvas.OnNodeChange(this);
     }
 
     public override void RefreshPreview()
     {
-        ISupplier<double> chance = GetIfConnected<double>(ApplyChanceKnob);
-        ISupplier<double> smooth = GetIfConnected<double>(SmoothnessKnob);
-        
+        var chance = GetIfConnected<double>(ApplyChanceKnob);
+        var smooth = GetIfConnected<double>(SmoothnessKnob);
+
         chance?.ResetState();
         smooth?.ResetState();
 
@@ -141,6 +141,11 @@ public abstract class NodeOperatorBase : NodeBase
 
     public enum Operation
     {
-        Add, Multiply, Min, Max, Smooth_Min, Smooth_Max
+        Add,
+        Multiply,
+        Min,
+        Max,
+        Smooth_Min,
+        Smooth_Max
     }
 }

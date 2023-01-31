@@ -17,16 +17,16 @@ public class NodeGridOperator : NodeOperatorBase
 
     [ValueConnectionKnob("Output", Direction.Out, GridFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
-    
+
     public override ValueConnectionKnob OutputKnobRef => OutputKnob;
-    
+
     public List<double> Values = new();
-    
+
     public override void NodeGUI()
     {
         OutputKnob.SetPosition(FirstKnobPosition);
         while (InputKnobs.Count < 2) CreateNewInputKnob();
-        
+
         GUILayout.BeginVertical(BoxStyle);
 
         if (SmoothnessKnob != null) KnobValueField(SmoothnessKnob, ref Smoothness);
@@ -34,11 +34,11 @@ public class NodeGridOperator : NodeOperatorBase
 
         while (Values.Count < InputKnobs.Count) Values.Add(0f);
         while (Values.Count > InputKnobs.Count) Values.RemoveAt(Values.Count - 1);
-        
+
         for (int i = 0; i < InputKnobs.Count; i++)
         {
-            ValueConnectionKnob knob = InputKnobs[i];
-            
+            var knob = InputKnobs[i];
+
             GUILayout.BeginHorizontal(BoxStyle);
             GUILayout.Label(i == 0 ? "Base" : ("Input " + i), BoxLayout);
 
@@ -57,7 +57,7 @@ public class NodeGridOperator : NodeOperatorBase
         if (GUI.changed)
             canvas.OnNodeChange(this);
     }
-    
+
     protected override void CreateNewInputKnob()
     {
         CreateValueConnectionKnob(new("Input " + InputKnobs.Count, Direction.In, GridFunctionConnection.Id));
@@ -66,9 +66,9 @@ public class NodeGridOperator : NodeOperatorBase
 
     public override bool Calculate()
     {
-        ISupplier<double> applyChance = SupplierOrValueFixed(ApplyChanceKnob, ApplyChance);
-        ISupplier<double> smoothness = SupplierOrValueFixed(SmoothnessKnob, Smoothness);
-        
+        var applyChance = SupplierOrValueFixed(ApplyChanceKnob, ApplyChance);
+        var smoothness = SupplierOrValueFixed(SmoothnessKnob, Smoothness);
+
         List<ISupplier<IGridFunction<double>>> inputs = new();
         for (int i = 0; i < Math.Min(Values.Count, InputKnobs.Count); i++)
         {
@@ -78,7 +78,7 @@ public class NodeGridOperator : NodeOperatorBase
         OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output(applyChance, inputs, OperationType, smoothness, CombinedSeed));
         return true;
     }
-    
+
     private class Output : ISupplier<IGridFunction<double>>
     {
         private readonly ISupplier<double> _applyChance;
@@ -102,10 +102,10 @@ public class NodeGridOperator : NodeOperatorBase
         {
             double applyChance = _applyChance.Get();
             double smoothness = _smoothness.Get();
-            List<IGridFunction<double>> inputs = _inputs
+            var inputs = _inputs
                 .Where((_, i) => i == 0 || applyChance >= 1 || _random.NextDouble() < applyChance)
                 .Select(e => e.Get()).ToList();
-            
+
             return inputs.Count switch
             {
                 0 => GridFunction.Zero,
@@ -124,7 +124,7 @@ public class NodeGridOperator : NodeOperatorBase
         public void ResetState()
         {
             _random.Reinitialise(_seed);
-            foreach (ISupplier<IGridFunction<double>> input in _inputs) input.ResetState();
+            foreach (var input in _inputs) input.ResetState();
             _applyChance.ResetState();
             _smoothness.ResetState();
         }
