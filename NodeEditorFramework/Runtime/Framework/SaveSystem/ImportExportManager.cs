@@ -118,7 +118,11 @@ namespace NodeEditorFramework.IO
 		{
 			if (canvas == null)
 				return null;
-			
+
+			var nextNodeId = 0;
+			var nextPortId = 0;
+			var nextVarId = 0;
+
 			// Validate canvas and create canvas data for it
 			canvas.Validate ();
 			CanvasData canvasData = new CanvasData (canvas);
@@ -129,20 +133,20 @@ namespace NodeEditorFramework.IO
 			foreach (Node node in canvas.nodes)
 			{
 				// Create node data
-				NodeData nodeData = new NodeData (node);
+				NodeData nodeData = new NodeData (node, nextNodeId++);
 				canvasData.nodes.Add (nodeData.nodeID, nodeData);
 
 				foreach (ConnectionPortDeclaration portDecl in ConnectionPortManager.GetPortDeclarationEnumerator(node))
 				{ // Fetch all static connection port declarations and record them
 					ConnectionPort port = (ConnectionPort)portDecl.portField.GetValue(node);
-					PortData portData = new PortData(nodeData, port, portDecl.portField.Name);
+					PortData portData = new PortData(nodeData, port, portDecl.portField.Name, nextPortId++);
 					nodeData.connectionPorts.Add(portData);
 					portDatas.Add(port, portData);
 				}
 
 				foreach (ConnectionPort port in node.dynamicConnectionPorts)
 				{ // Fetch all dynamic connection ports and record them
-					PortData portData = new PortData(nodeData, port);
+					PortData portData = new PortData(nodeData, port, nextPortId++);
 					nodeData.connectionPorts.Add(portData);
 					portDatas.Add(port, portData);
 				}
@@ -159,7 +163,7 @@ namespace NodeEditorFramework.IO
 					if (field.FieldType.IsValueType || field.FieldType == typeof(string)) // Store value of the object
 						varData.value = varValue;
 					else // Store reference to the object
-						varData.refObject = canvasData.ReferenceObject (varValue);
+						varData.refObject = canvasData.ReferenceObject (varValue, nextVarId++);
 				}
 			}
 

@@ -32,7 +32,7 @@ namespace NodeEditorFramework.IO
 			name = canvasName;
 		}
 
-		public ObjectData ReferenceObject(object obj)
+		public ObjectData ReferenceObject(object obj, int id)
 		{
 			if (obj == null)
 				return null;
@@ -41,7 +41,7 @@ namespace NodeEditorFramework.IO
 				if (data.data == obj)
 					return data;
 			}
-			ObjectData objData = new ObjectData(obj);
+			ObjectData objData = new ObjectData(id, obj);
 			objects.Add(objData.refID, objData);
 			return objData;
 		}
@@ -134,12 +134,12 @@ namespace NodeEditorFramework.IO
 		public List<PortData> connectionPorts = new List<PortData>();
 		public List<VariableData> variables = new List<VariableData>();
 
-		public NodeData(Node n)
+		public NodeData(Node n, int NodeID)
 		{
 			node = n;
 			name = n.name;
 			typeID = node.GetID;
-			nodeID = node.GetHashCode();
+			nodeID = NodeID;
 			nodePos = node.rect.position;
 			type = n.GetType();
 		}
@@ -169,10 +169,10 @@ namespace NodeEditorFramework.IO
 
 		// STATIC
 
-		public PortData(NodeData Body, ConnectionPort Port, string VarName)
+		public PortData(NodeData Body, ConnectionPort Port, string VarName, int PortID)
 		{
 			port = Port;
-			portID = port.GetHashCode();
+			portID = PortID;
 			body = Body;
 			name = VarName;
 		}
@@ -185,16 +185,6 @@ namespace NodeEditorFramework.IO
 		}
 
 		// DYNAMIC
-
-		public PortData(NodeData Body, ConnectionPort DynamicPort)
-		{
-			dynamic = true;
-			port = DynamicPort;
-			portID = port.GetHashCode();
-			body = Body;
-			name = DynamicPort.name;
-			dynaType = DynamicPort.GetType();
-		}
 
 		public PortData(NodeData Body, ConnectionPort DynamicPort, int PortID)
 		{
@@ -247,18 +237,6 @@ namespace NodeEditorFramework.IO
 		public int refID;
 		public Type type;
 		public object data;
-
-		public ObjectData(object obj)
-		{
-			if (obj == null)
-				throw new ArgumentNullException("obj");
-			refID = obj.GetHashCode();
-			// Some types like MonoScript implement no proper GetHashCode function
-			if (Mathf.Abs (refID) < 10) 
-				refID = (int)UnityEngine.Random.value * int.MaxValue;
-			type = obj.GetType();
-			data = obj;
-		}
 
 		public ObjectData(int objRefID, object obj)
 		{
