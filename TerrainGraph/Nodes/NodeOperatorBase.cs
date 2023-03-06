@@ -13,10 +13,14 @@ public abstract class NodeOperatorBase : NodeBase
     public override string Title => OperationType.ToString().Replace('_', ' ');
 
     private static readonly ValueConnectionKnobAttribute ApplyChanceAttribute = new("Apply chance", Direction.In, ValueFunctionConnection.Id);
+    private static readonly ValueConnectionKnobAttribute StackCountAttribute = new("Stack count", Direction.In, ValueFunctionConnection.Id);
     private static readonly ValueConnectionKnobAttribute SmoothnessAttribute = new("Smoothness", Direction.In, ValueFunctionConnection.Id);
 
     [NonSerialized]
     public ValueConnectionKnob ApplyChanceKnob;
+
+    [NonSerialized]
+    public ValueConnectionKnob StackCountKnob;
 
     [NonSerialized]
     public ValueConnectionKnob SmoothnessKnob;
@@ -25,6 +29,7 @@ public abstract class NodeOperatorBase : NodeBase
 
     public Operation OperationType = Operation.Add;
     public double ApplyChance = 1f;
+    public double StackCount = 1;
     public double Smoothness;
 
     [NonSerialized]
@@ -34,6 +39,7 @@ public abstract class NodeOperatorBase : NodeBase
     {
         InputKnobs = dynamicConnectionPorts.Where(k => k.name.StartsWith("Input")).Cast<ValueConnectionKnob>().ToList();
         ApplyChanceKnob = FindDynamicKnob(ApplyChanceAttribute);
+        StackCountKnob = FindDynamicKnob(StackCountAttribute);
         SmoothnessKnob = FindDynamicKnob(SmoothnessAttribute);
     }
 
@@ -46,6 +52,7 @@ public abstract class NodeOperatorBase : NodeBase
 
         if (SmoothnessKnob != null) KnobValueField(SmoothnessKnob, ref Smoothness);
         if (ApplyChanceKnob != null) KnobValueField(ApplyChanceKnob, ref ApplyChance);
+        if (StackCountKnob != null) KnobValueField(StackCountKnob, ref StackCount);
 
         for (int i = 0; i < InputKnobs.Count; i++)
         {
@@ -90,6 +97,25 @@ public abstract class NodeOperatorBase : NodeBase
             });
         }
 
+        if (StackCountKnob != null)
+        {
+            menu.AddItem(new GUIContent("Remove stacking"), false, () =>
+            {
+                DeleteConnectionPort(StackCountKnob);
+                RefreshDynamicKnobs();
+                StackCount = 0;
+                canvas.OnNodeChange(this);
+            });
+        }
+        else
+        {
+            menu.AddItem(new GUIContent("Add stacking"), false, () =>
+            {
+                StackCountKnob ??= (ValueConnectionKnob) CreateConnectionKnob(StackCountAttribute);
+                canvas.OnNodeChange(this);
+            });
+        }
+
         menu.AddSeparator("");
 
         if (InputKnobs.Count < 20)
@@ -130,12 +156,15 @@ public abstract class NodeOperatorBase : NodeBase
     public override void RefreshPreview()
     {
         var chance = GetIfConnected<double>(ApplyChanceKnob);
+        var stack = GetIfConnected<double>(StackCountKnob);
         var smooth = GetIfConnected<double>(SmoothnessKnob);
 
         chance?.ResetState();
+        stack?.ResetState();
         smooth?.ResetState();
 
         if (chance != null) ApplyChance = chance.Get();
+        if (stack != null) StackCount = stack.Get();
         if (smooth != null) Smoothness = smooth.Get();
     }
 

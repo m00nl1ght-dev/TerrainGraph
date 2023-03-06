@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using NodeEditorFramework;
 using NodeEditorFramework.Utilities;
 using TerrainGraph.Util;
@@ -31,6 +30,7 @@ public class NodeGridOperator : NodeOperatorBase
 
         if (SmoothnessKnob != null) KnobValueField(SmoothnessKnob, ref Smoothness);
         if (ApplyChanceKnob != null) KnobValueField(ApplyChanceKnob, ref ApplyChance);
+        if (StackCountKnob != null) KnobValueField(StackCountKnob, ref StackCount);
 
         while (Values.Count < InputKnobs.Count) Values.Add(0f);
         while (Values.Count > InputKnobs.Count) Values.RemoveAt(Values.Count - 1);
@@ -68,6 +68,7 @@ public class NodeGridOperator : NodeOperatorBase
     {
         var applyChance = SupplierOrValueFixed(ApplyChanceKnob, ApplyChance);
         var smoothness = SupplierOrValueFixed(SmoothnessKnob, Smoothness);
+        var stackCount = SupplierOrValueFixed(StackCountKnob, StackCount);
 
         List<ISupplier<IGridFunction<double>>> inputs = new();
         for (int i = 0; i < Math.Min(Values.Count, InputKnobs.Count); i++)
@@ -75,22 +76,30 @@ public class NodeGridOperator : NodeOperatorBase
             inputs.Add(SupplierOrGridFixed(InputKnobs[i], GridFunction.Of(Values[i])));
         }
 
-        OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output(applyChance, inputs, OperationType, smoothness, CombinedSeed));
+        OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output(applyChance, stackCount, inputs, OperationType, smoothness, CombinedSeed));
         return true;
     }
 
     private class Output : ISupplier<IGridFunction<double>>
     {
         private readonly ISupplier<double> _applyChance;
+        private readonly ISupplier<double> _stackCount;
         private readonly List<ISupplier<IGridFunction<double>>> _inputs;
         private readonly FastRandom _random;
         private readonly Operation _operationType;
         private readonly ISupplier<double> _smoothness;
         private readonly int _seed;
 
-        public Output(ISupplier<double> applyChance, List<ISupplier<IGridFunction<double>>> inputs, Operation operationType, ISupplier<double> smoothness, int seed)
+        public Output(
+            ISupplier<double> applyChance,
+            ISupplier<double> stackCount,
+            List<ISupplier<IGridFunction<double>>> inputs,
+            Operation operationType,
+            ISupplier<double> smoothness,
+            int seed)
         {
             _applyChance = applyChance;
+            _stackCount = stackCount;
             _inputs = inputs;
             _operationType = operationType;
             _smoothness = smoothness;
@@ -101,24 +110,37 @@ public class NodeGridOperator : NodeOperatorBase
         public IGridFunction<double> Get()
         {
             double applyChance = _applyChance.Get();
+            double stackCount = _stackCount.Get();
             double smoothness = _smoothness.Get();
-            var inputs = _inputs
-                .Where((_, i) => i == 0 || applyChance >= 1 || _random.NextDouble() < applyChance)
-                .Select(e => e.Get()).ToList();
 
-            return inputs.Count switch
+            if (stackCount < 1) stackCount = 1;
+            else if (stackCount > 20) stackCount = 20;
+
+            if (_inputs.Count == 0) return GridFunction.Zero;
+
+            Func<IGridFunction<double>, IGridFunction<double>, IGridFunction<double>> func = _operationType switch
             {
-                0 => GridFunction.Zero,
-                1 => inputs[0],
-                _ => _operationType switch
-                {
-                    Operation.Add => inputs.Aggregate((a, b) => new GridFunction.Add(a, b)),
-                    Operation.Multiply => inputs.Aggregate((a, b) => new GridFunction.Multiply(a, b)),
-                    Operation.Min or Operation.Smooth_Min => inputs.Aggregate((a, b) => new GridFunction.Min(a, b, smoothness)),
-                    Operation.Max or Operation.Smooth_Max => inputs.Aggregate((a, b) => new GridFunction.Max(a, b, smoothness)),
-                    _ => throw new ArgumentOutOfRangeException()
-                }
+                Operation.Add => (a, b) => new GridFunction.Add(a, b),
+                Operation.Multiply => (a, b) => new GridFunction.Multiply(a, b),
+                Operation.Min or Operation.Smooth_Min => (a, b) => new GridFunction.Min(a, b, smoothness),
+                Operation.Max or Operation.Smooth_Max => (a, b) => new GridFunction.Max(a, b, smoothness),
+                _ => throw new ArgumentOutOfRangeException()
             };
+
+            var value = _inputs[0].Get();
+
+            for (int s = 0; s < stackCount; s++)
+            {
+                for (int i = 1; i < _inputs.Count; i++)
+                {
+                    if (applyChance >= 1 || _random.NextDouble() < applyChance)
+                    {
+                        value = func(value, _inputs[i].Get());
+                    }
+                }
+            }
+
+            return value;
         }
 
         public void ResetState()
@@ -126,6 +148,7 @@ public class NodeGridOperator : NodeOperatorBase
             _random.Reinitialise(_seed);
             foreach (var input in _inputs) input.ResetState();
             _applyChance.ResetState();
+            _stackCount.ResetState();
             _smoothness.ResetState();
         }
     }
