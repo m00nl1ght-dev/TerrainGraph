@@ -81,6 +81,7 @@ public abstract class NodeDiscreteGridPreview<T> : NodeBase
 
     public override void RefreshPreview()
     {
+        var previewBuffer = PreviewBuffer;
         var previewRatio = TerrainCanvas.GridPreviewRatio;
         var supplier = InputKnobRef.connected() ? InputKnobRef.GetValue<ISupplier<IGridFunction<T>>>() : null;
 
@@ -93,13 +94,16 @@ public abstract class NodeDiscreteGridPreview<T> : NodeBase
                 for (int y = 0; y < PreviewSize; y++)
                 {
                     var color = GetColor(PreviewFunction.ValueAt(x * previewRatio, y * previewRatio));
-                    PreviewBuffer[y * PreviewSize + x] = color;
+                    previewBuffer[y * PreviewSize + x] = color;
                 }
             }
         }, () =>
         {
-            PreviewTexture.SetPixels(PreviewBuffer);
-            PreviewTexture.Apply();
+            if (PreviewTexture != null)
+            {
+                PreviewTexture.SetPixels(previewBuffer);
+                PreviewTexture.Apply();
+            }
         }));
     }
 }

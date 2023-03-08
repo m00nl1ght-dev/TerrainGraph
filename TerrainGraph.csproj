@@ -97,12 +97,15 @@
         <Compile Include="TerrainGraph\IGridFunction.cs" />
         <Compile Include="TerrainGraph\GridFunctions.cs" />
         <Compile Include="TerrainGraph\Nodes\Grid\NodeDiscreteGridPreview.cs" />
+        <Compile Include="TerrainGraph\Nodes\Grid\NodeGridCache.cs" />
         <Compile Include="TerrainGraph\Nodes\Grid\NodeGridFromValue.cs" />
         <Compile Include="TerrainGraph\Nodes\Grid\NodeGridLinear.cs" />
         <Compile Include="TerrainGraph\Nodes\Grid\NodeGridSelectValue.cs" />
+        <Compile Include="TerrainGraph\Nodes\NodeCacheBase.cs" />
         <Compile Include="TerrainGraph\Nodes\NodeOperatorBase.cs" />
         <Compile Include="TerrainGraph\ISupplier.cs" />
         <Compile Include="TerrainGraph\Nodes\NodeSelectBase.cs" />
+        <Compile Include="TerrainGraph\Nodes\Value\NodeGridCache.cs" />
         <Compile Include="TerrainGraph\Nodes\Value\NodeValueSelectGridValue.cs" />
         <Compile Include="TerrainGraph\Nodes\Value\NodeValueSelectValue.cs" />
         <Compile Include="TerrainGraph\Preview\AsyncPreviewScheduler.cs" />

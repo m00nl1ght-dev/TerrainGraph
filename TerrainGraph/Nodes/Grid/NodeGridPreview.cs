@@ -108,11 +108,12 @@ public class NodeGridPreview : NodeBase
 
     public override void RefreshPreview()
     {
+        var previewBuffer = _previewBuffer;
         var previewRatio = TerrainCanvas.GridPreviewRatio;
         PreviewModels.TryGetValue(PreviewModelId, out var previewModel);
         previewModel ??= DefaultModel;
 
-        _previewTexture.SetPixels(_previewBuffer);
+        _previewTexture.SetPixels(previewBuffer);
         _previewTexture.Apply();
 
         var supplier = InputKnob.connected() ? InputKnob.GetValue<ISupplier<IGridFunction<double>>>() : null;
@@ -126,13 +127,16 @@ public class NodeGridPreview : NodeBase
                 for (int y = 0; y < _previewSize; y++)
                 {
                     var val = (float) _previewFunction.ValueAt(x * previewRatio, y * previewRatio);
-                    _previewBuffer[y * _previewSize + x] = previewModel.GetColorFor(val, x, y);
+                    previewBuffer[y * _previewSize + x] = previewModel.GetColorFor(val, x, y);
                 }
             }
         }, () =>
         {
-            _previewTexture.SetPixels(_previewBuffer);
-            _previewTexture.Apply();
+            if (_previewTexture != null)
+            {
+                _previewTexture.SetPixels(previewBuffer);
+                _previewTexture.Apply();
+            }
         }));
     }
 
