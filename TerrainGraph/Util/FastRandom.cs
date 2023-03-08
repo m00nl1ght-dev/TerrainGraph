@@ -1,9 +1,11 @@
+using System;
+using System.Threading;
+
 namespace TerrainGraph.Util;
 
 // This file is originally from the Lidgren.Network library.
 // modified, MIT License
 
-using System;
 
 /// <summary>
 /// A fast random number generator for .NET
@@ -38,7 +40,7 @@ using System;
 ///  A further performance improvement can be obtained by declaring local variables as static, thus avoiding 
 ///  re-allocation of variables on each call. However care should be taken if multiple instances of
 ///  FastRandom are in use or if being used in a multi-threaded environment.
-public class FastRandom
+public class FastRandom : IRandom
 {
     // The +1 ensures NextDouble doesn't generate 1.0
     const double REAL_UNIT_INT = 1.0 / ((double)int.MaxValue + 1.0);
@@ -81,7 +83,7 @@ public class FastRandom
         //seed ^= (int)(Stopwatch.GetTimestamp());
         //seed ^= (int)(Environment.WorkingSet); // will return 0 on mono
 
-        int extraSeed = System.Threading.Interlocked.Increment(ref s_extraSeed);
+        int extraSeed = Interlocked.Increment(ref s_extraSeed);
 
         return seed + extraSeed;
     }

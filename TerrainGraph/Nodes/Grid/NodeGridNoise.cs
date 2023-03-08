@@ -107,7 +107,8 @@ public abstract class NodeGridNoise : NodeBase
             SupplierOrValueFixed(PersistenceKnob, Persistence),
             SupplierOrValueFixed(ScaleKnob, Scale),
             SupplierOrValueFixed(BiasKnob, Bias),
-            Octaves, NoiseFunction, CombinedSeed, TransformScale, DynamicSeed
+            Octaves, NoiseFunction, TransformScale, CombinedSeed,
+            DynamicSeed, TerrainCanvas.CreateRandomInstance()
         ));
         return true;
     }
@@ -121,14 +122,15 @@ public abstract class NodeGridNoise : NodeBase
         private readonly ISupplier<double> _scale;
         private readonly ISupplier<double> _bias;
         private readonly int _octaves;
-        private readonly int _seed;
         private readonly double _transformScale;
+        private readonly int _seed;
         private readonly bool _dynamicSeed;
-        private readonly FastRandom _random;
+        private readonly IRandom _random;
 
         public Output(
-            ISupplier<double> frequency, ISupplier<double> lacunarity,
-            ISupplier<double> persistence, ISupplier<double> scale, ISupplier<double> bias, int octaves, GridFunction.NoiseFunction noiseFunction, int seed, double transformScale, bool dynamicSeed)
+            ISupplier<double> frequency, ISupplier<double> lacunarity, ISupplier<double> persistence,
+            ISupplier<double> scale, ISupplier<double> bias, int octaves, GridFunction.NoiseFunction noiseFunction,
+            double transformScale, int seed, bool dynamicSeed, IRandom random)
         {
             _noiseFunction = noiseFunction;
             _frequency = frequency;
@@ -137,10 +139,11 @@ public abstract class NodeGridNoise : NodeBase
             _scale = scale;
             _bias = bias;
             _octaves = octaves;
-            _seed = seed;
             _transformScale = transformScale;
+            _seed = seed;
             _dynamicSeed = dynamicSeed;
-            _random = new FastRandom(seed);
+            _random = random;
+            _random.Reinitialise(_seed);
         }
 
         public IGridFunction<double> Get()

@@ -122,6 +122,7 @@
         <Compile Include="TerrainGraph\Nodes\Grid\NodeGridRotate.cs" />
         <Compile Include="TerrainGraph\Nodes\NodeBase.cs" />
         <Compile Include="TerrainGraph\Util\FastRandom.cs" />
+        <Compile Include="TerrainGraph\Util\IRandom.cs" />
     </ItemGroup>
     <ItemGroup>
       <Content Include="NodeEditorFramework\LICENSE" />

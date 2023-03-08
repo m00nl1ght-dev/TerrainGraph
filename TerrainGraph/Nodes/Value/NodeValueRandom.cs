@@ -83,26 +83,27 @@ public class NodeValueRandom : NodeBase
         OutputKnob.SetValue<ISupplier<double>>(new Output(
             SupplierOrValueFixed(AverageKnob, Average),
             SupplierOrValueFixed(DeviationKnob, Deviation),
-            CombinedSeed, DynamicSeed
+            CombinedSeed, DynamicSeed, TerrainCanvas.CreateRandomInstance()
         ));
         return true;
     }
 
     private class Output : ISupplier<double>
     {
-        private readonly FastRandom _random;
         private readonly ISupplier<double> _average;
         private readonly ISupplier<double> _deviation;
         private readonly int _seed;
         private readonly bool _dynamicSeed;
+        private readonly IRandom _random;
 
-        public Output(ISupplier<double> average, ISupplier<double> deviation, int seed, bool dynamicSeed)
+        public Output(ISupplier<double> average, ISupplier<double> deviation, int seed, bool dynamicSeed, IRandom random)
         {
             _average = average;
             _deviation = deviation;
             _seed = seed;
             _dynamicSeed = dynamicSeed;
-            _random = new FastRandom(seed);
+            _random = random;
+            _random.Reinitialise(_seed);
         }
 
         public double Get()

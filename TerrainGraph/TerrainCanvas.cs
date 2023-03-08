@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using NodeEditorFramework;
+using TerrainGraph.Util;
 
 namespace TerrainGraph;
 
@@ -31,6 +32,11 @@ public class TerrainCanvas : NodeCanvas
     protected override void ValidateSelf()
     {
         Traversal ??= new TerrainCanvasTraversal(this);
+    }
+
+    public virtual IRandom CreateRandomInstance()
+    {
+        return new FastRandom(RandSeed);
     }
 
     public virtual void RefreshPreviews()

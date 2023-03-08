@@ -76,7 +76,10 @@ public class NodeGridOperator : NodeOperatorBase
             inputs.Add(SupplierOrGridFixed(InputKnobs[i], GridFunction.Of(Values[i])));
         }
 
-        OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output(applyChance, stackCount, inputs, OperationType, smoothness, CombinedSeed));
+        OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output(
+            applyChance, stackCount, inputs, OperationType, smoothness,
+            CombinedSeed, TerrainCanvas.CreateRandomInstance()
+        ));
         return true;
     }
 
@@ -85,10 +88,10 @@ public class NodeGridOperator : NodeOperatorBase
         private readonly ISupplier<double> _applyChance;
         private readonly ISupplier<double> _stackCount;
         private readonly List<ISupplier<IGridFunction<double>>> _inputs;
-        private readonly FastRandom _random;
         private readonly Operation _operationType;
         private readonly ISupplier<double> _smoothness;
         private readonly int _seed;
+        private readonly IRandom _random;
 
         public Output(
             ISupplier<double> applyChance,
@@ -96,7 +99,7 @@ public class NodeGridOperator : NodeOperatorBase
             List<ISupplier<IGridFunction<double>>> inputs,
             Operation operationType,
             ISupplier<double> smoothness,
-            int seed)
+            int seed, IRandom random)
         {
             _applyChance = applyChance;
             _stackCount = stackCount;
@@ -104,7 +107,8 @@ public class NodeGridOperator : NodeOperatorBase
             _operationType = operationType;
             _smoothness = smoothness;
             _seed = seed;
-            _random = new FastRandom(seed);
+            _random = random;
+            _random.Reinitialise(_seed);
         }
 
         public IGridFunction<double> Get()
