@@ -137,6 +137,9 @@ public class NodeValueOperator : NodeOperatorBase
                 Operation.Multiply => (a, b) => a * b,
                 Operation.Min or Operation.Smooth_Min => (a, b) => GridFunction.Min.Of(a, b, smoothness),
                 Operation.Max or Operation.Smooth_Max => (a, b) => GridFunction.Max.Of(a, b, smoothness),
+                Operation.Invert => (a, b) => b + (b - a),
+                Operation.Invert_Below => (a, b) => a < b ? b + (b - a) : a,
+                Operation.Invert_Above => (a, b) => a > b ? b + (b - a) : a,
                 _ => throw new ArgumentOutOfRangeException()
             };
 

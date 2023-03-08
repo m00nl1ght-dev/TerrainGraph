@@ -175,6 +175,9 @@ public abstract class NodeOperatorBase : NodeBase
         Min,
         Max,
         Smooth_Min,
-        Smooth_Max
+        Smooth_Max,
+        Invert,
+        Invert_Below,
+        Invert_Above
     }
 }

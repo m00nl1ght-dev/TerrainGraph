@@ -157,6 +157,28 @@ public static class GridFunction
         }
     }
 
+    public class Invert : IGridFunction<double>
+    {
+        public readonly IGridFunction<double> Input, Pivot;
+        public readonly bool ApplyBelow, ApplyAbove;
+
+        public Invert(IGridFunction<double> input, IGridFunction<double> pivot, bool applyBelow, bool applyAbove)
+        {
+            Input = input;
+            Pivot = pivot;
+            ApplyBelow = applyBelow;
+            ApplyAbove = applyAbove;
+        }
+
+        public double ValueAt(double x, double z)
+        {
+            var input = Input.ValueAt(x, z);
+            var pivot = Pivot.ValueAt(x, z);
+            if (input < pivot ? ApplyBelow : ApplyAbove) return pivot + (pivot - input);
+            return input;
+        }
+    }
+
     public class Clamp : IGridFunction<double>
     {
         public readonly IGridFunction<double> Input;
