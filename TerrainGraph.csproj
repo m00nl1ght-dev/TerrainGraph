@@ -101,6 +101,7 @@
         <Compile Include="TerrainGraph\Nodes\Grid\NodeGridFromValue.cs" />
         <Compile Include="TerrainGraph\Nodes\Grid\NodeGridLinear.cs" />
         <Compile Include="TerrainGraph\Nodes\Grid\NodeGridSelectValue.cs" />
+        <Compile Include="TerrainGraph\Nodes\Grid\NodeGridValidate.cs" />
         <Compile Include="TerrainGraph\Nodes\NodeCacheBase.cs" />
         <Compile Include="TerrainGraph\Nodes\NodeOperatorBase.cs" />
         <Compile Include="TerrainGraph\ISupplier.cs" />

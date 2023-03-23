@@ -1,0 +1,216 @@
+using System;
+using NodeEditorFramework;
+using NodeEditorFramework.Utilities;
+using UnityEngine;
+
+namespace TerrainGraph;
+
+[Serializable]
+[Node(false, "Grid/Validate", 213)]
+public class NodeGridValidate : NodeBase
+{
+    public const string ID = "gridValidate";
+    public override string GetID => ID;
+
+    public override string Title => EdgeCellsOnly ? "Validate Edges" : "Validate";
+
+    [ValueConnectionKnob("Input", Direction.In, GridFunctionConnection.Id)]
+    public ValueConnectionKnob InputKnob;
+
+    [ValueConnectionKnob("Min value", Direction.In, ValueFunctionConnection.Id)]
+    public ValueConnectionKnob MinValueKnob;
+
+    [ValueConnectionKnob("Max value", Direction.In, ValueFunctionConnection.Id)]
+    public ValueConnectionKnob MaxValueKnob;
+
+    [ValueConnectionKnob("Min cells", Direction.In, ValueFunctionConnection.Id)]
+    public ValueConnectionKnob MinCellsKnob;
+
+    [ValueConnectionKnob("Max cells", Direction.In, ValueFunctionConnection.Id)]
+    public ValueConnectionKnob MaxCellsKnob;
+
+    [ValueConnectionKnob("Output", Direction.Out, GridFunctionConnection.Id)]
+    public ValueConnectionKnob OutputKnob;
+
+    public double MinValue;
+    public double MaxValue;
+
+    public double MinCells;
+    public double MaxCells;
+
+    public int MaxTries = 3;
+
+    public bool EdgeCellsOnly;
+
+    public override void NodeGUI()
+    {
+        InputKnob.SetPosition(FirstKnobPosition);
+        OutputKnob.SetPosition(FirstKnobPosition);
+
+        GUILayout.BeginVertical(BoxStyle);
+
+        GUILayout.BeginHorizontal(BoxStyle);
+        GUILayout.Label("Input", BoxLayout);
+        GUILayout.EndHorizontal();
+
+        KnobValueField(MinValueKnob, ref MinValue);
+        KnobValueField(MaxValueKnob, ref MaxValue);
+        KnobValueField(MinCellsKnob, ref MinCells);
+        KnobValueField(MaxCellsKnob, ref MaxCells);
+
+        IntField("Max tries", ref MaxTries);
+
+        GUILayout.EndVertical();
+
+        if (GUI.changed)
+            canvas.OnNodeChange(this);
+    }
+
+    public override void RefreshPreview()
+    {
+        var minValue = GetIfConnected<double>(MinValueKnob);
+        var maxValue = GetIfConnected<double>(MaxValueKnob);
+        var minCells = GetIfConnected<double>(MinCellsKnob);
+        var maxCells = GetIfConnected<double>(MaxCellsKnob);
+
+        if (minValue != null) MinValue = minValue.ResetAndGet();
+        if (maxValue != null) MaxValue = maxValue.ResetAndGet();
+        if (minCells != null) MinCells = minCells.ResetAndGet();
+        if (maxCells != null) MaxCells = maxCells.ResetAndGet();
+    }
+
+    public override void FillNodeActionsMenu(NodeEditorInputInfo inputInfo, GenericMenu menu)
+    {
+        base.FillNodeActionsMenu(inputInfo, menu);
+        menu.AddSeparator("");
+
+        if (EdgeCellsOnly)
+        {
+            menu.AddItem(new GUIContent("Switch to full"), false, () =>
+            {
+                EdgeCellsOnly = false;
+                canvas.OnNodeChange(this);
+            });
+        }
+        else
+        {
+            menu.AddItem(new GUIContent("Switch to edges"), false, () =>
+            {
+                EdgeCellsOnly = true;
+                canvas.OnNodeChange(this);
+            });
+        }
+    }
+
+    public override bool Calculate()
+    {
+        OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output(
+            SupplierOrGridFixed(InputKnob, GridFunction.Zero),
+            SupplierOrValueFixed(MinValueKnob, MinValue),
+            SupplierOrValueFixed(MaxValueKnob, MaxValue),
+            SupplierOrValueFixed(MinCellsKnob, MinCells),
+            SupplierOrValueFixed(MaxCellsKnob, MaxCells),
+            MaxTries, GridSize, EdgeCellsOnly
+        ));
+        return true;
+    }
+
+    public class Output : ISupplier<IGridFunction<double>>
+    {
+        private readonly ISupplier<IGridFunction<double>> _input;
+
+        private readonly ISupplier<double> _minValue;
+        private readonly ISupplier<double> _maxValue;
+        private readonly ISupplier<double> _minCells;
+        private readonly ISupplier<double> _maxCells;
+
+        private readonly int _maxTries;
+        private readonly double _gridSize;
+        private readonly bool _edgeCellsOnly;
+
+        public Output(
+            ISupplier<IGridFunction<double>> input,
+            ISupplier<double> minValue, ISupplier<double> maxValue,
+            ISupplier<double> minCells, ISupplier<double> maxCells,
+            int maxTries, double gridSize, bool edgeCellsOnly)
+        {
+            _input = input;
+            _minValue = minValue;
+            _maxValue = maxValue;
+            _minCells = minCells;
+            _maxCells = maxCells;
+            _maxTries = maxTries;
+            _gridSize = gridSize;
+            _edgeCellsOnly = edgeCellsOnly;
+        }
+
+        public IGridFunction<double> Get()
+        {
+            var minValue = _minValue.Get();
+            var maxValue = _maxValue.Get();
+            var minCells = _minCells.Get();
+            var maxCells = _maxCells.Get();
+
+            int maxTries = _maxTries <= 10 ? _maxTries : 10;
+            int gridSize = (int) _gridSize;
+
+            IGridFunction<double> input = null;
+
+            var acceptedMin = int.MaxValue;
+            var acceptedMax = int.MinValue;
+
+            if (maxTries < 1) maxTries = 1;
+
+            for (int i = 0; i < maxTries; i++)
+            {
+                input = _input.Get();
+
+                var accepted = 0;
+
+                for (int x = 0; x < gridSize; x++)
+                {
+                    if (_edgeCellsOnly && x != 0 && x != gridSize - 1)
+                    {
+                        var first = input.ValueAt(x, 0);
+                        if (first >= minValue && first <= maxValue) accepted++;
+
+                        var last = input.ValueAt(x, gridSize - 1);
+                        if (last >= minValue && last <= maxValue) accepted++;
+                    }
+                    else
+                    {
+                        for (int z = 0; z < gridSize; z++)
+                        {
+                            var value = input.ValueAt(x, z);
+                            if (value >= minValue && value <= maxValue) accepted++;
+                        }
+                    }
+                }
+
+                if (accepted >= minCells && accepted <= maxCells)
+                {
+                    // Debug.Log($"Grid function passed validation after {i + 1} tries, with {accepted} accepted cells, " +
+                    //           $"needing {minCells:F0}-{maxCells:F0} to be in value range {minValue:F2}-{maxValue:F2}.");
+                    return input;
+                }
+
+                if (accepted > acceptedMax) acceptedMax = accepted;
+                if (accepted < acceptedMin) acceptedMin = accepted;
+            }
+
+            Debug.Log($"Grid function failed validation after {maxTries} tries, reaching {acceptedMin}-{acceptedMax} accepted cells, " +
+                      $"but needing {minCells:F0}-{maxCells:F0} to be in value range {minValue:F2}-{maxValue:F2}.");
+
+            return input;
+        }
+
+        public void ResetState()
+        {
+            _input.ResetState();
+            _minValue.ResetState();
+            _maxValue.ResetState();
+            _minCells.ResetState();
+            _maxCells.ResetState();
+        }
+    }
+}
