@@ -81,20 +81,21 @@ public abstract class NodeDiscreteGridPreview<T> : NodeBase
 
     public override void RefreshPreview()
     {
+        var previewSize = PreviewSize;
         var previewBuffer = PreviewBuffer;
         var previewRatio = TerrainCanvas.GridPreviewRatio;
         var supplier = InputKnobRef.connected() ? InputKnobRef.GetValue<ISupplier<IGridFunction<T>>>() : null;
 
         TerrainCanvas.PreviewScheduler.ScheduleTask(new PreviewTask(this, () =>
         {
-            PreviewFunction = supplier != null ? supplier.ResetAndGet() : Default;
+            var previewFunction = PreviewFunction = supplier != null ? supplier.ResetAndGet() : Default;
 
-            for (int x = 0; x < PreviewSize; x++)
+            for (int x = 0; x < previewSize; x++)
             {
-                for (int y = 0; y < PreviewSize; y++)
+                for (int y = 0; y < previewSize; y++)
                 {
-                    var color = GetColor(PreviewFunction.ValueAt(x * previewRatio, y * previewRatio));
-                    previewBuffer[y * PreviewSize + x] = color;
+                    var color = GetColor(previewFunction.ValueAt(x * previewRatio, y * previewRatio));
+                    previewBuffer[y * previewSize + x] = color;
                 }
             }
         }, () =>

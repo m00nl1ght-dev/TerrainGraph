@@ -108,8 +108,10 @@ public class NodeGridPreview : NodeBase
 
     public override void RefreshPreview()
     {
+        var previewSize = _previewSize;
         var previewBuffer = _previewBuffer;
         var previewRatio = TerrainCanvas.GridPreviewRatio;
+        
         PreviewModels.TryGetValue(PreviewModelId, out var previewModel);
         previewModel ??= DefaultModel;
 
@@ -120,14 +122,14 @@ public class NodeGridPreview : NodeBase
 
         TerrainCanvas.PreviewScheduler.ScheduleTask(new PreviewTask(this, () =>
         {
-            _previewFunction = supplier != null ? supplier.ResetAndGet() : GridFunction.Zero;
+            var previewFunction = _previewFunction = supplier != null ? supplier.ResetAndGet() : GridFunction.Zero;
 
-            for (int x = 0; x < _previewSize; x++)
+            for (int x = 0; x < previewSize; x++)
             {
-                for (int y = 0; y < _previewSize; y++)
+                for (int y = 0; y < previewSize; y++)
                 {
-                    var val = (float) _previewFunction.ValueAt(x * previewRatio, y * previewRatio);
-                    previewBuffer[y * _previewSize + x] = previewModel.GetColorFor(val, x, y);
+                    var val = (float) previewFunction.ValueAt(x * previewRatio, y * previewRatio);
+                    previewBuffer[y * previewSize + x] = previewModel.GetColorFor(val, x, y);
                 }
             }
         }, () =>
