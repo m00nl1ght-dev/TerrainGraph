@@ -1,5 +1,6 @@
 using System;
 using NodeEditorFramework;
+using NodeEditorFramework.Utilities;
 using UnityEngine;
 
 namespace TerrainGraph;
@@ -11,7 +12,7 @@ public class NodeGridFromValue : NodeBase
     public const string ID = "gridFromValue";
     public override string GetID => ID;
 
-    public override Vector2 DefaultSize => new(60, 55);
+    public override Vector2 DefaultSize => new(100, 55);
     public override bool AutoLayout => false;
 
     public override string Title => "Grid";
@@ -22,38 +23,58 @@ public class NodeGridFromValue : NodeBase
     [ValueConnectionKnob("Output", Direction.Out, GridFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
 
+    public double Value;
+
     public override void NodeGUI()
     {
         InputKnob.SetPosition(FirstKnobPosition);
         OutputKnob.SetPosition(FirstKnobPosition);
 
         GUILayout.BeginVertical(BoxStyle);
-
         GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("", BoxLayout);
-        GUILayout.EndHorizontal();
 
+        if (InputKnob.connected())
+        {
+            GUI.enabled = false;
+            RTEditorGUI.FloatField(GUIContent.none, (float) Math.Round(Value, 2), FullBoxLayout);
+            GUI.enabled = true;
+        }
+        else
+        {
+            Value = RTEditorGUI.FloatField(GUIContent.none, (float) Value, FullBoxLayout);
+        }
+        
+        GUILayout.EndHorizontal();
         GUILayout.EndVertical();
+
+        if (GUI.changed)
+            canvas.OnNodeChange(this);
     }
 
+    public override void RefreshPreview()
+    {
+        var input = GetIfConnected<double>(InputKnob);
+        if (input != null) Value = input.ResetAndGet();
+    }
+    
     public override bool Calculate()
     {
-        OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output(
-            SupplierOrValueFixed(InputKnob, 0)
+        OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output<double>(
+            SupplierOrValueFixed(InputKnob, Value)
         ));
         return true;
     }
 
-    private class Output : ISupplier<IGridFunction<double>>
+    public class Output<T> : ISupplier<IGridFunction<T>>
     {
-        private readonly ISupplier<double> _input;
+        private readonly ISupplier<T> _input;
 
-        public Output(ISupplier<double> input)
+        public Output(ISupplier<T> input)
         {
             _input = input;
         }
 
-        public IGridFunction<double> Get()
+        public IGridFunction<T> Get()
         {
             return GridFunction.Of(_input.Get());
         }

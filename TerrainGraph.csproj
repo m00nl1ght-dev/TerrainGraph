@@ -106,7 +106,8 @@
         <Compile Include="TerrainGraph\Nodes\NodeOperatorBase.cs" />
         <Compile Include="TerrainGraph\ISupplier.cs" />
         <Compile Include="TerrainGraph\Nodes\NodeSelectBase.cs" />
-        <Compile Include="TerrainGraph\Nodes\Value\NodeGridCache.cs" />
+        <Compile Include="TerrainGraph\Nodes\Value\NodeValueCache.cs" />
+        <Compile Include="TerrainGraph\Nodes\Value\NodeValueConst.cs" />
         <Compile Include="TerrainGraph\Nodes\Value\NodeValueSelectGridValue.cs" />
         <Compile Include="TerrainGraph\Nodes\Value\NodeValueSelectValue.cs" />
         <Compile Include="TerrainGraph\Preview\AsyncPreviewScheduler.cs" />

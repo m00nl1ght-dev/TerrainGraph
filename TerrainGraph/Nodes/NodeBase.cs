@@ -28,6 +28,7 @@ public abstract class NodeBase : Node
     public const int FirstKnobPosition = 37;
 
     public GUILayoutOption[] BoxLayout => new[] { GUILayout.Width(DefaultSize.x / 2f - 13f), GUILayout.Height(20f) };
+    public GUILayoutOption[] FullBoxLayout => new[] { GUILayout.Width(DefaultSize.x - 17f), GUILayout.Height(20f) };
     public GUILayoutOption[] DoubleBoxLayout => new[] { GUILayout.Width(DefaultSize.x - 12f), GUILayout.Height(20f) };
 
     private static GUIStyle _boxStyle;
