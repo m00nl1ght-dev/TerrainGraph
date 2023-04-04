@@ -278,6 +278,29 @@ public static class GridFunction
         }
     }
 
+    public class DeltaMap : IGridFunction<double>
+    {
+        public readonly IGridFunction<double> Input;
+        public readonly double Step;
+
+        public DeltaMap(IGridFunction<double> input, double step)
+        {
+            Input = input;
+            Step = step;
+        }
+
+        public double ValueAt(double x, double z)
+        {
+            var mm = Input.ValueAt(x, z);
+            var xm = Input.ValueAt(x - Step, z);
+            var xp = Input.ValueAt(x + Step, z);
+            var zm = Input.ValueAt(x, z - Step);
+            var zp = Input.ValueAt(x, z + Step);
+
+            return (Math.Abs(mm - xm) + Math.Abs(mm - xp) + Math.Abs(mm - zm) + Math.Abs(mm - zp)) / 4;
+        }
+    }
+
     public class Transform<T> : IGridFunction<T>
     {
         public readonly IGridFunction<T> Input;

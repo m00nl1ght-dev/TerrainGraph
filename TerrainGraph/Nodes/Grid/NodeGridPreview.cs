@@ -144,6 +144,7 @@ public class NodeGridPreview : NodeBase
 
     private static readonly Dictionary<string, IPreviewModel> PreviewModels = new();
     public static readonly IPreviewModel DefaultModel = new DefaultPreviewModel();
+    public static readonly IPreviewModel DefaultModel_100 = new DefaultPreviewModel(100f);
 
     public static void RegisterPreviewModel(IPreviewModel model, string id)
     {
@@ -153,6 +154,7 @@ public class NodeGridPreview : NodeBase
     static NodeGridPreview()
     {
         RegisterPreviewModel(DefaultModel, "Default");
+        RegisterPreviewModel(DefaultModel_100, "Default x100");
     }
 
     public interface IPreviewModel
@@ -162,8 +164,16 @@ public class NodeGridPreview : NodeBase
 
     private class DefaultPreviewModel : IPreviewModel
     {
+        public readonly float Multiplier;
+
+        public DefaultPreviewModel(float multiplier = 1f)
+        {
+            Multiplier = multiplier;
+        }
+
         public Color GetColorFor(float val, int x, int y)
         {
+            val /= Multiplier;
             return val switch
             {
                 < -5f => new Color(0f, 0.5f, 0f),

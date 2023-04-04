@@ -98,6 +98,7 @@
         <Compile Include="TerrainGraph\GridFunctions.cs" />
         <Compile Include="TerrainGraph\Nodes\Grid\NodeDiscreteGridPreview.cs" />
         <Compile Include="TerrainGraph\Nodes\Grid\NodeGridCache.cs" />
+        <Compile Include="TerrainGraph\Nodes\Grid\NodeGridDeltaMap.cs" />
         <Compile Include="TerrainGraph\Nodes\Grid\NodeGridFromValue.cs" />
         <Compile Include="TerrainGraph\Nodes\Grid\NodeGridLinear.cs" />
         <Compile Include="TerrainGraph\Nodes\Grid\NodeGridSelectValue.cs" />
