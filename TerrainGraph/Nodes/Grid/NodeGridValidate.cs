@@ -115,6 +115,33 @@ public class NodeGridValidate : NodeBase
         return true;
     }
 
+    public static int Validate(IGridFunction<double> input, int sizeX, int sizeZ, double minValue, double maxValue, bool edgeCellsOnly)
+    {
+        var accepted = 0;
+
+        for (int x = 0; x < sizeX; x++)
+        {
+            if (edgeCellsOnly && x != 0 && x != sizeX - 1)
+            {
+                var first = input.ValueAt(x, 0);
+                if (first >= minValue && first <= maxValue) accepted++;
+
+                var last = input.ValueAt(x, sizeZ - 1);
+                if (last >= minValue && last <= maxValue) accepted++;
+            }
+            else
+            {
+                for (int z = 0; z < sizeZ; z++)
+                {
+                    var value = input.ValueAt(x, z);
+                    if (value >= minValue && value <= maxValue) accepted++;
+                }
+            }
+        }
+
+        return accepted;
+    }
+
     public class Output : ISupplier<IGridFunction<double>>
     {
         private readonly ISupplier<IGridFunction<double>> _input;
@@ -165,34 +192,9 @@ public class NodeGridValidate : NodeBase
             {
                 input = _input.Get();
 
-                var accepted = 0;
+                var accepted = Validate(input, gridSize, gridSize, minValue, maxValue, _edgeCellsOnly);
 
-                for (int x = 0; x < gridSize; x++)
-                {
-                    if (_edgeCellsOnly && x != 0 && x != gridSize - 1)
-                    {
-                        var first = input.ValueAt(x, 0);
-                        if (first >= minValue && first <= maxValue) accepted++;
-
-                        var last = input.ValueAt(x, gridSize - 1);
-                        if (last >= minValue && last <= maxValue) accepted++;
-                    }
-                    else
-                    {
-                        for (int z = 0; z < gridSize; z++)
-                        {
-                            var value = input.ValueAt(x, z);
-                            if (value >= minValue && value <= maxValue) accepted++;
-                        }
-                    }
-                }
-
-                if (accepted >= minCells && accepted <= maxCells)
-                {
-                    // Debug.Log($"Grid function passed validation after {i + 1} tries, with {accepted} accepted cells, " +
-                    //           $"needing {minCells:F0}-{maxCells:F0} to be in value range {minValue:F2}-{maxValue:F2}.");
-                    return input;
-                }
+                if (accepted >= minCells && accepted <= maxCells) return input;
 
                 if (accepted > acceptedMax) acceptedMax = accepted;
                 if (accepted < acceptedMin) acceptedMin = accepted;
