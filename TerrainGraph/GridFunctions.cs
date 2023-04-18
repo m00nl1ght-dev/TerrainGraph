@@ -327,7 +327,7 @@ public static class GridFunction
 
         public T ValueAt(double x, double z)
         {
-            return Input.ValueAt(x * ScaleX + TranslateX, z * ScaleZ + TranslateZ);
+            return Input.ValueAt(x * ScaleX - TranslateX, z * ScaleZ - TranslateZ);
         }
     }
 
