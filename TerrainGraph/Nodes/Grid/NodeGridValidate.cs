@@ -142,6 +142,32 @@ public class NodeGridValidate : NodeBase
         return accepted;
     }
 
+    public static int ValidateRow(IGridFunction<double> input, int z, int sizeX, double minValue, double maxValue)
+    {
+        var accepted = 0;
+
+        for (int x = 0; x < sizeX; x++)
+        {
+            var value = input.ValueAt(x, z);
+            if (value >= minValue && value <= maxValue) accepted++;
+        }
+
+        return accepted;
+    }
+
+    public static int ValidateCol(IGridFunction<double> input, int x, int sizeZ, double minValue, double maxValue)
+    {
+        var accepted = 0;
+
+        for (int z = 0; z < sizeZ; z++)
+        {
+            var value = input.ValueAt(x, z);
+            if (value >= minValue && value <= maxValue) accepted++;
+        }
+
+        return accepted;
+    }
+
     public class Output : ISupplier<IGridFunction<double>>
     {
         private readonly ISupplier<IGridFunction<double>> _input;
