@@ -73,10 +73,15 @@ public class NodeGridValidate : NodeBase
         var minCells = GetIfConnected<double>(MinCellsKnob);
         var maxCells = GetIfConnected<double>(MaxCellsKnob);
 
-        if (minValue != null) MinValue = minValue.ResetAndGet();
-        if (maxValue != null) MaxValue = maxValue.ResetAndGet();
-        if (minCells != null) MinCells = minCells.ResetAndGet();
-        if (maxCells != null) MaxCells = maxCells.ResetAndGet();
+        minValue?.ResetState();
+        maxValue?.ResetState();
+        minCells?.ResetState();
+        maxCells?.ResetState();
+
+        if (minValue != null) MinValue = minValue.Get();
+        if (maxValue != null) MaxValue = maxValue.Get();
+        if (minCells != null) MinCells = minCells.Get();
+        if (maxCells != null) MaxCells = maxCells.Get();
     }
 
     public override void FillNodeActionsMenu(NodeEditorInputInfo inputInfo, GenericMenu menu)

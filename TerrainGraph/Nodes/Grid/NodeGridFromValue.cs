@@ -54,7 +54,10 @@ public class NodeGridFromValue : NodeBase
     public override void RefreshPreview()
     {
         var input = GetIfConnected<double>(InputKnob);
-        if (input != null) Value = input.ResetAndGet();
+        
+        input?.ResetState();
+        
+        if (input != null) Value = input.Get();
     }
     
     public override bool Calculate()

@@ -52,6 +52,7 @@ public class NodeValueOperator : NodeOperatorBase
     {
         CreateValueConnectionKnob(new("Input " + InputKnobs.Count, Direction.In, ValueFunctionConnection.Id));
         RefreshDynamicKnobs();
+        canvas.OnNodeChange(this);
     }
 
     public override void RefreshPreview()

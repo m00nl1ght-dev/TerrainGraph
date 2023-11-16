@@ -46,7 +46,10 @@ public class NodeGridRotate : NodeBase
     public override void RefreshPreview()
     {
         var supplier = GetIfConnected<double>(AngleKnob);
-        if (supplier != null) Angle = supplier.ResetAndGet();
+        
+        supplier?.ResetState();
+        
+        if (supplier != null) Angle = supplier.Get();
     }
 
     public override bool Calculate()

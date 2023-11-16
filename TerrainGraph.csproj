@@ -108,10 +108,21 @@
         <Compile Include="TerrainGraph\Nodes\NodeOperatorBase.cs" />
         <Compile Include="TerrainGraph\ISupplier.cs" />
         <Compile Include="TerrainGraph\Nodes\NodeSelectBase.cs" />
+        <Compile Include="TerrainGraph\Nodes\Path\NodePathCombine.cs" />
+        <Compile Include="TerrainGraph\Nodes\Path\NodePathExtend.cs" />
+        <Compile Include="TerrainGraph\Nodes\Path\NodePathPreview.cs" />
+        <Compile Include="TerrainGraph\Nodes\Path\NodePathOrigin.cs" />
+        <Compile Include="TerrainGraph\Nodes\Path\NodePathAvoid.cs" />
+        <Compile Include="TerrainGraph\Nodes\Path\NodePathSplit.cs" />
+        <Compile Include="TerrainGraph\Nodes\Path\NodePathSwerve.cs" />
+        <Compile Include="TerrainGraph\Nodes\Path\NodePathTrace.cs" />
+        <Compile Include="TerrainGraph\Nodes\Path\PathFunctionConnection.cs" />
         <Compile Include="TerrainGraph\Nodes\Value\NodeValueCache.cs" />
         <Compile Include="TerrainGraph\Nodes\Value\NodeValueConst.cs" />
         <Compile Include="TerrainGraph\Nodes\Value\NodeValueSelectGridValue.cs" />
         <Compile Include="TerrainGraph\Nodes\Value\NodeValueSelectValue.cs" />
+        <Compile Include="TerrainGraph\Path.cs" />
+        <Compile Include="TerrainGraph\PathTracer.cs" />
         <Compile Include="TerrainGraph\Preview\AsyncPreviewScheduler.cs" />
         <Compile Include="TerrainGraph\Preview\BasicPreviewScheduler.cs" />
         <Compile Include="TerrainGraph\Preview\IPreviewScheduler.cs" />
@@ -130,6 +141,7 @@
         <Compile Include="TerrainGraph\Nodes\NodeBase.cs" />
         <Compile Include="TerrainGraph\Util\FastRandom.cs" />
         <Compile Include="TerrainGraph\Util\IRandom.cs" />
+        <Compile Include="TerrainGraph\Util\MathExtensions.cs" />
     </ItemGroup>
     <ItemGroup>
       <Content Include="NodeEditorFramework\LICENSE" />
