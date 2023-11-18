@@ -15,22 +15,22 @@ public class NodePathSplit : NodeBase
     public override string GetID => ID;
 
     public override string Title => "Path: Split";
-    
+
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
-    
+
     [NonSerialized]
     public List<ValueConnectionKnob> AngleKnobs = new();
-    
+
     [NonSerialized]
     public List<ValueConnectionKnob> WidthKnobs = new();
-    
+
     [NonSerialized]
     public List<ValueConnectionKnob> OutputKnobs = new();
-    
+
     public List<double> Angles = new();
     public List<double> Widths = new();
-    
+
     public override void RefreshDynamicKnobs()
     {
         AngleKnobs = dynamicConnectionPorts.Where(k => k.name.StartsWith("Angle")).Cast<ValueConnectionKnob>().ToList();
@@ -41,11 +41,11 @@ public class NodePathSplit : NodeBase
     public override void NodeGUI()
     {
         InputKnob.SetPosition(FirstKnobPosition);
-        
+
         while (OutputKnobs.Count < 2) AddBranch();
 
         GUILayout.BeginVertical(BoxStyle);
-        
+
         GUILayout.BeginHorizontal(BoxStyle);
         GUILayout.Label("Input", BoxLayout);
         GUILayout.EndHorizontal();
@@ -58,7 +58,7 @@ public class NodePathSplit : NodeBase
 
             var angle = Angles[i];
             var width = Widths[i];
-            
+
             KnobValueField(angleKnob, ref angle, "Angle " + (i + 1));
             outputKnob.SetPosition();
             KnobValueField(widthKnob, ref width, "Width " + (i + 1));
@@ -72,7 +72,7 @@ public class NodePathSplit : NodeBase
         if (GUI.changed)
             canvas.OnNodeChange(this);
     }
-    
+
     public override void FillNodeActionsMenu(NodeEditorInputInfo inputInfo, GenericMenu menu)
     {
         base.FillNodeActionsMenu(inputInfo, menu);
@@ -89,18 +89,18 @@ public class NodePathSplit : NodeBase
             menu.AddItem(new GUIContent("Remove branch"), false, RemoveBranch);
         }
     }
-    
+
     private void AddBranch()
     {
         var idx = OutputKnobs.Count;
-        
+
         CreateValueConnectionKnob(new("Angle " + idx, Direction.In, ValueFunctionConnection.Id));
         CreateValueConnectionKnob(new("Width " + idx, Direction.In, ValueFunctionConnection.Id));
         CreateValueConnectionKnob(new("Output " + idx, Direction.Out, PathFunctionConnection.Id));
-        
+
         Angles.Add(0);
         Widths.Add(1);
-        
+
         RefreshDynamicKnobs();
         canvas.OnNodeChange(this);
     }
@@ -108,16 +108,16 @@ public class NodePathSplit : NodeBase
     private void RemoveBranch()
     {
         if (OutputKnobs.Count <= 2) return;
-        
+
         var idx = OutputKnobs.Count - 1;
-        
+
         DeleteConnectionPort(AngleKnobs[idx]);
         DeleteConnectionPort(WidthKnobs[idx]);
         DeleteConnectionPort(OutputKnobs[idx]);
-        
+
         Angles.RemoveAt(idx);
         Widths.RemoveAt(idx);
-        
+
         RefreshDynamicKnobs();
         canvas.OnNodeChange(this);
     }
@@ -129,12 +129,12 @@ public class NodePathSplit : NodeBase
             GetIfConnected<double>(AngleKnobs[i])?.ResetState();
             GetIfConnected<double>(WidthKnobs[i])?.ResetState();
         }
-        
+
         for (int i = 0; i < OutputKnobs.Count; i++)
         {
             var angle = GetIfConnected<double>(AngleKnobs[i]);
             var width = GetIfConnected<double>(WidthKnobs[i]);
-            
+
             if (angle != null) Angles[i] = angle.Get();
             if (width != null) Widths[i] = width.Get();
         }
@@ -150,7 +150,7 @@ public class NodePathSplit : NodeBase
                 SupplierOrValueFixed(WidthKnobs[i], Widths[i])
             ));
         }
-        
+
         return true;
     }
 
@@ -169,19 +169,18 @@ public class NodePathSplit : NodeBase
 
         public Path Get()
         {
-            var path = new Path(_input.Get());
-            
+            var path = new Path(_input.ResetAndGet());
+
             foreach (var segment in path.Leaves())
             {
                 segment.AttachNewBranch(_angle.Get(), _width.Get());
             }
-            
+
             return path;
         }
 
         public void ResetState()
         {
-            _input.ResetState();
             _angle.ResetState();
             _width.ResetState();
         }

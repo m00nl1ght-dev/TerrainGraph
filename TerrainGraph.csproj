@@ -141,7 +141,8 @@
         <Compile Include="TerrainGraph\Nodes\NodeBase.cs" />
         <Compile Include="TerrainGraph\Util\FastRandom.cs" />
         <Compile Include="TerrainGraph\Util\IRandom.cs" />
-        <Compile Include="TerrainGraph\Util\MathExtensions.cs" />
+        <Compile Include="TerrainGraph\Util\MathUtil.cs" />
+        <Compile Include="TerrainGraph\Util\Vector2d.cs" />
     </ItemGroup>
     <ItemGroup>
       <Content Include="NodeEditorFramework\LICENSE" />
