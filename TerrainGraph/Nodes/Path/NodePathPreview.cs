@@ -90,14 +90,13 @@ public class NodePathPreview : NodeBase
             var tracer = new PathTracer(
                 TerrainCanvas.GridFullSize,
                 TerrainCanvas.GridFullSize,
-                NodePathTrace.GridMarginDefault,
-                PreviewTraceStepSize,
+                0, PreviewTraceStepSize,
                 NodePathTrace.TraceMarginDefault
             );
 
             tracer.Trace(path);
 
-            var previewFunction = new GridFunction.Cache<double>(tracer.MainGrid);
+            var previewFunction = tracer.MainGrid;
 
             for (int x = 0; x < previewSize; x++)
             {

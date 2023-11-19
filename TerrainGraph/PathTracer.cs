@@ -1,6 +1,7 @@
 using System;
 using TerrainGraph.Util;
 using static TerrainGraph.Path;
+using static TerrainGraph.GridFunction;
 
 namespace TerrainGraph;
 
@@ -18,34 +19,39 @@ public class PathTracer
     public readonly double StepSize;
     public readonly double TraceMargin;
 
-    public readonly double[,] MainGrid;
-    public readonly double[,] ValueGrid;
-    public readonly double[,] OffsetGrid;
+    private readonly double[,] _mainGrid;
+    private readonly double[,] _valueGrid;
+    private readonly double[,] _offsetGrid;
+
+    public IGridFunction<double> MainGrid => BuildGridFunction(_mainGrid);
+    public IGridFunction<double> ValueGrid => BuildGridFunction(_valueGrid);
+    public IGridFunction<double> OffsetGrid => BuildGridFunction(_offsetGrid);
 
     public static Action<string> DebugOutput = _ => {};
 
-    public PathTracer(int gridSizeX, int gridSizeZ, int gridMargin, double stepSize, double traceMargin)
+    public PathTracer(int innerSizeX, int innerSizeZ, int gridMargin, double stepSize, double traceMargin)
     {
-        GridSizeX = gridSizeX;
-        GridSizeZ = gridSizeZ;
-
         StepSize = stepSize.WithMin(1);
         TraceMargin = traceMargin.WithMin(0);
         GridMargin = gridMargin.WithMin(0);
 
-        MainGrid = new double[gridSizeX, gridSizeZ];
-        ValueGrid = new double[gridSizeX, gridSizeZ];
-        OffsetGrid = new double[gridSizeX, gridSizeZ];
+        GridSizeX = innerSizeX + GridMargin * 2;
+        GridSizeZ = innerSizeZ + GridMargin * 2;
+
+        _mainGrid = new double[GridSizeX, GridSizeZ];
+        _valueGrid = new double[GridSizeX, GridSizeZ];
+        _offsetGrid = new double[GridSizeX, GridSizeZ];
     }
 
     public void Trace(Path path)
     {
         var gridSize = new Vector2d(GridSizeX, GridSizeZ);
+        var gridMargin = new Vector2d(GridMargin, GridMargin);
 
         foreach (var origin in path.Origins)
         {
             var baseFrame = new TraceFrame(
-                origin.Position * gridSize,
+                origin.Position * gridSize + gridMargin,
                 origin.BaseAngle,
                 origin.BaseWidth,
                 origin.BaseSpeed,
@@ -201,7 +207,8 @@ public class PathTracer
                 extendB *= extParams.WidthGrid.ValueAt(b.pos.x, b.pos.z);
             }
 
-            // TODO end if width <= zero
+            if (extendA < 1) return;
+            if (extendB < 0) extendB = 0;
 
             var extendAm = extendA + TraceMargin;
             var extendBm = extendB + TraceMargin;
@@ -256,12 +263,12 @@ public class PathTracer
                             var speed = speedA + (speedB - speedA) * progress;
                             var value = a.value + distDelta * progress * speed;
 
-                            ValueGrid[x, z] = value;
-                            OffsetGrid[x, z] = offset;
+                            _valueGrid[x, z] = value;
+                            _offsetGrid[x, z] = offset;
 
                             if (offsetAbs <= extend)
                             {
-                                MainGrid[x, z] = extend;
+                                _mainGrid[x, z] = extend;
                             }
                         }
                     }
@@ -273,7 +280,7 @@ public class PathTracer
 
         foreach (var branch in segment.Branches)
         {
-            Trace(branch, a);
+            Trace(branch, a); // TODO better placement and params
         }
     }
 
@@ -288,11 +295,15 @@ public class PathTracer
 
         if (extParams.AbsFollowGrid != null || extParams.RelFollowGrid != null)
         {
-            // TODO
+            // TODO follow calc
         }
 
-        // TODO check that angle delta not too big for current width
-
         return (distDelta * angleDelta).NormalizeDeg();
+    }
+
+    private IGridFunction<double> BuildGridFunction(double[,] grid)
+    {
+        if (GridMargin == 0) return new Cache<double>(grid);
+        return new Transform<double>(new Cache<double>(grid), -GridMargin, -GridMargin, 1, 1);
     }
 }

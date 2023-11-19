@@ -2,7 +2,6 @@ using System;
 using NodeEditorFramework;
 using NodeEditorFramework.Utilities;
 using UnityEngine;
-using static TerrainGraph.GridFunction;
 
 namespace TerrainGraph;
 
@@ -104,19 +103,19 @@ public class NodePathTrace : NodeBase
         public IGridFunction<double> GetMainGrid()
         {
             _tracer ??= Generate();
-            return new Cache<double>(_tracer.MainGrid);
+            return _tracer.MainGrid;
         }
 
         public IGridFunction<double> GetValueGrid()
         {
             _tracer ??= Generate();
-            return new Cache<double>(_tracer.ValueGrid);
+            return _tracer.ValueGrid;
         }
 
         public IGridFunction<double> GetOffsetGrid()
         {
             _tracer ??= Generate();
-            return new Cache<double>(_tracer.OffsetGrid);
+            return _tracer.OffsetGrid;
         }
 
         public void ResetState()
