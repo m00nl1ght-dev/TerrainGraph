@@ -7,9 +7,12 @@ using static TerrainGraph.GridFunction;
 namespace TerrainGraph;
 
 [Serializable]
-[Node(false, "Path/Trace", 608)]
+[Node(false, "Path/Trace", 621)]
 public class NodePathTrace : NodeBase
 {
+    public const int GridMarginDefault = 3;
+    public const double TraceMarginDefault = 3;
+
     public const string ID = "pathTrace";
     public override string GetID => ID;
 
@@ -93,7 +96,7 @@ public class NodePathTrace : NodeBase
 
         private PathTracer Generate()
         {
-            var tracer = new PathTracer(_gridSize, _gridSize, _stepSize);
+            var tracer = new PathTracer(_gridSize, _gridSize, GridMarginDefault, _stepSize, TraceMarginDefault);
             tracer.Trace(_input.Get());
             return tracer;
         }

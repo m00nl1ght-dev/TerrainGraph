@@ -116,6 +116,7 @@
         <Compile Include="TerrainGraph\Nodes\Path\NodePathSplit.cs" />
         <Compile Include="TerrainGraph\Nodes\Path\NodePathSwerve.cs" />
         <Compile Include="TerrainGraph\Nodes\Path\NodePathTrace.cs" />
+        <Compile Include="TerrainGraph\Nodes\Path\NodePathWidth.cs" />
         <Compile Include="TerrainGraph\Nodes\Path\PathFunctionConnection.cs" />
         <Compile Include="TerrainGraph\Nodes\Value\NodeValueCache.cs" />
         <Compile Include="TerrainGraph\Nodes\Value\NodeValueConst.cs" />

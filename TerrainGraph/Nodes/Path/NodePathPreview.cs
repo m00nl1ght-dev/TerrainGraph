@@ -5,7 +5,7 @@ using UnityEngine;
 namespace TerrainGraph;
 
 [Serializable]
-[Node(false, "Path/Preview", 607)]
+[Node(false, "Path/Preview", 620)]
 public class NodePathPreview : NodeBase
 {
     public const string ID = "pathPreview";
@@ -77,7 +77,7 @@ public class NodePathPreview : NodeBase
         var previewRatio = TerrainCanvas.GridPreviewRatio;
 
         var model = NodeGridPreview.DefaultModel;
-        
+
         _previewTexture.SetPixels(previewBuffer);
         _previewTexture.Apply();
 
@@ -86,12 +86,19 @@ public class NodePathPreview : NodeBase
         TerrainCanvas.PreviewScheduler.ScheduleTask(new PreviewTask(this, () =>
         {
             var path = supplier != null ? supplier.ResetAndGet() : Path.Empty;
-            var tracer = new PathTracer(TerrainCanvas.GridFullSize, TerrainCanvas.GridFullSize, PreviewTraceStepSize);
-            
+
+            var tracer = new PathTracer(
+                TerrainCanvas.GridFullSize,
+                TerrainCanvas.GridFullSize,
+                NodePathTrace.GridMarginDefault,
+                PreviewTraceStepSize,
+                NodePathTrace.TraceMarginDefault
+            );
+
             tracer.Trace(path);
 
             var previewFunction = new GridFunction.Cache<double>(tracer.MainGrid);
-            
+
             for (int x = 0; x < previewSize; x++)
             {
                 for (int y = 0; y < previewSize; y++)

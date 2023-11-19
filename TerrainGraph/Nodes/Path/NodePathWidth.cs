@@ -5,25 +5,27 @@ using UnityEngine;
 namespace TerrainGraph;
 
 [Serializable]
-[Node(false, "Path/Follow", 604)]
-public class NodePathFollow : NodeBase
+[Node(false, "Path/Width", 607)]
+public class NodePathWidth : NodeBase
 {
-    public const string ID = "pathFollow";
+    public const string ID = "pathWidth";
     public override string GetID => ID;
 
-    public override string Title => "Path: Follow";
+    public override string Title => "Path: Width";
 
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
-    [ValueConnectionKnob("Absolute Grid", Direction.In, GridFunctionConnection.Id)]
-    public ValueConnectionKnob AbsGridKnob;
+    [ValueConnectionKnob("Width Grid", Direction.In, GridFunctionConnection.Id)]
+    public ValueConnectionKnob WidthGridKnob;
 
-    [ValueConnectionKnob("Relative Grid", Direction.In, GridFunctionConnection.Id)]
-    public ValueConnectionKnob RelGridKnob;
+    [ValueConnectionKnob("Width Loss", Direction.In, ValueFunctionConnection.Id)]
+    public ValueConnectionKnob WidthLossKnob;
 
     [ValueConnectionKnob("Output", Direction.Out, PathFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
+
+    public double WidthLoss;
 
     public override void NodeGUI()
     {
@@ -37,16 +39,12 @@ public class NodePathFollow : NodeBase
         GUILayout.EndHorizontal();
 
         GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Absolute Grid", BoxLayout);
+        GUILayout.Label("Width Grid", BoxLayout);
         GUILayout.EndHorizontal();
 
-        AbsGridKnob.SetPosition();
+        WidthGridKnob.SetPosition();
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Relative Grid", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        RelGridKnob.SetPosition();
+        KnobValueField(WidthLossKnob, ref WidthLoss);
 
         GUILayout.EndVertical();
 
@@ -54,12 +52,21 @@ public class NodePathFollow : NodeBase
             canvas.OnNodeChange(this);
     }
 
+    public override void RefreshPreview()
+    {
+        var widthLoss = GetIfConnected<double>(WidthLossKnob);
+
+        widthLoss?.ResetState();
+
+        if (widthLoss != null) WidthLoss = widthLoss.Get();
+    }
+
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFixed(InputKnob, Path.Empty),
-            SupplierOrGridFixed(AbsGridKnob, GridFunction.Zero),
-            SupplierOrGridFixed(RelGridKnob, GridFunction.Zero)
+            SupplierOrGridFixed(WidthGridKnob, GridFunction.One),
+            SupplierOrValueFixed(WidthLossKnob, WidthLoss)
         ));
         return true;
     }
@@ -67,17 +74,14 @@ public class NodePathFollow : NodeBase
     private class Output : ISupplier<Path>
     {
         private readonly ISupplier<Path> _input;
-        private readonly ISupplier<IGridFunction<double>> _absGrid;
-        private readonly ISupplier<IGridFunction<double>> _relGrid;
+        private readonly ISupplier<IGridFunction<double>> _widthGrid;
+        private readonly ISupplier<double> _widthLoss;
 
-        public Output(
-            ISupplier<Path> input,
-            ISupplier<IGridFunction<double>> absGrid,
-            ISupplier<IGridFunction<double>> relGrid)
+        public Output(ISupplier<Path> input, ISupplier<IGridFunction<double>> widthGrid, ISupplier<double> widthLoss)
         {
             _input = input;
-            _absGrid = absGrid;
-            _relGrid = relGrid;
+            _widthGrid = widthGrid;
+            _widthLoss = widthLoss;
         }
 
         public Path Get()
@@ -88,8 +92,8 @@ public class NodePathFollow : NodeBase
             {
                 var extParams = segment.ExtendParams;
 
-                extParams.AbsFollowGrid = _absGrid.Get();
-                extParams.RelFollowGrid = _relGrid.Get();
+                extParams.WidthGrid = _widthGrid.Get();
+                extParams.WidthLoss = _widthLoss.Get();
 
                 segment.ExtendWithParams(extParams);
             }
@@ -100,8 +104,8 @@ public class NodePathFollow : NodeBase
         public void ResetState()
         {
             _input.ResetState();
-            _absGrid.ResetState();
-            _relGrid.ResetState();
+            _widthGrid.ResetState();
+            _widthLoss.ResetState();
         }
     }
 }

@@ -31,5 +31,18 @@ public static class MathUtil
         return value;
     }
 
+    public static int WithMin(this int value, int min) => value < min ? min : value;
+
+    public static int WithMax(this int value, int max) => value > max ? max : value;
+
+    public static int InRange01(this int value) => value.InRange(0, 1);
+
+    public static int InRange(this int value, int min, int max)
+    {
+        if (value < min) return min;
+        if (value > max) return max;
+        return value;
+    }
+
     public static bool NullOrEmpty<T>(this IEnumerable<T> enumerable) => enumerable == null || !enumerable.Any();
 }
