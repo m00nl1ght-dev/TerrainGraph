@@ -15,7 +15,7 @@ public class NodePathOrigin : NodeBase
     public override string Title => "Path: Origin";
 
     [ValueConnectionKnob("Angle", Direction.In, ValueFunctionConnection.Id)]
-    public ValueConnectionKnob AngleKnob; // TODO angles in Path turn ccw, but NodeGridRotate turns cw, what do?
+    public ValueConnectionKnob AngleKnob;
 
     [ValueConnectionKnob("Angle Offset", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob AngleOffsetKnob;
@@ -143,7 +143,7 @@ public class NodePathOrigin : NodeBase
 
             for (int i = 0; i < count; i++)
             {
-                double angle = _angle.Get() + 90;
+                double angle = _angle.Get() - 90;
                 double angleOffset = _angleOffset.Get() + 180;
                 double centrality = _centrality.Get().InRange01();
                 double width = _width.Get().InRange(0, Path.MaxWidth);
@@ -151,8 +151,8 @@ public class NodePathOrigin : NodeBase
                 double speed = _speed.Get();
 
                 double r = 0.5 * (1 - centrality);
-                double x = 0.5 + r * Math.Cos(angle.ToRad());
-                double z = 0.5 + r * Math.Sin(angle.ToRad());
+                double x = 0.5 + r * Math.Cos(-angle.ToRad());
+                double z = 0.5 + r * Math.Sin(-angle.ToRad());
 
                 var origin = path.AddOrigin(
                     new Vector2d(x.InRange01(), z.InRange01()),

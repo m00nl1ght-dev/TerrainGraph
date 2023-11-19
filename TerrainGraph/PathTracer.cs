@@ -73,6 +73,7 @@ public class PathTracer
 
         /// <summary>
         /// The angle in degrees pointing in the current direction.
+        /// Note: Positive angles rotate clockwise in x/z grid space.
         /// </summary>
         public readonly double angle;
 
@@ -100,7 +101,7 @@ public class PathTracer
         public Vector2d perpCCW => normal.PerpCCW;
 
         public TraceFrame(Vector2d pos, double angle, double width, double speed, double value, double dist = 0) :
-            this(pos, Vector2d.Direction(angle), angle.NormalizeDeg(), width, speed, value, dist) {}
+            this(pos, Vector2d.Direction(-angle), angle.NormalizeDeg(), width, speed, value, dist) {}
 
         private TraceFrame(Vector2d pos, Vector2d normal, double angle, double width, double speed, double value, double dist)
         {
@@ -118,11 +119,11 @@ public class PathTracer
             double valueDelta, out Vector2d pivotPoint, out double pivotOffset)
         {
             var newAngle = (angle + angleDelta).NormalizeDeg();
-            var newNormal = Vector2d.Direction(newAngle);
+            var newNormal = Vector2d.Direction(-newAngle);
 
             if (Math.Abs(angleDelta) >= RadialThreshold)
             {
-                pivotOffset = 180 * distDelta / (Math.PI * angleDelta);
+                pivotOffset = 180 * distDelta / (Math.PI * -angleDelta);
                 pivotPoint = pos + perpCCW * pivotOffset;
 
                 return new TraceFrame(
@@ -234,7 +235,7 @@ public class PathTracer
                         {
                             var vec = pos - pivotPoint;
 
-                            offset = Math.Sign(angleDelta) * (vec.Magnitude - Math.Abs(pivotOffset));
+                            offset = Math.Sign(-angleDelta) * (vec.Magnitude - Math.Abs(pivotOffset));
                             offsetAbs = Math.Abs(offset);
 
                             var inside = offsetAbs <= extendAm || offsetAbs <= extendBm;
