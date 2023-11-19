@@ -24,8 +24,8 @@ public class NodePathTrace : NodeBase
     [ValueConnectionKnob("Main Output", Direction.Out, GridFunctionConnection.Id)]
     public ValueConnectionKnob MainOutputKnob;
 
-    [ValueConnectionKnob("Depth Output", Direction.Out, GridFunctionConnection.Id)]
-    public ValueConnectionKnob DepthOutputKnob;
+    [ValueConnectionKnob("Value Output", Direction.Out, GridFunctionConnection.Id)]
+    public ValueConnectionKnob ValueOutputKnob;
 
     [ValueConnectionKnob("Offset Output", Direction.Out, GridFunctionConnection.Id)]
     public ValueConnectionKnob OffsetOutputKnob;
@@ -43,8 +43,8 @@ public class NodePathTrace : NodeBase
         GUILayout.EndHorizontal();
 
         GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Depth Grid", BoxLayout);
-        DepthOutputKnob.SetPosition();
+        GUILayout.Label("Value Grid", BoxLayout);
+        ValueOutputKnob.SetPosition();
         GUILayout.EndHorizontal();
 
         GUILayout.BeginHorizontal(BoxStyle);
@@ -73,7 +73,7 @@ public class NodePathTrace : NodeBase
         );
 
         MainOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(Supplier.From(output.GetMainGrid, output.ResetState));
-        DepthOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(Supplier.From(output.GetDepthGrid, output.ResetState));
+        ValueOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(Supplier.From(output.GetValueGrid, output.ResetState));
         OffsetOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(Supplier.From(output.GetOffsetGrid, output.ResetState));
 
         return true;
@@ -107,10 +107,10 @@ public class NodePathTrace : NodeBase
             return new Cache<double>(_tracer.MainGrid);
         }
 
-        public IGridFunction<double> GetDepthGrid()
+        public IGridFunction<double> GetValueGrid()
         {
             _tracer ??= Generate();
-            return new Cache<double>(_tracer.DepthGrid);
+            return new Cache<double>(_tracer.ValueGrid);
         }
 
         public IGridFunction<double> GetOffsetGrid()

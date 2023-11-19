@@ -1,5 +1,6 @@
 using System;
 using TerrainGraph.Util;
+using static TerrainGraph.Path;
 
 namespace TerrainGraph;
 
@@ -18,7 +19,7 @@ public class PathTracer
     public readonly double TraceMargin;
 
     public readonly double[,] MainGrid;
-    public readonly double[,] DepthGrid;
+    public readonly double[,] ValueGrid;
     public readonly double[,] OffsetGrid;
 
     public static Action<string> DebugOutput = _ => {};
@@ -33,87 +34,164 @@ public class PathTracer
         GridMargin = gridMargin.WithMin(0);
 
         MainGrid = new double[gridSizeX, gridSizeZ];
-        DepthGrid = new double[gridSizeX, gridSizeZ];
+        ValueGrid = new double[gridSizeX, gridSizeZ];
         OffsetGrid = new double[gridSizeX, gridSizeZ];
     }
 
     public void Trace(Path path)
     {
+        var gridSize = new Vector2d(GridSizeX, GridSizeZ);
+
         foreach (var origin in path.Origins)
         {
+            var baseFrame = new TraceFrame(
+                origin.Position * gridSize,
+                origin.BaseAngle,
+                origin.BaseWidth,
+                origin.BaseSpeed,
+                origin.BaseValue
+            );
+
             foreach (var branch in origin.Branches)
             {
-                Trace(
-                    branch,
-                    new Vector2d(origin.PosX * GridSizeX, origin.PosZ * GridSizeZ),
-                    0, 0, origin.BaseWidth, origin.BaseSpeed
-                );
+                Trace(branch, baseFrame);
             }
         }
     }
 
-    private void Trace(
-        Path.Segment segment, Vector2d startPos,
-        double baseAngle, double baseDepth,
-        double baseWidth, double baseSpeed)
+    private readonly struct TraceFrame
+    {
+        /// <summary>
+        /// The absolute position in the grid.
+        /// </summary>
+        public readonly Vector2d pos;
+
+        /// <summary>
+        /// The unit vector pointing in the current direction.
+        /// </summary>
+        public readonly Vector2d normal;
+
+        /// <summary>
+        /// The angle in degrees pointing in the current direction.
+        /// </summary>
+        public readonly double angle;
+
+        /// <summary>
+        /// The path width at the current position.
+        /// </summary>
+        public readonly double width;
+
+        /// <summary>
+        /// The path speed at the current position.
+        /// </summary>
+        public readonly double speed;
+
+        /// <summary>
+        /// The output value at the current position.
+        /// </summary>
+        public readonly double value;
+
+        /// <summary>
+        /// The total distance traveled so far from the start of the segment.
+        /// </summary>
+        public readonly double dist;
+
+        public Vector2d perpCW => normal.PerpCW;
+        public Vector2d perpCCW => normal.PerpCCW;
+
+        public TraceFrame(Vector2d pos, double angle, double width, double speed, double value, double dist = 0) :
+            this(pos, Vector2d.Direction(angle), angle.NormalizeDeg(), width, speed, value, dist) {}
+
+        private TraceFrame(Vector2d pos, Vector2d normal, double angle, double width, double speed, double value, double dist)
+        {
+            this.pos = pos;
+            this.normal = normal;
+            this.angle = angle;
+            this.width = width;
+            this.speed = speed;
+            this.dist = dist;
+            this.value = value;
+        }
+
+        public TraceFrame Advance(
+            double distDelta, double angleDelta, double widthDelta, double speedDelta,
+            double valueDelta, out Vector2d pivotPoint, out double pivotOffset)
+        {
+            var newAngle = (angle + angleDelta).NormalizeDeg();
+            var newNormal = Vector2d.Direction(newAngle);
+
+            if (Math.Abs(angleDelta) >= RadialThreshold)
+            {
+                pivotOffset = 180 * distDelta / (Math.PI * angleDelta);
+                pivotPoint = pos + perpCCW * pivotOffset;
+
+                return new TraceFrame(
+                    pivotPoint - newNormal.PerpCCW * pivotOffset, newNormal, newAngle,
+                    width + widthDelta, speed + speedDelta,
+                    value + valueDelta, dist + distDelta
+                );
+            }
+
+            pivotOffset = 0d;
+            pivotPoint = pos;
+
+            return new TraceFrame(
+                pos + distDelta * normal, newNormal, newAngle,
+                width + widthDelta, speed + speedDelta,
+                value + valueDelta, dist + distDelta
+            );
+        }
+
+        public override string ToString() =>
+            $"{nameof(pos)}: {pos}, " +
+            $"{nameof(angle)}: {angle}, " +
+            $"{nameof(width)}: {width}, " +
+            $"{nameof(speed)}: {speed}, " +
+            $"{nameof(value)}: {value}, " +
+            $"{nameof(dist)}: {dist}";
+    }
+
+    private void Trace(Segment segment, TraceFrame baseFrame)
     {
         var length = segment.Length;
         var extParams = segment.ExtendParams;
 
-        var initialWidth = baseWidth * segment.RelWidth;
-        var initialSpeed = baseSpeed * segment.RelSpeed;
-        var initialAngle = (baseAngle + segment.RelAngle).NormalizeDeg();
+        var initialFrame = new TraceFrame(
+            baseFrame.pos,
+            baseFrame.angle + segment.RelAngle,
+            baseFrame.width * segment.RelWidth,
+            baseFrame.speed * segment.RelSpeed,
+            baseFrame.value
+        );
 
-        var distA = 0d;
-        var widthA = initialWidth;
-        var speedA = initialSpeed;
-        var angleA = initialAngle;
-        var vecA = Vector2d.Direction(angleA);
-        var posA = startPos;
+        DebugOutput($"Trace start with initial frame [{initialFrame}] and length {length}");
 
-        DebugOutput($"Trace start at {posA} with length {length}");
+        var a = initialFrame;
 
-        while (distA < length)
+        while (a.dist < length)
         {
-            var distDelta = Math.Min(StepSize, length - distA);
+            var distDelta = Math.Min(StepSize, length - a.dist);
+            var angleDelta = CalculateAngleDelta(ref a, extParams, distDelta);
 
-            var angleDelta = 0d;
+            var b = a.Advance(
+                distDelta, angleDelta,
+                distDelta * -extParams.WidthLoss,
+                distDelta * -extParams.SpeedLoss,
+                distDelta * a.speed,
+                out var pivotPoint,
+                out var pivotOffset
+            );
 
-            if (extParams.SwerveGrid != null)
-            {
-                angleDelta += extParams.SwerveGrid.ValueAt(posA.x, posA.z);
-            }
+            var extendA = a.width * extParams.WidthGrid?.ValueAt(a.pos.x, a.pos.z) ?? 1;
+            var extendB = b.width * extParams.WidthGrid?.ValueAt(b.pos.x, b.pos.z) ?? 1;
 
-            if (extParams.AbsFollowGrid != null || extParams.RelFollowGrid != null)
-            {
-                // TODO
-            }
+            var extendAm = extendA + TraceMargin;
+            var extendBm = extendB + TraceMargin;
 
-            angleDelta = distDelta * angleDelta.NormalizeDeg();
-
-            // TODO check that angle delta not too big for current width
-
-            var radial = Math.Abs(angleDelta) >= RadialThreshold;
-            var pivotOffset = radial ? 180 * distDelta / (Math.PI * angleDelta) : 0d;
-            var pivotPoint = radial ? posA + vecA.PerpCCW * pivotOffset : Vector2d.Zero;
-
-            var distB = distA + distDelta;
-            var widthB = widthA - distDelta * extParams.WidthLoss;
-            var speedB = speedA - distDelta * extParams.SpeedLoss;
-            var angleB = (angleA + angleDelta).NormalizeDeg();
-
-            var vecB = Vector2d.Direction(angleB);
-            var posB = radial ? pivotPoint - vecB.PerpCCW * pivotOffset : posA + distDelta * vecA;
-
-            var boundA = widthA * extParams.WidthGrid?.ValueAt(posA.x, posA.z) ?? 1;
-            var boundB = widthB * extParams.WidthGrid?.ValueAt(posB.x, posB.z) ?? 1;
-            var boundAm = boundA + TraceMargin;
-            var boundBm = boundB + TraceMargin;
-
-            var p1 = posA + vecA.PerpCCW * boundAm;
-            var p2 = posA + vecA.PerpCW * boundAm;
-            var p3 = posB + vecB.PerpCCW * boundBm;
-            var p4 = posB + vecB.PerpCW * boundBm;
+            var p1 = a.pos + a.perpCCW * extendAm;
+            var p2 = a.pos + a.perpCW * extendAm;
+            var p3 = b.pos + b.perpCCW * extendBm;
+            var p4 = b.pos + b.perpCW * extendBm;
 
             var xMin = (int) Math.Max(Math.Floor(Math.Min(Math.Min(p1.x, p2.x), Math.Min(p3.x, p4.x))), 0);
             var zMin = (int) Math.Max(Math.Floor(Math.Min(Math.Min(p1.z, p2.z), Math.Min(p3.z, p4.z))), 0);
@@ -124,76 +202,79 @@ public class PathTracer
             {
                 for (int z = zMin; z <= zMax; z++)
                 {
-                    var posAbs = new Vector2d(x, z);
-                    var posRelA = posAbs - posA;
-                    var posRelB = posAbs - posB;
+                    var pos = new Vector2d(x, z);
 
-                    var dotA = Vector2d.Dot(vecA, posRelA);
-                    var dotB = Vector2d.Dot(vecB, posRelB);
+                    var dotA = Vector2d.Dot(a.normal, pos - a.pos);
+                    var dotB = Vector2d.Dot(b.normal, pos - b.pos);
 
                     if (dotA >= 0 && dotB < 0)
                     {
-                        if (radial)
+                        double offset;
+                        double offsetAbs;
+                        double progress;
+
+                        if (pivotOffset > 0)
                         {
-                            var posRelP = posAbs - pivotPoint;
-                            var offset = posRelP.Magnitude - Math.Abs(pivotOffset);
-                            var offsetAbs = Math.Abs(offset);
+                            var vec = pos - pivotPoint;
 
-                            if (offsetAbs <= boundAm || offsetAbs <= boundBm)
-                            {
-                                var progress = Vector2d.Angle(posA - pivotPoint, posRelP) / Math.Abs(angleDelta);
-                                var bound = boundA + (boundB - boundA) * progress;
+                            offset = Math.Sign(angleDelta) * (vec.Magnitude - Math.Abs(pivotOffset));
+                            offsetAbs = Math.Abs(offset);
 
-                                if (offsetAbs <= bound + TraceMargin)
-                                {
-                                    DepthGrid[x, z] = baseDepth + distA + distDelta * progress;
-                                    OffsetGrid[x, z] = offset * Math.Sign(angleDelta);
+                            var inside = offsetAbs <= extendAm || offsetAbs <= extendBm;
 
-                                    if (offsetAbs <= bound)
-                                    {
-                                        MainGrid[x, z] = bound;
-                                    }
-                                }
-                            }
+                            progress = inside ? Vector2d.Angle(a.pos - pivotPoint, vec) / Math.Abs(angleDelta) : 0d;
                         }
                         else
                         {
-                            var progress = dotA / distDelta;
-                            var bound = boundA + (boundB - boundA) * progress;
-                            var offset = -Vector2d.PerpDot(vecA, posRelA);
-                            var offsetAbs = Math.Abs(offset);
+                            offset = -Vector2d.PerpDot(a.normal, pos - a.pos);
+                            offsetAbs = Math.Abs(offset);
+                            progress = dotA / distDelta;
+                        }
 
-                            if (offsetAbs <= bound + TraceMargin)
+                        var extend = extendA + (extendB - extendA) * progress;
+
+                        if (offsetAbs <= extend + TraceMargin)
+                        {
+                            var speed = a.speed + (b.speed - a.speed) * progress;
+                            var value = a.value + distDelta * progress * speed;
+
+                            ValueGrid[x, z] = value;
+                            OffsetGrid[x, z] = offset;
+
+                            if (offsetAbs <= extend)
                             {
-                                DepthGrid[x, z] = baseDepth + distA + distDelta * progress;
-                                OffsetGrid[x, z] = offset;
-
-                                if (offsetAbs <= bound)
-                                {
-                                    MainGrid[x, z] = bound;
-                                }
+                                MainGrid[x, z] = extend;
                             }
                         }
                     }
                 }
             }
 
-            distA = distB;
-            posA = posB;
-            angleA = angleB;
-            widthA = widthB;
-            speedA = speedB;
-            vecA = vecB;
+            a = b;
         }
 
         foreach (var branch in segment.Branches)
         {
-            Trace(
-                branch,
-                posA, angleA,
-                baseDepth + distA,
-                widthA, speedA
-            );
+            Trace(branch, a);
         }
+    }
+
+    private static double CalculateAngleDelta(ref TraceFrame frame, ExtendParams extParams, double distDelta)
+    {
+        var angleDelta = 0d;
+
+        if (extParams.SwerveGrid != null)
+        {
+            angleDelta += extParams.SwerveGrid.ValueAt(frame.pos.x, frame.pos.z);
+        }
+
+        if (extParams.AbsFollowGrid != null || extParams.RelFollowGrid != null)
+        {
+            // TODO
+        }
+
+        // TODO check that angle delta not too big for current width
+
+        return (distDelta * angleDelta).NormalizeDeg();
     }
 }

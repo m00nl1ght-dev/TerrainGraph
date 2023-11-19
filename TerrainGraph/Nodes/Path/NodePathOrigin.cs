@@ -26,6 +26,9 @@ public class NodePathOrigin : NodeBase
     [ValueConnectionKnob("Width", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob WidthKnob;
 
+    [ValueConnectionKnob("Value", Direction.In, ValueFunctionConnection.Id)]
+    public ValueConnectionKnob ValueKnob;
+
     [ValueConnectionKnob("Speed", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob SpeedKnob;
 
@@ -39,6 +42,7 @@ public class NodePathOrigin : NodeBase
     public double AngleOffset;
     public double Centrality;
     public double Width = 10;
+    public double Value;
     public double Speed = 1;
     public double Count = 1;
 
@@ -52,6 +56,7 @@ public class NodePathOrigin : NodeBase
         KnobValueField(AngleOffsetKnob, ref AngleOffset);
         KnobValueField(CentralityKnob, ref Centrality);
         KnobValueField(WidthKnob, ref Width);
+        KnobValueField(ValueKnob, ref Value);
         KnobValueField(SpeedKnob, ref Speed);
         KnobValueField(CountKnob, ref Count);
 
@@ -67,6 +72,7 @@ public class NodePathOrigin : NodeBase
         var angleOffset = GetIfConnected<double>(AngleOffsetKnob);
         var centrality = GetIfConnected<double>(CentralityKnob);
         var width = GetIfConnected<double>(WidthKnob);
+        var value = GetIfConnected<double>(ValueKnob);
         var speed = GetIfConnected<double>(WidthKnob);
         var count = GetIfConnected<double>(CountKnob);
 
@@ -74,6 +80,7 @@ public class NodePathOrigin : NodeBase
         angleOffset?.ResetState();
         centrality?.ResetState();
         width?.ResetState();
+        value?.ResetState();
         speed?.ResetState();
         count?.ResetState();
 
@@ -81,6 +88,7 @@ public class NodePathOrigin : NodeBase
         if (angleOffset != null) AngleOffset = angleOffset.Get();
         if (centrality != null) Centrality = centrality.Get();
         if (width != null) Width = width.Get();
+        if (value != null) Value = value.Get();
         if (speed != null) Speed = speed.Get();
         if (count != null) Count = count.Get();
     }
@@ -92,6 +100,7 @@ public class NodePathOrigin : NodeBase
             SupplierOrValueFixed(AngleOffsetKnob, AngleOffset),
             SupplierOrValueFixed(CentralityKnob, Centrality),
             SupplierOrValueFixed(WidthKnob, Width),
+            SupplierOrValueFixed(ValueKnob, Value),
             SupplierOrValueFixed(SpeedKnob, Speed),
             SupplierOrValueFixed(CountKnob, Count)
         ));
@@ -104,6 +113,7 @@ public class NodePathOrigin : NodeBase
         private readonly ISupplier<double> _angleOffset;
         private readonly ISupplier<double> _centrality;
         private readonly ISupplier<double> _width;
+        private readonly ISupplier<double> _value;
         private readonly ISupplier<double> _speed;
         private readonly ISupplier<double> _count;
 
@@ -112,6 +122,7 @@ public class NodePathOrigin : NodeBase
             ISupplier<double> angleOffset,
             ISupplier<double> centrality,
             ISupplier<double> width,
+            ISupplier<double> value,
             ISupplier<double> speed,
             ISupplier<double> count)
         {
@@ -119,6 +130,7 @@ public class NodePathOrigin : NodeBase
             _angleOffset = angleOffset;
             _centrality = centrality;
             _width = width;
+            _value = value;
             _speed = speed;
             _count = count;
         }
@@ -135,6 +147,7 @@ public class NodePathOrigin : NodeBase
                 double angleOffset = _angleOffset.Get();
                 double centrality = _centrality.Get().InRange01();
                 double width = _width.Get().InRange(0, Path.MaxWidth);
+                double value = _value.Get();
                 double speed = _speed.Get();
 
                 double r = 0.5 * (1 - centrality);
@@ -142,9 +155,8 @@ public class NodePathOrigin : NodeBase
                 double z = 0.5 + r * Math.Sin(angle.ToRad());
 
                 var origin = path.AddOrigin(
-                    x.InRange01(),
-                    z.InRange01(),
-                    angle + angleOffset,
+                    new Vector2d(x.InRange01(), z.InRange01()),
+                    value, angle + angleOffset,
                     width, speed
                 );
 

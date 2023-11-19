@@ -27,14 +27,14 @@ public class Path
         _origins = other._origins.Select(o => new Origin(o)).ToList();
     }
 
-    public Origin AddOrigin(double posX, double posZ, double baseAngle, double baseWidth, double baseSpeed)
+    public Origin AddOrigin(Vector2d position, double baseValue, double baseAngle, double baseWidth, double baseSpeed)
     {
         if (this == Empty) throw new InvalidOperationException();
 
         var origin = new Origin()
         {
-            PosX = posX,
-            PosZ = posZ,
+            Position = position,
+            BaseValue = baseValue,
             BaseAngle = baseAngle,
             BaseWidth = baseWidth,
             BaseSpeed = baseSpeed
@@ -66,9 +66,9 @@ public class Path
 
     public class Origin
     {
-        public double PosX;
-        public double PosZ;
+        public Vector2d Position;
 
+        public double BaseValue;
         public double BaseAngle;
         public double BaseWidth = 1;
         public double BaseSpeed = 1;
@@ -84,8 +84,8 @@ public class Path
 
         public Origin(Origin other)
         {
-            PosX = other.PosX;
-            PosZ = other.PosZ;
+            Position = other.Position;
+            BaseValue = other.BaseValue;
             BaseAngle = other.BaseAngle;
             BaseWidth = other.BaseWidth;
             BaseSpeed = other.BaseSpeed;
@@ -130,11 +130,11 @@ public class Path
         }
 
         public bool SelfEquals(Origin other) =>
+            Position.Equals(other.Position) &&
+            BaseValue.Equals(other.BaseValue) &&
             BaseAngle.Equals(other.BaseAngle) &&
             BaseWidth.Equals(other.BaseWidth) &&
-            BaseSpeed.Equals(other.BaseSpeed) &&
-            PosX.Equals(other.PosX) &&
-            PosZ.Equals(other.PosZ);
+            BaseSpeed.Equals(other.BaseSpeed);
     }
 
     public class Segment
