@@ -5,25 +5,27 @@ using UnityEngine;
 namespace TerrainGraph;
 
 [Serializable]
-[Node(false, "Path/Follow", 604)]
-public class NodePathFollow : NodeBase
+[Node(false, "Path/Speed", 604)]
+public class NodePathSpeed : NodeBase
 {
-    public const string ID = "pathFollow";
+    public const string ID = "pathSpeed";
     public override string GetID => ID;
 
-    public override string Title => "Path: Follow";
+    public override string Title => "Path: Speed";
 
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
-    [ValueConnectionKnob("Absolute Grid", Direction.In, GridFunctionConnection.Id)]
-    public ValueConnectionKnob AbsGridKnob;
+    [ValueConnectionKnob("Speed Grid", Direction.In, GridFunctionConnection.Id)]
+    public ValueConnectionKnob SpeedGridKnob;
 
-    [ValueConnectionKnob("Relative Grid", Direction.In, GridFunctionConnection.Id)]
-    public ValueConnectionKnob RelGridKnob;
+    [ValueConnectionKnob("Speed Loss", Direction.In, ValueFunctionConnection.Id)]
+    public ValueConnectionKnob SpeedLossKnob;
 
     [ValueConnectionKnob("Output", Direction.Out, PathFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
+
+    public double SpeedLoss;
 
     public override void NodeGUI()
     {
@@ -37,16 +39,12 @@ public class NodePathFollow : NodeBase
         GUILayout.EndHorizontal();
 
         GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Absolute Grid", BoxLayout);
+        GUILayout.Label("Speed Grid", BoxLayout);
         GUILayout.EndHorizontal();
 
-        AbsGridKnob.SetPosition();
+        SpeedGridKnob.SetPosition();
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Relative Grid", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        RelGridKnob.SetPosition();
+        KnobValueField(SpeedLossKnob, ref SpeedLoss);
 
         GUILayout.EndVertical();
 
@@ -54,12 +52,21 @@ public class NodePathFollow : NodeBase
             canvas.OnNodeChange(this);
     }
 
+    public override void RefreshPreview()
+    {
+        var speedLoss = GetIfConnected<double>(SpeedLossKnob);
+
+        speedLoss?.ResetState();
+
+        if (speedLoss != null) SpeedLoss = speedLoss.Get();
+    }
+
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFixed(InputKnob, Path.Empty),
-            SupplierOrGridFixed(AbsGridKnob, GridFunction.Zero),
-            SupplierOrGridFixed(RelGridKnob, GridFunction.Zero)
+            SupplierOrGridFixed(SpeedGridKnob, GridFunction.One),
+            SupplierOrValueFixed(SpeedLossKnob, SpeedLoss)
         ));
         return true;
     }
@@ -67,17 +74,14 @@ public class NodePathFollow : NodeBase
     private class Output : ISupplier<Path>
     {
         private readonly ISupplier<Path> _input;
-        private readonly ISupplier<IGridFunction<double>> _absGrid;
-        private readonly ISupplier<IGridFunction<double>> _relGrid;
+        private readonly ISupplier<IGridFunction<double>> _speedGrid;
+        private readonly ISupplier<double> _speedLoss;
 
-        public Output(
-            ISupplier<Path> input,
-            ISupplier<IGridFunction<double>> absGrid,
-            ISupplier<IGridFunction<double>> relGrid)
+        public Output(ISupplier<Path> input, ISupplier<IGridFunction<double>> speedGrid, ISupplier<double> speedLoss)
         {
             _input = input;
-            _absGrid = absGrid;
-            _relGrid = relGrid;
+            _speedGrid = speedGrid;
+            _speedLoss = speedLoss;
         }
 
         public Path Get()
@@ -88,8 +92,8 @@ public class NodePathFollow : NodeBase
             {
                 var extParams = segment.ExtendParams;
 
-                extParams.AbsFollowGrid = _absGrid.Get();
-                extParams.RelFollowGrid = _relGrid.Get();
+                extParams.SpeedGrid = _speedGrid.Get();
+                extParams.SpeedLoss = _speedLoss.Get();
 
                 segment.ExtendWithParams(extParams);
             }
@@ -100,8 +104,8 @@ public class NodePathFollow : NodeBase
         public void ResetState()
         {
             _input.ResetState();
-            _absGrid.ResetState();
-            _relGrid.ResetState();
+            _speedGrid.ResetState();
+            _speedLoss.ResetState();
         }
     }
 }

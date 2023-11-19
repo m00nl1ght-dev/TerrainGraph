@@ -8,7 +8,7 @@ using UnityEngine;
 namespace TerrainGraph;
 
 [Serializable]
-[Node(false, "Path/Split", 605)]
+[Node(false, "Path/Split", 607)]
 public class NodePathSplit : NodeBase
 {
     public const string ID = "pathSplit";

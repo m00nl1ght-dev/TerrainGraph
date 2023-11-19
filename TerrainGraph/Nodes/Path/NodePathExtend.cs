@@ -6,7 +6,7 @@ using UnityEngine;
 namespace TerrainGraph;
 
 [Serializable]
-[Node(false, "Path/Extend", 602)]
+[Node(false, "Path/Extend", 601)]
 public class NodePathExtend : NodeBase
 {
     public const string ID = "pathExtend";

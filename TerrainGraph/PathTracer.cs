@@ -182,8 +182,25 @@ public class PathTracer
                 out var pivotOffset
             );
 
-            var extendA = a.width * extParams.WidthGrid?.ValueAt(a.pos.x, a.pos.z) ?? 1;
-            var extendB = b.width * extParams.WidthGrid?.ValueAt(b.pos.x, b.pos.z) ?? 1;
+            var speedA = a.speed;
+            var speedB = b.speed;
+
+            if (extParams.SpeedGrid != null)
+            {
+                speedA *= extParams.SpeedGrid.ValueAt(a.pos.x, a.pos.z);
+                speedB *= extParams.SpeedGrid.ValueAt(b.pos.x, b.pos.z);
+            }
+
+            var extendA = a.width;
+            var extendB = b.width;
+
+            if (extParams.WidthGrid != null)
+            {
+                extendA *= extParams.WidthGrid.ValueAt(a.pos.x, a.pos.z);
+                extendB *= extParams.WidthGrid.ValueAt(b.pos.x, b.pos.z);
+            }
+
+            // TODO end if width <= zero
 
             var extendAm = extendA + TraceMargin;
             var extendBm = extendB + TraceMargin;
@@ -235,7 +252,7 @@ public class PathTracer
 
                         if (offsetAbs <= extend + TraceMargin)
                         {
-                            var speed = a.speed + (b.speed - a.speed) * progress;
+                            var speed = speedA + (speedB - speedA) * progress;
                             var value = a.value + distDelta * progress * speed;
 
                             ValueGrid[x, z] = value;

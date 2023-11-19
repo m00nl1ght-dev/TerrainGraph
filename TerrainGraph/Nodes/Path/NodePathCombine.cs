@@ -8,20 +8,20 @@ using UnityEngine;
 namespace TerrainGraph;
 
 [Serializable]
-[Node(false, "Path/Combine", 606)]
+[Node(false, "Path/Combine", 608)]
 public class NodePathCombine : NodeBase
 {
     public const string ID = "pathCombine";
     public override string GetID => ID;
 
     public override string Title => "Path: Combine";
-    
+
     [ValueConnectionKnob("Output", Direction.Out, PathFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
-    
+
     [NonSerialized]
     public List<ValueConnectionKnob> InputKnobs = new();
-    
+
     public override void RefreshDynamicKnobs()
     {
         InputKnobs = dynamicConnectionPorts.Where(k => k.name.StartsWith("Input")).Cast<ValueConnectionKnob>().ToList();
@@ -30,7 +30,7 @@ public class NodePathCombine : NodeBase
     public override void NodeGUI()
     {
         OutputKnob.SetPosition(FirstKnobPosition);
-        
+
         while (InputKnobs.Count < 2) AddInput();
 
         GUILayout.BeginVertical(BoxStyle);
@@ -48,7 +48,7 @@ public class NodePathCombine : NodeBase
         if (GUI.changed)
             canvas.OnNodeChange(this);
     }
-    
+
     public override void FillNodeActionsMenu(NodeEditorInputInfo inputInfo, GenericMenu menu)
     {
         base.FillNodeActionsMenu(inputInfo, menu);
@@ -65,11 +65,11 @@ public class NodePathCombine : NodeBase
             menu.AddItem(new GUIContent("Remove input"), false, RemoveInput);
         }
     }
-    
+
     private void AddInput()
     {
         CreateValueConnectionKnob(new("Input " + InputKnobs.Count, Direction.In, PathFunctionConnection.Id));
-        
+
         RefreshDynamicKnobs();
         canvas.OnNodeChange(this);
     }
@@ -79,7 +79,7 @@ public class NodePathCombine : NodeBase
         if (InputKnobs.Count <= 2) return;
 
         DeleteConnectionPort(InputKnobs[InputKnobs.Count - 1]);
-        
+
         RefreshDynamicKnobs();
         canvas.OnNodeChange(this);
     }
@@ -91,7 +91,7 @@ public class NodePathCombine : NodeBase
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             inputs
         ));
-        
+
         return true;
     }
 
@@ -107,10 +107,10 @@ public class NodePathCombine : NodeBase
         public Path Get()
         {
             if (_inputs.Count == 0) return Path.Empty;
-            
+
             var paths = _inputs.Select(s => s.Get()).ToList();
             var output = new Path(paths[0]);
-            
+
             for (var i = 1; i < paths.Count; i++)
             {
                 output.Combine(paths[i]);

@@ -6,7 +6,7 @@ using UnityEngine;
 namespace TerrainGraph;
 
 [Serializable]
-[Node(false, "Path/Origin", 601)]
+[Node(false, "Path/Origin", 600)]
 public class NodePathOrigin : NodeBase
 {
     public const string ID = "pathOrigin";
@@ -15,7 +15,7 @@ public class NodePathOrigin : NodeBase
     public override string Title => "Path: Origin";
 
     [ValueConnectionKnob("Angle", Direction.In, ValueFunctionConnection.Id)]
-    public ValueConnectionKnob AngleKnob;
+    public ValueConnectionKnob AngleKnob; // TODO angles in Path turn ccw, but NodeGridRotate turns cw, what do?
 
     [ValueConnectionKnob("Angle Offset", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob AngleOffsetKnob;
@@ -143,8 +143,8 @@ public class NodePathOrigin : NodeBase
 
             for (int i = 0; i < count; i++)
             {
-                double angle = _angle.Get();
-                double angleOffset = _angleOffset.Get();
+                double angle = _angle.Get() + 90;
+                double angleOffset = _angleOffset.Get() + 180;
                 double centrality = _centrality.Get().InRange01();
                 double width = _width.Get().InRange(0, Path.MaxWidth);
                 double value = _value.Get();
@@ -156,7 +156,7 @@ public class NodePathOrigin : NodeBase
 
                 var origin = path.AddOrigin(
                     new Vector2d(x.InRange01(), z.InRange01()),
-                    value, angle + angleOffset,
+                    value, (angle + angleOffset).NormalizeDeg(),
                     width, speed
                 );
 

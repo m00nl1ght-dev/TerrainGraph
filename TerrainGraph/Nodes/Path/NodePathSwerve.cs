@@ -5,14 +5,14 @@ using UnityEngine;
 namespace TerrainGraph;
 
 [Serializable]
-[Node(false, "Path/Swerve", 603)]
+[Node(false, "Path/Swerve", 605)]
 public class NodePathSwerve : NodeBase
 {
     public const string ID = "pathSwerve";
     public override string GetID => ID;
 
     public override string Title => "Path: Swerve";
-    
+
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
@@ -28,15 +28,15 @@ public class NodePathSwerve : NodeBase
         OutputKnob.SetPosition(FirstKnobPosition);
 
         GUILayout.BeginVertical(BoxStyle);
-        
+
         GUILayout.BeginHorizontal(BoxStyle);
         GUILayout.Label("Input", BoxLayout);
         GUILayout.EndHorizontal();
-        
+
         GUILayout.BeginHorizontal(BoxStyle);
         GUILayout.Label("Angle Change", BoxLayout);
         GUILayout.EndHorizontal();
-        
+
         AngleGridKnob.SetPosition();
 
         GUILayout.EndVertical();
@@ -68,16 +68,16 @@ public class NodePathSwerve : NodeBase
         public Path Get()
         {
             var path = new Path(_input.Get());
-            
+
             foreach (var segment in path.Leaves())
             {
                 var extParams = segment.ExtendParams;
-                
+
                 extParams.SwerveGrid = _angleGrid.Get();
 
                 segment.ExtendWithParams(extParams);
             }
-            
+
             return path;
         }
 
