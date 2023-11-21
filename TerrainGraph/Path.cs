@@ -35,8 +35,8 @@ public class Path
         {
             Position = position,
             BaseValue = baseValue,
-            BaseAngle = baseAngle,
-            BaseWidth = baseWidth,
+            BaseAngle = baseAngle.NormalizeDeg(),
+            BaseWidth = baseWidth.WithMin(0),
             BaseSpeed = baseSpeed
         };
 
