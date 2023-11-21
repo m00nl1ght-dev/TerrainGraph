@@ -121,7 +121,7 @@ public class NodePathTrace : NodeBase
         public void ResetState()
         {
             _input.ResetState();
-            _tracer = null;
+            _tracer = null; // TODO investigate: this might cause it to be generated multiple times per map gen
         }
     }
 }

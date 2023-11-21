@@ -10,11 +10,13 @@ public class HotSwappableAttribute : Attribute {}
 [HotSwappable]
 public class PathTracer
 {
+    private const int MaxTraceIterations = 1_000_000;
+
     private const double RadialThreshold = 0.5;
 
-    public readonly int GridSizeX;
-    public readonly int GridSizeZ;
-    public readonly int GridMargin;
+    public readonly Vector2d GridInnerSize;
+    public readonly Vector2d GridOuterSize;
+    public readonly Vector2d GridMargin;
 
     public readonly double StepSize;
     public readonly double TraceMargin;
@@ -27,30 +29,40 @@ public class PathTracer
     public IGridFunction<double> ValueGrid => BuildGridFunction(_valueGrid);
     public IGridFunction<double> OffsetGrid => BuildGridFunction(_offsetGrid);
 
+    private int _totalTraceIterations;
+
     public static Action<string> DebugOutput = _ => {};
 
     public PathTracer(int innerSizeX, int innerSizeZ, int gridMargin, double stepSize, double traceMargin)
     {
         StepSize = stepSize.WithMin(1);
         TraceMargin = traceMargin.WithMin(0);
-        GridMargin = gridMargin.WithMin(0);
 
-        GridSizeX = innerSizeX + GridMargin * 2;
-        GridSizeZ = innerSizeZ + GridMargin * 2;
+        gridMargin = gridMargin.WithMin(0);
 
-        _mainGrid = new double[GridSizeX, GridSizeZ];
-        _valueGrid = new double[GridSizeX, GridSizeZ];
-        _offsetGrid = new double[GridSizeX, GridSizeZ];
+        innerSizeX = innerSizeX.WithMin(0);
+        innerSizeZ = innerSizeZ.WithMin(0);
+
+        GridMargin = new Vector2d(gridMargin, gridMargin);
+
+        var outerSizeX = innerSizeX + gridMargin * 2;
+        var outerSizeZ = innerSizeZ + gridMargin * 2;
+
+        GridInnerSize = new Vector2d(innerSizeX, innerSizeZ);
+        GridOuterSize = new Vector2d(outerSizeX, outerSizeZ);
+
+        _mainGrid = new double[outerSizeX, outerSizeZ];
+        _valueGrid = new double[outerSizeX, outerSizeZ];
+        _offsetGrid = new double[outerSizeX, outerSizeZ];
     }
 
     public void Trace(Path path)
     {
-        var gridSize = new Vector2d(GridSizeX, GridSizeZ);
-        var gridMargin = new Vector2d(GridMargin, GridMargin);
+        _totalTraceIterations = 0;
 
         foreach (var origin in path.Origins)
         {
-            var baseFrame = new TraceFrame(origin, gridSize, gridMargin);
+            var baseFrame = new TraceFrame(origin, GridInnerSize, GridMargin);
 
             foreach (var branch in origin.Branches)
             {
@@ -59,6 +71,7 @@ public class PathTracer
         }
     }
 
+    [HotSwappable]
     private readonly struct TraceFrame
     {
         /// <summary>
@@ -107,14 +120,14 @@ public class PathTracer
         /// </summary>
         public Vector2d perpCCW => normal.PerpCCW;
 
-        public TraceFrame(Origin origin, Vector2d gridSize, Vector2d gridMargin)
+        public TraceFrame(Origin origin, Vector2d gridScalar, Vector2d gridOffset)
         {
             this.angle = origin.BaseAngle;
             this.width = origin.BaseWidth;
             this.speed = origin.BaseSpeed;
             this.value = origin.BaseValue;
             this.normal = Vector2d.Direction(-angle);
-            this.pos = origin.Position * gridSize + gridMargin;
+            this.pos = origin.Position * gridScalar + gridOffset;
         }
 
         public TraceFrame(TraceFrame parent, Segment segment, double distOffset)
@@ -122,13 +135,15 @@ public class PathTracer
             this.angle = (parent.angle + segment.RelAngle).NormalizeDeg();
             this.width = parent.width * segment.RelWidth - distOffset * segment.ExtendParams.WidthLoss;
             this.speed = parent.speed * segment.RelSpeed - distOffset * segment.ExtendParams.SpeedLoss;
-            this.value = parent.value - speed * distOffset; // TODO not accurate because of SpeedGrid
+            this.value = parent.value + (distOffset < 0 ? speed : parent.speed) * distOffset;
             this.normal = Vector2d.Direction(-angle);
             this.pos = parent.pos + distOffset * normal;
             this.dist = distOffset;
         }
 
-        private TraceFrame(Vector2d pos, Vector2d normal, double angle, double width, double speed, double value, double dist)
+        private TraceFrame(
+            Vector2d pos, Vector2d normal, double angle,
+            double width, double speed, double value, double dist)
         {
             this.pos = pos;
             this.normal = normal;
@@ -139,15 +154,12 @@ public class PathTracer
             this.value = value;
         }
 
-        public TraceFrame Advance(ExtendParams extParams, double distDelta, double angleDelta, out Vector2d pivotPoint, out double pivotOffset)
+        public TraceFrame Advance(
+            ExtendParams extParams, double distDelta, double angleDelta,
+            double valueDelta, out Vector2d pivotPoint, out double pivotOffset)
         {
             var newAngle = (angle + angleDelta).NormalizeDeg();
             var newNormal = Vector2d.Direction(-newAngle);
-
-            var newWidth = width - distDelta * extParams.WidthLoss;
-            var newSpeed = speed - distDelta * extParams.SpeedLoss;
-            var newValue = value + distDelta * speed; // TODO not accurate because of SpeedGrid
-            var newDist = dist + distDelta;
 
             Vector2d newPos;
 
@@ -166,7 +178,12 @@ public class PathTracer
                 newPos = pos + distDelta * normal;
             }
 
-            return new TraceFrame(newPos, newNormal, newAngle, newWidth, newSpeed, newValue, newDist);
+            return new TraceFrame(newPos, newNormal, newAngle,
+                width - distDelta * extParams.WidthLoss,
+                speed - distDelta * extParams.SpeedLoss,
+                value + valueDelta,
+                dist + distDelta
+            );
         }
 
         public override string ToString() =>
@@ -194,25 +211,36 @@ public class PathTracer
 
         while (a.dist < length + marginHead)
         {
-            var distDelta = a.dist < 0 ? -a.dist : StepSize;
-            var angleDelta = a.dist < 0 ? 0 : CalculateAngleDelta(a, extParams, distDelta);
+            double distDelta;
+            double angleDelta;
 
-            var b = a.Advance(extParams, distDelta, angleDelta, out var pivotPoint, out var pivotOffset);
-
-            var speed = a.speed;
-
-            if (extParams.SpeedGrid != null)
+            if (a.dist >= 0)
             {
-                speed *= extParams.SpeedGrid.ValueAt(a.pos.x, a.pos.z);
+                distDelta = StepSize;
+                angleDelta = CalculateAngleDelta(a.pos - GridMargin, extParams, distDelta);
             }
+            else
+            {
+                distDelta = -a.dist;
+                angleDelta = 0;
+            }
+
+            var valueDelta = a.speed * distDelta;
+
+            if (extParams.SpeedGrid != null && a.dist >= 0)
+            {
+                valueDelta *= extParams.SpeedGrid.ValueAt(a.pos - GridMargin);
+            }
+
+            var b = a.Advance(extParams, distDelta, angleDelta, valueDelta, out var pivotPoint, out var pivotOffset);
 
             var extendA = a.width / 2;
             var extendB = b.width / 2;
 
             if (extParams.WidthGrid != null)
             {
-                extendA *= extParams.WidthGrid.ValueAt(a.pos.x, a.pos.z);
-                extendB *= extParams.WidthGrid.ValueAt(b.pos.x, b.pos.z);
+                extendA *= extParams.WidthGrid.ValueAt(a.pos - GridMargin);
+                extendB *= extParams.WidthGrid.ValueAt(b.pos - GridMargin);
             }
 
             var boundA = extendA + TraceMargin;
@@ -231,11 +259,11 @@ public class PathTracer
             var boundMin = Vector2d.Min(Vector2d.Min(boundP1, boundP2), Vector2d.Min(boundP3, boundP4));
             var boundMax = Vector2d.Max(Vector2d.Max(boundP1, boundP2), Vector2d.Max(boundP3, boundP4));
 
+            var xMax = (int) Math.Min(Math.Ceiling(boundMax.x), GridOuterSize.x - 1);
+            var zMax = (int) Math.Min(Math.Ceiling(boundMax.z), GridOuterSize.z - 1);
+
             var xMin = (int) Math.Max(Math.Floor(boundMin.x), 0);
             var zMin = (int) Math.Max(Math.Floor(boundMin.z), 0);
-
-            var xMax = (int) Math.Min(Math.Ceiling(boundMax.x), GridSizeX - 1);
-            var zMax = (int) Math.Min(Math.Ceiling(boundMax.z), GridSizeZ - 1);
 
             for (int x = xMin; x <= xMax; x++)
             {
@@ -253,7 +281,7 @@ public class PathTracer
 
                         double progress = 0;
 
-                        if (pivotOffset > 0)
+                        if (pivotOffset != 0)
                         {
                             var pivotVec = pos - pivotPoint;
 
@@ -278,7 +306,7 @@ public class PathTracer
                         if (offsetAbs <= extend + TraceMargin)
                         {
                             var dist = a.dist + distDelta * progress;
-                            var value = a.value + distDelta * progress * speed;
+                            var value = a.value + valueDelta * progress;
 
                             _valueGrid[x, z] = value;
                             _offsetGrid[x, z] = offset;
@@ -293,6 +321,11 @@ public class PathTracer
             }
 
             a = b;
+
+            if (++_totalTraceIterations > MaxTraceIterations)
+            {
+                throw new Exception("Exceeded max PathTracer iteration count");
+            }
         }
 
         foreach (var branch in segment.Branches)
@@ -301,13 +334,13 @@ public class PathTracer
         }
     }
 
-    private static double CalculateAngleDelta(TraceFrame frame, ExtendParams extParams, double distDelta)
+    private static double CalculateAngleDelta(Vector2d innerPos, ExtendParams extParams, double distDelta)
     {
         var angleDelta = 0d;
 
         if (extParams.SwerveGrid != null)
         {
-            angleDelta += extParams.SwerveGrid.ValueAt(frame.pos.x, frame.pos.z);
+            angleDelta += extParams.SwerveGrid.ValueAt(innerPos);
         }
 
         if (extParams.AbsFollowGrid != null || extParams.RelFollowGrid != null)
@@ -320,7 +353,7 @@ public class PathTracer
 
     private IGridFunction<double> BuildGridFunction(double[,] grid)
     {
-        if (GridMargin == 0) return new Cache<double>(grid);
-        return new Transform<double>(new Cache<double>(grid), -GridMargin, -GridMargin, 1, 1);
+        if (GridMargin == Vector2d.Zero) return new Cache<double>(grid);
+        return new Transform<double>(new Cache<double>(grid), -GridMargin.x, -GridMargin.z, 1, 1);
     }
 }

@@ -6,7 +6,7 @@ public struct Vector2d
 {
     public static readonly Vector2d Zero = new(0, 0);
     public static readonly Vector2d One = new(1, 1);
-    
+
     public double x;
     public double z;
 
@@ -15,11 +15,11 @@ public struct Vector2d
         this.x = x;
         this.z = z;
     }
-    
+
     public double Magnitude => Math.Sqrt(x * x + z * z);
-    
+
     public double SqrMagnitude => x * x + z * z;
-    
+
     public void Normalize()
     {
         double magnitude = Magnitude;
@@ -40,11 +40,11 @@ public struct Vector2d
     }
 
     public Vector2d PerpCW => new(z, -x);
-    
+
     public Vector2d PerpCCW => new(-z, x);
 
     public static double Dot(Vector2d a, Vector2d b) => a.x * b.x + a.z * b.z;
-    
+
     public static double PerpDot(Vector2d a, Vector2d b) => a.x * b.z - a.z * b.x;
 
     public override string ToString() => $"[ {x} | {z} ]";
@@ -54,7 +54,7 @@ public struct Vector2d
     public override bool Equals(object other) => other is Vector2d vec && Equals(vec);
 
     public bool Equals(Vector2d other) => x == other.x && z == other.z;
-    
+
     public static Vector2d operator +(Vector2d a, Vector2d b) => new(a.x + b.x, a.z + b.z);
 
     public static Vector2d operator -(Vector2d a, Vector2d b) => new(a.x - b.x, a.z - b.z);
@@ -79,16 +79,20 @@ public struct Vector2d
     }
 
     public static bool operator !=(Vector2d a, Vector2d b) => !(a == b);
-    
+
     public static Vector2d Min(Vector2d a, Vector2d b) => new(Math.Min(a.x, b.x), Math.Min(a.z, b.z));
 
     public static Vector2d Max(Vector2d a, Vector2d b) => new(Math.Max(a.x, b.x), Math.Max(a.z, b.z));
 
     public static Vector2d Direction(double angle)
     {
+        if (angle == 0) return new Vector2d(1, 0);
+        if (angle == 90) return new Vector2d(0, 1);
+        if (angle == 180) return new Vector2d(-1, 0);
+        if (angle == -90) return new Vector2d(0, -1);
         return new Vector2d(Math.Cos(angle.ToRad()), Math.Sin(angle.ToRad()));
     }
-    
+
     public static Vector2d Lerp(Vector2d a, Vector2d b, double t)
     {
         t = t.InRange01();
@@ -99,7 +103,7 @@ public struct Vector2d
     {
         return new Vector2d(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t);
     }
-    
+
     public static double Angle(Vector2d from, Vector2d to)
     {
         double num = Math.Sqrt(from.SqrMagnitude * to.SqrMagnitude);
@@ -117,12 +121,12 @@ public struct Vector2d
         double dz = a.z - b.z;
         return Math.Sqrt(dx * dx + dz * dz);
     }
-    
+
     public static bool TryIntersect(
-        Vector2d originA, 
-        Vector2d originB, 
-        Vector2d directionA, 
-        Vector2d directionB, 
+        Vector2d originA,
+        Vector2d originB,
+        Vector2d directionA,
+        Vector2d directionB,
         out Vector2d point,
         double limit = 0)
     {
