@@ -8,7 +8,7 @@ using UnityEngine;
 namespace TerrainGraph;
 
 [Serializable]
-[Node(false, "Path/Combine", 608)]
+[Node(false, "Path/Combine", 609)]
 public class NodePathCombine : NodeBase
 {
     public const string ID = "pathCombine";

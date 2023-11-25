@@ -5,25 +5,27 @@ using UnityEngine;
 namespace TerrainGraph;
 
 [Serializable]
-[Node(false, "Path/Follow", 607)]
-public class NodePathFollow : NodeBase
+[Node(false, "Path/Density", 605)]
+public class NodePathDensity : NodeBase
 {
-    public const string ID = "pathFollow";
+    public const string ID = "pathDensity";
     public override string GetID => ID;
 
-    public override string Title => "Path: Follow";
+    public override string Title => "Path: Density";
 
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
-    [ValueConnectionKnob("Absolute Grid", Direction.In, GridFunctionConnection.Id)]
-    public ValueConnectionKnob AbsGridKnob;
+    [ValueConnectionKnob("Density Grid", Direction.In, GridFunctionConnection.Id)]
+    public ValueConnectionKnob DensityGridKnob;
 
-    [ValueConnectionKnob("Relative Grid", Direction.In, GridFunctionConnection.Id)]
-    public ValueConnectionKnob RelGridKnob;
+    [ValueConnectionKnob("Density Loss", Direction.In, ValueFunctionConnection.Id)]
+    public ValueConnectionKnob DensityLossKnob;
 
     [ValueConnectionKnob("Output", Direction.Out, PathFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
+
+    public double DensityLoss;
 
     public override void NodeGUI()
     {
@@ -37,16 +39,12 @@ public class NodePathFollow : NodeBase
         GUILayout.EndHorizontal();
 
         GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Absolute Grid", BoxLayout);
+        GUILayout.Label("Density Grid", BoxLayout);
         GUILayout.EndHorizontal();
 
-        AbsGridKnob.SetPosition();
+        DensityGridKnob.SetPosition();
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Relative Grid", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        RelGridKnob.SetPosition();
+        KnobValueField(DensityLossKnob, ref DensityLoss);
 
         GUILayout.EndVertical();
 
@@ -54,12 +52,21 @@ public class NodePathFollow : NodeBase
             canvas.OnNodeChange(this);
     }
 
+    public override void RefreshPreview()
+    {
+        var densityLoss = GetIfConnected<double>(DensityLossKnob);
+
+        densityLoss?.ResetState();
+
+        if (densityLoss != null) DensityLoss = densityLoss.Get();
+    }
+
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFixed(InputKnob, Path.Empty),
-            SupplierOrGridFixed(AbsGridKnob, GridFunction.Zero),
-            SupplierOrGridFixed(RelGridKnob, GridFunction.Zero)
+            SupplierOrGridFixed(DensityGridKnob, GridFunction.One),
+            SupplierOrValueFixed(DensityLossKnob, DensityLoss)
         ));
         return true;
     }
@@ -67,17 +74,14 @@ public class NodePathFollow : NodeBase
     private class Output : ISupplier<Path>
     {
         private readonly ISupplier<Path> _input;
-        private readonly ISupplier<IGridFunction<double>> _absGrid;
-        private readonly ISupplier<IGridFunction<double>> _relGrid;
+        private readonly ISupplier<IGridFunction<double>> _densityGrid;
+        private readonly ISupplier<double> _densityLoss;
 
-        public Output(
-            ISupplier<Path> input,
-            ISupplier<IGridFunction<double>> absGrid,
-            ISupplier<IGridFunction<double>> relGrid)
+        public Output(ISupplier<Path> input, ISupplier<IGridFunction<double>> densityGrid, ISupplier<double> densityLoss)
         {
             _input = input;
-            _absGrid = absGrid;
-            _relGrid = relGrid;
+            _densityGrid = densityGrid;
+            _densityLoss = densityLoss;
         }
 
         public Path Get()
@@ -88,8 +92,8 @@ public class NodePathFollow : NodeBase
             {
                 var extParams = segment.ExtendParams;
 
-                extParams.AbsFollowGrid = _absGrid.Get();
-                extParams.RelFollowGrid = _relGrid.Get();
+                extParams.DensityGrid = _densityGrid.Get();
+                extParams.DensityLoss = _densityLoss.Get();
 
                 segment.ExtendWithParams(extParams);
             }
@@ -100,8 +104,8 @@ public class NodePathFollow : NodeBase
         public void ResetState()
         {
             _input.ResetState();
-            _absGrid.ResetState();
-            _relGrid.ResetState();
+            _densityGrid.ResetState();
+            _densityLoss.ResetState();
         }
     }
 }

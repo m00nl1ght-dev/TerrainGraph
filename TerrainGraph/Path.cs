@@ -27,7 +27,7 @@ public class Path
         _origins = other._origins.Select(o => new Origin(o)).ToList();
     }
 
-    public Origin AddOrigin(Vector2d position, double baseValue, double baseAngle, double baseWidth, double baseSpeed)
+    public Origin AddOrigin(Vector2d position, double baseValue, double baseAngle, double baseWidth, double baseSpeed, double baseDensity)
     {
         if (this == Empty) throw new InvalidOperationException();
 
@@ -37,7 +37,8 @@ public class Path
             BaseValue = baseValue,
             BaseAngle = baseAngle.NormalizeDeg(),
             BaseWidth = baseWidth.WithMin(0),
-            BaseSpeed = baseSpeed
+            BaseSpeed = baseSpeed,
+            BaseDensity = baseDensity
         };
 
         _origins.Add(origin);
@@ -72,6 +73,7 @@ public class Path
         public double BaseAngle;
         public double BaseWidth = 1;
         public double BaseSpeed = 1;
+        public double BaseDensity = 1;
 
         public IReadOnlyList<Segment> Branches => _branches;
 
@@ -89,6 +91,7 @@ public class Path
             BaseAngle = other.BaseAngle;
             BaseWidth = other.BaseWidth;
             BaseSpeed = other.BaseSpeed;
+            BaseDensity = other.BaseDensity;
             _branches = other._branches.Select(b => new Segment(b)).ToList();
         }
 
@@ -134,7 +137,8 @@ public class Path
             BaseValue.Equals(other.BaseValue) &&
             BaseAngle.Equals(other.BaseAngle) &&
             BaseWidth.Equals(other.BaseWidth) &&
-            BaseSpeed.Equals(other.BaseSpeed);
+            BaseSpeed.Equals(other.BaseSpeed) &&
+            BaseDensity.Equals(other.BaseDensity);
     }
 
     public class Segment
@@ -250,20 +254,24 @@ public class Path
     {
         public double WidthLoss;
         public double SpeedLoss;
+        public double DensityLoss;
 
         public IGridFunction<double> AbsFollowGrid;
         public IGridFunction<double> RelFollowGrid;
         public IGridFunction<double> SwerveGrid;
         public IGridFunction<double> WidthGrid;
         public IGridFunction<double> SpeedGrid;
+        public IGridFunction<double> DensityGrid;
 
         public bool Equals(ExtendParams other) =>
             WidthLoss.Equals(other.WidthLoss) &&
             SpeedLoss.Equals(other.SpeedLoss) &&
+            DensityLoss.Equals(other.DensityLoss) &&
             ReferenceEquals(AbsFollowGrid, other.AbsFollowGrid) &&
             ReferenceEquals(RelFollowGrid, other.RelFollowGrid) &&
             ReferenceEquals(SwerveGrid, other.SwerveGrid) &&
             ReferenceEquals(WidthGrid, other.WidthGrid) &&
-            ReferenceEquals(SpeedGrid, other.SpeedGrid);
+            ReferenceEquals(SpeedGrid, other.SpeedGrid) &&
+            ReferenceEquals(DensityGrid, other.DensityGrid);
     }
 }

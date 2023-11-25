@@ -135,7 +135,9 @@ public class NodeValueOperator : NodeOperatorBase
             Func<double, double, double> func = _operationType switch
             {
                 Operation.Add => (a, b) => a + b,
+                Operation.Subtract => (a, b) => a - b,
                 Operation.Multiply => (a, b) => a * b,
+                Operation.Divide => (a, b) => a / b,
                 Operation.Min or Operation.Smooth_Min => (a, b) => GridFunction.Min.Of(a, b, smoothness),
                 Operation.Max or Operation.Smooth_Max => (a, b) => GridFunction.Max.Of(a, b, smoothness),
                 Operation.Invert => (a, b) => b + (b - a),

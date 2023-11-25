@@ -66,6 +66,22 @@ public static class GridFunction
         }
     }
 
+    public class Subtract : IGridFunction<double>
+    {
+        public readonly IGridFunction<double> A, B;
+
+        public Subtract(IGridFunction<double> a, IGridFunction<double> b)
+        {
+            A = a;
+            B = b;
+        }
+
+        public double ValueAt(double x, double z)
+        {
+            return A.ValueAt(x, z) - B.ValueAt(x, z);
+        }
+    }
+
     public class Multiply : IGridFunction<double>
     {
         public readonly IGridFunction<double> A, B;
@@ -79,6 +95,22 @@ public static class GridFunction
         public double ValueAt(double x, double z)
         {
             return A.ValueAt(x, z) * B.ValueAt(x, z);
+        }
+    }
+
+    public class Divide : IGridFunction<double>
+    {
+        public readonly IGridFunction<double> A, B;
+
+        public Divide(IGridFunction<double> a, IGridFunction<double> b)
+        {
+            A = a;
+            B = b;
+        }
+
+        public double ValueAt(double x, double z)
+        {
+            return A.ValueAt(x, z) / B.ValueAt(x, z);
         }
     }
 

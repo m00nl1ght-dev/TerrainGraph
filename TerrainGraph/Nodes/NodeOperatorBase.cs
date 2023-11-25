@@ -171,7 +171,9 @@ public abstract class NodeOperatorBase : NodeBase
     public enum Operation
     {
         Add,
+        Subtract,
         Multiply,
+        Divide,
         Min,
         Max,
         Smooth_Min,

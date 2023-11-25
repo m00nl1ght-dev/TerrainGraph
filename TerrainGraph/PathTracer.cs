@@ -96,7 +96,7 @@ public class PathTracer
         public readonly double width;
 
         /// <summary>
-        /// The path speed at the current position.
+        /// The rate of value change at the current position.
         /// </summary>
         public readonly double speed;
 
@@ -104,6 +104,11 @@ public class PathTracer
         /// The output value at the current position.
         /// </summary>
         public readonly double value;
+
+        /// <summary>
+        /// The offset density at the current position.
+        /// </summary>
+        public readonly double density;
 
         /// <summary>
         /// The total distance traveled so far from the start of the segment.
@@ -126,6 +131,7 @@ public class PathTracer
             this.width = origin.BaseWidth;
             this.speed = origin.BaseSpeed;
             this.value = origin.BaseValue;
+            this.density = origin.BaseDensity;
             this.normal = Vector2d.Direction(-angle);
             this.pos = origin.Position * gridScalar + gridOffset;
         }
@@ -136,22 +142,24 @@ public class PathTracer
             this.width = parent.width * segment.RelWidth - distOffset * segment.ExtendParams.WidthLoss;
             this.speed = parent.speed * segment.RelSpeed - distOffset * segment.ExtendParams.SpeedLoss;
             this.value = parent.value + (distOffset < 0 ? speed : parent.speed) * distOffset;
+            this.density = parent.density;
             this.normal = Vector2d.Direction(-angle);
             this.pos = parent.pos + distOffset * normal;
             this.dist = distOffset;
         }
 
         private TraceFrame(
-            Vector2d pos, Vector2d normal, double angle,
-            double width, double speed, double value, double dist)
+            Vector2d pos, Vector2d normal, double angle, double width,
+            double speed, double value, double density, double dist)
         {
             this.pos = pos;
             this.normal = normal;
             this.angle = angle;
             this.width = width;
             this.speed = speed;
-            this.dist = dist;
             this.value = value;
+            this.density = density;
+            this.dist = dist;
         }
 
         public TraceFrame Advance(
@@ -182,6 +190,7 @@ public class PathTracer
                 width - distDelta * extParams.WidthLoss,
                 speed - distDelta * extParams.SpeedLoss,
                 value + valueDelta,
+                density - distDelta * extParams.DensityLoss,
                 dist + distDelta
             );
         }
@@ -192,6 +201,7 @@ public class PathTracer
             $"{nameof(width)}: {width}, " +
             $"{nameof(speed)}: {speed}, " +
             $"{nameof(value)}: {value}, " +
+            $"{nameof(density)}: {density}, " +
             $"{nameof(dist)}: {dist}";
     }
 
@@ -241,6 +251,15 @@ public class PathTracer
             {
                 extendA *= extParams.WidthGrid.ValueAt(a.pos - GridMargin);
                 extendB *= extParams.WidthGrid.ValueAt(b.pos - GridMargin);
+            }
+
+            var densityA = a.density;
+            var densityB = b.density;
+
+            if (extParams.DensityGrid != null)
+            {
+                densityA *= extParams.DensityGrid.ValueAt(a.pos - GridMargin);
+                densityB *= extParams.DensityGrid.ValueAt(b.pos - GridMargin);
             }
 
             var boundA = extendA + TraceMargin;
@@ -302,6 +321,7 @@ public class PathTracer
                         }
 
                         var extend = extendA + (extendB - extendA) * progress;
+                        var density = densityA + (densityB - densityA) * progress;
 
                         if (offsetAbs <= extend + TraceMargin)
                         {
@@ -309,7 +329,7 @@ public class PathTracer
                             var value = a.value + valueDelta * progress;
 
                             _valueGrid[x, z] = value;
-                            _offsetGrid[x, z] = offset;
+                            _offsetGrid[x, z] = offset * density;
 
                             if (offsetAbs <= extend && dist >= 0 && dist <= length)
                             {

@@ -125,7 +125,9 @@ public class NodeGridOperator : NodeOperatorBase
             Func<IGridFunction<double>, IGridFunction<double>, IGridFunction<double>> func = _operationType switch
             {
                 Operation.Add => (a, b) => new GridFunction.Add(a, b),
+                Operation.Subtract => (a, b) => new GridFunction.Subtract(a, b),
                 Operation.Multiply => (a, b) => new GridFunction.Multiply(a, b),
+                Operation.Divide => (a, b) => new GridFunction.Divide(a, b),
                 Operation.Min or Operation.Smooth_Min => (a, b) => new GridFunction.Min(a, b, smoothness),
                 Operation.Max or Operation.Smooth_Max => (a, b) => new GridFunction.Max(a, b, smoothness),
                 Operation.Invert => (a, b) => new GridFunction.Invert(a, b, true, true),

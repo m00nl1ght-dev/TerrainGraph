@@ -32,6 +32,9 @@ public class NodePathOrigin : NodeBase
     [ValueConnectionKnob("Speed", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob SpeedKnob;
 
+    [ValueConnectionKnob("Density", Direction.In, ValueFunctionConnection.Id)]
+    public ValueConnectionKnob DensityKnob;
+
     [ValueConnectionKnob("Count", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob CountKnob;
 
@@ -44,6 +47,7 @@ public class NodePathOrigin : NodeBase
     public double Width = 10;
     public double Value;
     public double Speed = 1;
+    public double Density = 1;
     public double Count = 1;
 
     public override void NodeGUI()
@@ -58,6 +62,7 @@ public class NodePathOrigin : NodeBase
         KnobValueField(WidthKnob, ref Width);
         KnobValueField(ValueKnob, ref Value);
         KnobValueField(SpeedKnob, ref Speed);
+        KnobValueField(DensityKnob, ref Density);
         KnobValueField(CountKnob, ref Count);
 
         GUILayout.EndVertical();
@@ -74,6 +79,7 @@ public class NodePathOrigin : NodeBase
         var width = GetIfConnected<double>(WidthKnob);
         var value = GetIfConnected<double>(ValueKnob);
         var speed = GetIfConnected<double>(WidthKnob);
+        var density = GetIfConnected<double>(DensityKnob);
         var count = GetIfConnected<double>(CountKnob);
 
         angle?.ResetState();
@@ -82,6 +88,7 @@ public class NodePathOrigin : NodeBase
         width?.ResetState();
         value?.ResetState();
         speed?.ResetState();
+        density?.ResetState();
         count?.ResetState();
 
         if (angle != null) Angle = angle.Get();
@@ -90,6 +97,7 @@ public class NodePathOrigin : NodeBase
         if (width != null) Width = width.Get();
         if (value != null) Value = value.Get();
         if (speed != null) Speed = speed.Get();
+        if (density != null) Density = density.Get();
         if (count != null) Count = count.Get();
     }
 
@@ -102,6 +110,7 @@ public class NodePathOrigin : NodeBase
             SupplierOrValueFixed(WidthKnob, Width),
             SupplierOrValueFixed(ValueKnob, Value),
             SupplierOrValueFixed(SpeedKnob, Speed),
+            SupplierOrValueFixed(DensityKnob, Density),
             SupplierOrValueFixed(CountKnob, Count)
         ));
         return true;
@@ -115,6 +124,7 @@ public class NodePathOrigin : NodeBase
         private readonly ISupplier<double> _width;
         private readonly ISupplier<double> _value;
         private readonly ISupplier<double> _speed;
+        private readonly ISupplier<double> _density;
         private readonly ISupplier<double> _count;
 
         public Output(
@@ -124,6 +134,7 @@ public class NodePathOrigin : NodeBase
             ISupplier<double> width,
             ISupplier<double> value,
             ISupplier<double> speed,
+            ISupplier<double> density,
             ISupplier<double> count)
         {
             _angle = angle;
@@ -132,6 +143,7 @@ public class NodePathOrigin : NodeBase
             _width = width;
             _value = value;
             _speed = speed;
+            _density = density;
             _count = count;
         }
 
@@ -149,6 +161,7 @@ public class NodePathOrigin : NodeBase
                 double width = _width.Get().InRange(0, Path.MaxWidth);
                 double value = _value.Get();
                 double speed = _speed.Get();
+                double density = _density.Get();
 
                 double r = 0.5 * (1 - centrality);
                 double x = 0.5 + r * Math.Cos(-angle.ToRad());
@@ -157,7 +170,7 @@ public class NodePathOrigin : NodeBase
                 var origin = path.AddOrigin(
                     new Vector2d(x.InRange01(), z.InRange01()),
                     value, (angle + angleOffset).NormalizeDeg(),
-                    width, speed
+                    width, speed, density
                 );
 
                 origin.AttachNewBranch();
@@ -172,7 +185,9 @@ public class NodePathOrigin : NodeBase
             _angleOffset.ResetState();
             _centrality.ResetState();
             _width.ResetState();
+            _value.ResetState();
             _speed.ResetState();
+            _density.ResetState();
             _count.ResetState();
         }
     }
