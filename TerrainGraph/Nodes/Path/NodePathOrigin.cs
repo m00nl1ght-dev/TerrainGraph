@@ -157,7 +157,7 @@ public class NodePathOrigin : NodeBase
             {
                 double angle = _angle.Get() - 90;
                 double angleOffset = _angleOffset.Get() + 180;
-                double centrality = _centrality.Get().InRange01();
+                double centrality = _centrality.Get().WithMax(1);
                 double width = _width.Get().InRange(0, Path.MaxWidth);
                 double value = _value.Get();
                 double speed = _speed.Get();

@@ -102,7 +102,7 @@ public class NodeGridPreview : NodeBase
 
     public override bool Calculate()
     {
-        OutputKnob.SetValue(InputKnob.GetValue<ISupplier<IGridFunction<double>>>());
+        OutputKnob.SetValue(InputKnob.GetValue<ISupplier<IGridFunction<double>>>()); // TODO doesn't update when input knob disconnected?
         return true;
     }
 
@@ -111,7 +111,7 @@ public class NodeGridPreview : NodeBase
         var previewSize = _previewSize;
         var previewBuffer = _previewBuffer;
         var previewRatio = TerrainCanvas.GridPreviewRatio;
-        
+
         PreviewModels.TryGetValue(PreviewModelId, out var previewModel);
         previewModel ??= DefaultModel;
 

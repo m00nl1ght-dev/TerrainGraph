@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using TerrainGraph.Util;
 
 namespace TerrainGraph;
 
@@ -145,12 +146,9 @@ public static class GridFunction
             Smoothness = smoothness;
         }
 
-        public double ValueAt(double x, double z)
-        {
-            return Of(A.ValueAt(x, z), B.ValueAt(x, z), Smoothness);
-        }
+        public double ValueAt(double x, double z) => Calculate(A.ValueAt(x, z), B.ValueAt(x, z), Smoothness);
 
-        public static double Of(double a, double b, double smoothness)
+        public static double Calculate(double a, double b, double smoothness)
         {
             if (smoothness <= 0f) return Math.Min(a, b);
 
@@ -173,12 +171,9 @@ public static class GridFunction
             Smoothness = smoothness;
         }
 
-        public double ValueAt(double x, double z)
-        {
-            return Of(A.ValueAt(x, z), B.ValueAt(x, z), Smoothness);
-        }
+        public double ValueAt(double x, double z) => Calculate(A.ValueAt(x, z), B.ValueAt(x, z), Smoothness);
 
-        public static double Of(double a, double b, double smoothness)
+        public static double Calculate(double a, double b, double smoothness)
         {
             if (smoothness <= 0f) return Math.Max(a, b);
 
@@ -279,34 +274,36 @@ public static class GridFunction
     {
         public readonly IGridFunction<T> Input;
         public readonly double PivotX;
-        public readonly double PivotY;
+        public readonly double PivotZ;
         public readonly double Angle;
 
-        public Rotate(IGridFunction<T> input, double pivotX, double pivotY, double angle)
+        public Rotate(IGridFunction<T> input, double pivotX, double pivotZ, double angle)
         {
             Input = input;
             PivotX = pivotX;
-            PivotY = pivotY;
+            PivotZ = pivotZ;
             Angle = angle;
         }
 
-        public T ValueAt(double x, double z)
+        public T ValueAt(double x, double z) => Calculate(Input, x, z, PivotX, PivotZ, Angle);
+
+        public static T Calculate(IGridFunction<T> input, double x, double z, double pivotX, double pivotZ, double angle)
         {
-            double radians = DegToRad(Angle);
+            double radians = angle.ToRad();
 
             double sin = Math.Sin(radians);
             double cos = Math.Cos(radians);
 
-            x -= PivotX;
-            z -= PivotY;
+            x -= pivotX;
+            z -= pivotZ;
 
             double nx = x * cos - z * sin;
             double nz = x * sin + z * cos;
 
-            nx += PivotX;
-            nz += PivotY;
+            nx += pivotX;
+            nz += pivotZ;
 
-            return Input.ValueAt(nx, nz);
+            return input.ValueAt(nx, nz);
         }
     }
 
@@ -392,11 +389,6 @@ public static class GridFunction
             var iz = (int) Math.Round(z);
             return ix < 0 || ix >= SizeX || iz < 0 || iz >= SizeZ ? Fallback : Grid[ix, iz];
         }
-    }
-
-    public static double DegToRad(double angle)
-    {
-        return (Math.PI / 180) * angle;
     }
 
     public delegate Func<double, double, double> NoiseFunction(double frequency, double lacunarity, double persistence, int octaves, int seed);

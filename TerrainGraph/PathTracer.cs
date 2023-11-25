@@ -29,6 +29,8 @@ public class PathTracer
     public IGridFunction<double> ValueGrid => BuildGridFunction(_valueGrid);
     public IGridFunction<double> OffsetGrid => BuildGridFunction(_offsetGrid);
 
+    private readonly GridKernel _followGridKernel = new(1, 1);
+
     private int _totalTraceIterations;
 
     public static Action<string> DebugOutput = _ => {};
@@ -227,7 +229,7 @@ public class PathTracer
             if (a.dist >= 0)
             {
                 distDelta = StepSize;
-                angleDelta = CalculateAngleDelta(a.pos - GridMargin, extParams, distDelta);
+                angleDelta = CalculateAngleDelta(a, initialFrame, extParams, distDelta);
             }
             else
             {
@@ -354,19 +356,29 @@ public class PathTracer
         }
     }
 
-    private static double CalculateAngleDelta(Vector2d innerPos, ExtendParams extParams, double distDelta)
+    private double CalculateAngleDelta(TraceFrame currentFrame, TraceFrame initialFrame, ExtendParams extParams, double distDelta)
     {
         var angleDelta = 0d;
 
-        if (extParams.SwerveGrid != null)
-        {
-            angleDelta += extParams.SwerveGrid.ValueAt(innerPos);
-        }
-
         if (extParams.AbsFollowGrid != null || extParams.RelFollowGrid != null)
         {
-            // TODO follow calc
+            var followVec = _followGridKernel.CalculateAt(
+                extParams.AbsFollowGrid,
+                extParams.RelFollowGrid,
+                currentFrame.pos - GridMargin,
+                currentFrame.pos - initialFrame.pos,
+                initialFrame.angle - 90
+            );
+
+            angleDelta = -Vector2d.SignedAngle(currentFrame.normal, currentFrame.normal + followVec);
         }
+
+        if (extParams.SwerveGrid != null)
+        {
+            angleDelta += extParams.SwerveGrid.ValueAt(currentFrame.pos - GridMargin);
+        }
+
+        // TODO max angle based on width and distDelta
 
         return (distDelta * angleDelta).NormalizeDeg();
     }
