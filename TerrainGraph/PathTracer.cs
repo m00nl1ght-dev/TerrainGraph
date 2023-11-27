@@ -229,7 +229,28 @@ public class PathTracer
             if (a.dist >= 0)
             {
                 distDelta = StepSize;
-                angleDelta = CalculateAngleDelta(a, initialFrame, extParams, distDelta);
+                angleDelta = 0;
+
+                if (extParams.AbsFollowGrid != null || extParams.RelFollowGrid != null)
+                {
+                    var followVec = _followGridKernel.CalculateAt(
+                        extParams.AbsFollowGrid,
+                        extParams.RelFollowGrid,
+                        a.pos - GridMargin,
+                        a.pos - initialFrame.pos,
+                        initialFrame.angle - 90
+                    );
+
+                    angleDelta = -Vector2d.SignedAngle(a.normal, a.normal + followVec);
+                }
+
+                if (extParams.SwerveGrid != null)
+                {
+                    angleDelta += extParams.SwerveGrid.ValueAt(a.pos - GridMargin);
+                }
+
+                var maxAngleDelta = extParams.MaxTurnRate * 180 * distDelta / (a.width * Math.PI);
+                angleDelta = (distDelta * angleDelta).NormalizeDeg().InRange(-maxAngleDelta, maxAngleDelta);
             }
             else
             {
@@ -354,33 +375,6 @@ public class PathTracer
         {
             Trace(branch, segment, a); // TODO better placement and params
         }
-    }
-
-    private double CalculateAngleDelta(TraceFrame currentFrame, TraceFrame initialFrame, ExtendParams extParams, double distDelta)
-    {
-        var angleDelta = 0d;
-
-        if (extParams.AbsFollowGrid != null || extParams.RelFollowGrid != null)
-        {
-            var followVec = _followGridKernel.CalculateAt(
-                extParams.AbsFollowGrid,
-                extParams.RelFollowGrid,
-                currentFrame.pos - GridMargin,
-                currentFrame.pos - initialFrame.pos,
-                initialFrame.angle - 90
-            );
-
-            angleDelta = -Vector2d.SignedAngle(currentFrame.normal, currentFrame.normal + followVec);
-        }
-
-        if (extParams.SwerveGrid != null)
-        {
-            angleDelta += extParams.SwerveGrid.ValueAt(currentFrame.pos - GridMargin);
-        }
-
-        // TODO max angle based on width and distDelta
-
-        return (distDelta * angleDelta).NormalizeDeg();
     }
 
     private IGridFunction<double> BuildGridFunction(double[,] grid)

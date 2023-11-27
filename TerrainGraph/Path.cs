@@ -255,6 +255,7 @@ public class Path
         public double WidthLoss;
         public double SpeedLoss;
         public double DensityLoss;
+        public double MaxTurnRate;
 
         public IGridFunction<double> AbsFollowGrid;
         public IGridFunction<double> RelFollowGrid;
@@ -267,6 +268,7 @@ public class Path
             WidthLoss.Equals(other.WidthLoss) &&
             SpeedLoss.Equals(other.SpeedLoss) &&
             DensityLoss.Equals(other.DensityLoss) &&
+            MaxTurnRate.Equals(other.MaxTurnRate) &&
             ReferenceEquals(AbsFollowGrid, other.AbsFollowGrid) &&
             ReferenceEquals(RelFollowGrid, other.RelFollowGrid) &&
             ReferenceEquals(SwerveGrid, other.SwerveGrid) &&
