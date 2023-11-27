@@ -19,26 +19,36 @@ public class PathTracer
     public readonly Vector2d GridMargin;
 
     public readonly double StepSize;
-    public readonly double TraceMargin;
+    public readonly double TraceInnerMargin;
+    public readonly double TraceOuterMargin;
 
     private readonly double[,] _mainGrid;
     private readonly double[,] _valueGrid;
     private readonly double[,] _offsetGrid;
+    private readonly double[,] _distanceGrid;
 
     public IGridFunction<double> MainGrid => BuildGridFunction(_mainGrid);
     public IGridFunction<double> ValueGrid => BuildGridFunction(_valueGrid);
     public IGridFunction<double> OffsetGrid => BuildGridFunction(_offsetGrid);
+    public IGridFunction<double> DistanceGrid => BuildGridFunction(_distanceGrid);
 
-    private readonly GridKernel _followGridKernel = new(1, 1);
+    private readonly GridKernel _followGridKernel = GridKernel.Square(3, 5);
+    private readonly GridKernel _avoidGridKernel = GridKernel.Shield(2, 5, 3);
+
+    private readonly IGridFunction<double> _overlapAvoidanceGrid = Zero;
 
     private int _totalTraceIterations;
 
     public static Action<string> DebugOutput = _ => {};
 
-    public PathTracer(int innerSizeX, int innerSizeZ, int gridMargin, double stepSize, double traceMargin)
+    public PathTracer(
+        int innerSizeX, int innerSizeZ, int gridMargin,
+        double stepSize, double traceInnerMargin, double traceOuterMargin)
     {
         StepSize = stepSize.WithMin(1);
-        TraceMargin = traceMargin.WithMin(0);
+
+        TraceInnerMargin = traceInnerMargin.WithMin(0);
+        TraceOuterMargin = traceOuterMargin.WithMin(TraceInnerMargin);
 
         gridMargin = gridMargin.WithMin(0);
 
@@ -56,6 +66,22 @@ public class PathTracer
         _mainGrid = new double[outerSizeX, outerSizeZ];
         _valueGrid = new double[outerSizeX, outerSizeZ];
         _offsetGrid = new double[outerSizeX, outerSizeZ];
+        _distanceGrid = new double[outerSizeX, outerSizeZ];
+
+        if (TraceOuterMargin > 0)
+        {
+            _overlapAvoidanceGrid = new ScaleWithBias(
+                new Cache<double>(_distanceGrid, TraceOuterMargin), 1 / TraceOuterMargin, -1
+            );
+        }
+
+        for (int x = 0; x < outerSizeX; x++)
+        {
+            for (int z = 0; z < outerSizeZ; z++)
+            {
+                _distanceGrid[x, z] = TraceOuterMargin;
+            }
+        }
     }
 
     public void Trace(Path path)
@@ -212,8 +238,8 @@ public class PathTracer
         var length = segment.Length;
         var extParams = segment.ExtendParams;
 
-        var marginTail = parent == null ? TraceMargin : 0;
-        var marginHead = segment.Branches.Count == 0 ? TraceMargin : 0;
+        var marginTail = parent == null ? TraceOuterMargin : 0;
+        var marginHead = segment.Branches.Count == 0 ? TraceOuterMargin : 0;
 
         var initialFrame = new TraceFrame(baseFrame, segment, -marginTail);
 
@@ -228,19 +254,34 @@ public class PathTracer
 
             if (a.dist >= 0)
             {
-                distDelta = StepSize;
                 angleDelta = 0;
+                distDelta = StepSize;
+
+                var followVec = Vector2d.Zero;
 
                 if (extParams.AbsFollowGrid != null || extParams.RelFollowGrid != null)
                 {
-                    var followVec = _followGridKernel.CalculateAt(
+                    followVec = _followGridKernel.CalculateAt(
+                        new(1, 0), new(0, 1),
                         extParams.AbsFollowGrid,
                         extParams.RelFollowGrid,
                         a.pos - GridMargin,
                         a.pos - initialFrame.pos,
                         initialFrame.angle - 90
                     );
+                }
 
+                if (extParams.AvoidOverlap > 0)
+                {
+                    followVec += extParams.AvoidOverlap * _avoidGridKernel.CalculateAt(
+                        a.normal, a.perpCW,
+                        _overlapAvoidanceGrid, null,
+                        a.pos, Vector2d.Zero, 0
+                    );
+                }
+
+                if (followVec != Vector2d.Zero)
+                {
                     angleDelta = -Vector2d.SignedAngle(a.normal, a.normal + followVec);
                 }
 
@@ -254,8 +295,8 @@ public class PathTracer
             }
             else
             {
-                distDelta = -a.dist;
                 angleDelta = 0;
+                distDelta = -a.dist;
             }
 
             var valueDelta = a.speed * distDelta;
@@ -285,18 +326,20 @@ public class PathTracer
                 densityB *= extParams.DensityGrid.ValueAt(b.pos - GridMargin);
             }
 
-            var boundA = extendA + TraceMargin;
-            var boundB = extendB + TraceMargin;
+            var boundIa = extendA + TraceInnerMargin;
+            var boundIb = extendB + TraceInnerMargin;
+            var boundOa = extendA + TraceOuterMargin;
+            var boundOb = extendB + TraceOuterMargin;
 
             if (extendA <= 0 && a.dist >= 0)
             {
                 length = Math.Min(length, b.dist);
             }
 
-            var boundP1 = a.pos + a.perpCCW * boundA;
-            var boundP2 = a.pos + a.perpCW * boundA;
-            var boundP3 = b.pos + b.perpCCW * boundB;
-            var boundP4 = b.pos + b.perpCW * boundB;
+            var boundP1 = a.pos + a.perpCCW * boundOa;
+            var boundP2 = a.pos + a.perpCW * boundOa;
+            var boundP3 = b.pos + b.perpCCW * boundOb;
+            var boundP4 = b.pos + b.perpCW * boundOb;
 
             var boundMin = Vector2d.Min(Vector2d.Min(boundP1, boundP2), Vector2d.Min(boundP3, boundP4));
             var boundMax = Vector2d.Max(Vector2d.Max(boundP1, boundP2), Vector2d.Max(boundP3, boundP4));
@@ -321,7 +364,7 @@ public class PathTracer
                         double offset;
                         double offsetAbs;
 
-                        double progress = 0;
+                        double progress = 0.5;
 
                         if (pivotOffset != 0)
                         {
@@ -330,7 +373,7 @@ public class PathTracer
                             offset = Math.Sign(-angleDelta) * (pivotVec.Magnitude - Math.Abs(pivotOffset));
                             offsetAbs = Math.Abs(offset);
 
-                            if (offsetAbs <= boundA || offsetAbs <= boundB)
+                            if (offsetAbs <= boundIa || offsetAbs <= boundIb)
                             {
                                 progress = Vector2d.Angle(a.pos - pivotPoint, pivotVec) / Math.Abs(angleDelta);
                             }
@@ -344,19 +387,25 @@ public class PathTracer
                         }
 
                         var extend = extendA + (extendB - extendA) * progress;
-                        var density = densityA + (densityB - densityA) * progress;
 
-                        if (offsetAbs <= extend + TraceMargin)
+                        if (offsetAbs <= extend + TraceOuterMargin)
                         {
-                            var dist = a.dist + distDelta * progress;
-                            var value = a.value + valueDelta * progress;
+                            _distanceGrid[x, z] = Math.Min(_distanceGrid[x, z], offsetAbs - extend);
 
-                            _valueGrid[x, z] = value;
-                            _offsetGrid[x, z] = offset * density;
-
-                            if (offsetAbs <= extend && dist >= 0 && dist <= length)
+                            if (offsetAbs <= extend + TraceInnerMargin)
                             {
-                                _mainGrid[x, z] = extend;
+                                var dist = a.dist + distDelta * progress;
+                                var value = a.value + valueDelta * progress;
+
+                                var density = densityA + (densityB - densityA) * progress;
+
+                                _valueGrid[x, z] = value;
+                                _offsetGrid[x, z] = offset * density;
+
+                                if (offsetAbs <= extend && dist >= 0 && dist <= length)
+                                {
+                                    _mainGrid[x, z] = extend;
+                                }
                             }
                         }
                     }

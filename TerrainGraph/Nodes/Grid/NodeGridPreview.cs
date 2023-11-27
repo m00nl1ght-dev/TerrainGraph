@@ -144,6 +144,7 @@ public class NodeGridPreview : NodeBase
 
     private static readonly Dictionary<string, IPreviewModel> PreviewModels = new();
     public static readonly IPreviewModel DefaultModel = new DefaultPreviewModel();
+    public static readonly IPreviewModel DefaultModel_10 = new DefaultPreviewModel(10f);
     public static readonly IPreviewModel DefaultModel_100 = new DefaultPreviewModel(100f);
 
     public static void RegisterPreviewModel(IPreviewModel model, string id)
@@ -154,6 +155,7 @@ public class NodeGridPreview : NodeBase
     static NodeGridPreview()
     {
         RegisterPreviewModel(DefaultModel, "Default");
+        RegisterPreviewModel(DefaultModel_10, "Default x10");
         RegisterPreviewModel(DefaultModel_100, "Default x100");
     }
 

@@ -22,8 +22,13 @@ public class NodePathFollow : NodeBase
     [ValueConnectionKnob("Relative Grid", Direction.In, GridFunctionConnection.Id)]
     public ValueConnectionKnob RelGridKnob;
 
+    [ValueConnectionKnob("Avoid Overlap", Direction.In, ValueFunctionConnection.Id)]
+    public ValueConnectionKnob AvoidOverlapKnob;
+
     [ValueConnectionKnob("Output", Direction.Out, PathFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
+
+    public double AvoidOverlap;
 
     public override void NodeGUI()
     {
@@ -48,10 +53,21 @@ public class NodePathFollow : NodeBase
 
         RelGridKnob.SetPosition();
 
+        KnobValueField(AvoidOverlapKnob, ref AvoidOverlap);
+
         GUILayout.EndVertical();
 
         if (GUI.changed)
             canvas.OnNodeChange(this);
+    }
+
+    public override void RefreshPreview()
+    {
+        var avoidOverlap = GetIfConnected<double>(AvoidOverlapKnob);
+
+        avoidOverlap?.ResetState();
+
+        if (avoidOverlap != null) AvoidOverlap = avoidOverlap.Get();
     }
 
     public override bool Calculate()
@@ -59,7 +75,8 @@ public class NodePathFollow : NodeBase
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFixed(InputKnob, Path.Empty),
             SupplierOrGridFixed(AbsGridKnob, GridFunction.Zero),
-            SupplierOrGridFixed(RelGridKnob, GridFunction.Zero)
+            SupplierOrGridFixed(RelGridKnob, GridFunction.Zero),
+            SupplierOrValueFixed(AvoidOverlapKnob, AvoidOverlap)
         ));
         return true;
     }
@@ -69,15 +86,18 @@ public class NodePathFollow : NodeBase
         private readonly ISupplier<Path> _input;
         private readonly ISupplier<IGridFunction<double>> _absGrid;
         private readonly ISupplier<IGridFunction<double>> _relGrid;
+        private readonly ISupplier<double> _avoidOverlap;
 
         public Output(
             ISupplier<Path> input,
             ISupplier<IGridFunction<double>> absGrid,
-            ISupplier<IGridFunction<double>> relGrid)
+            ISupplier<IGridFunction<double>> relGrid,
+            ISupplier<double> avoidOverlap)
         {
             _input = input;
             _absGrid = absGrid;
             _relGrid = relGrid;
+            _avoidOverlap = avoidOverlap;
         }
 
         public Path Get()
@@ -90,6 +110,7 @@ public class NodePathFollow : NodeBase
 
                 extParams.AbsFollowGrid = _absGrid.Get();
                 extParams.RelFollowGrid = _relGrid.Get();
+                extParams.AvoidOverlap = _avoidOverlap.Get();
 
                 segment.ExtendWithParams(extParams);
             }
@@ -102,6 +123,7 @@ public class NodePathFollow : NodeBase
             _input.ResetState();
             _absGrid.ResetState();
             _relGrid.ResetState();
+            _avoidOverlap.ResetState();
         }
     }
 }

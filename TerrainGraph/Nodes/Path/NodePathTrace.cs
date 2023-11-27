@@ -10,7 +10,9 @@ namespace TerrainGraph;
 public class NodePathTrace : NodeBase
 {
     public const int GridMarginDefault = 3;
-    public const double TraceMarginDefault = 3;
+
+    public const double TraceMarginInnerDefault = 3;
+    public const double TraceMarginOuterDefault = 50;
 
     public const string ID = "pathTrace";
     public override string GetID => ID;
@@ -28,6 +30,9 @@ public class NodePathTrace : NodeBase
 
     [ValueConnectionKnob("Offset Output", Direction.Out, GridFunctionConnection.Id)]
     public ValueConnectionKnob OffsetOutputKnob;
+
+    [ValueConnectionKnob("Distance Output", Direction.Out, GridFunctionConnection.Id)]
+    public ValueConnectionKnob DistanceOutputKnob;
 
     public double StepSize = 1;
 
@@ -49,6 +54,11 @@ public class NodePathTrace : NodeBase
         GUILayout.BeginHorizontal(BoxStyle);
         GUILayout.Label("Offset Grid", BoxLayout);
         OffsetOutputKnob.SetPosition();
+        GUILayout.EndHorizontal();
+
+        GUILayout.BeginHorizontal(BoxStyle);
+        GUILayout.Label("Distance Grid", BoxLayout);
+        DistanceOutputKnob.SetPosition();
         GUILayout.EndHorizontal();
 
         GUILayout.BeginHorizontal(BoxStyle);
@@ -74,6 +84,7 @@ public class NodePathTrace : NodeBase
         MainOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(Supplier.From(output.GetMainGrid, output.ResetState));
         ValueOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(Supplier.From(output.GetValueGrid, output.ResetState));
         OffsetOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(Supplier.From(output.GetOffsetGrid, output.ResetState));
+        DistanceOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(Supplier.From(output.GetDistanceGrid, output.ResetState));
 
         return true;
     }
@@ -95,8 +106,15 @@ public class NodePathTrace : NodeBase
 
         private PathTracer Generate()
         {
-            var tracer = new PathTracer(_gridSize, _gridSize, GridMarginDefault, _stepSize, TraceMarginDefault);
+            var tracer = new PathTracer(
+                _gridSize, _gridSize,
+                GridMarginDefault, _stepSize,
+                TraceMarginInnerDefault,
+                TraceMarginOuterDefault
+            );
+
             tracer.Trace(_input.Get());
+
             return tracer;
         }
 
@@ -116,6 +134,12 @@ public class NodePathTrace : NodeBase
         {
             _tracer ??= Generate();
             return _tracer.OffsetGrid;
+        }
+
+        public IGridFunction<double> GetDistanceGrid()
+        {
+            _tracer ??= Generate();
+            return _tracer.DistanceGrid;
         }
 
         public void ResetState()
