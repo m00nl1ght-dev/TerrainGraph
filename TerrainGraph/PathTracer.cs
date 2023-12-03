@@ -198,6 +198,26 @@ public class PathTracer
         public readonly double dist;
 
         /// <summary>
+        /// Multipliers based on the extend parameters at the current position.
+        /// </summary>
+        public readonly LocalFactors factors;
+
+        /// <summary>
+        /// The path width at the current position, with local multiplier applied.
+        /// </summary>
+        public double widthMul => width * factors.width;
+
+        /// <summary>
+        /// The rate of value change at the current position, with local multiplier applied.
+        /// </summary>
+        public double speedMul => speed * factors.speed;
+
+        /// <summary>
+        /// The offset density at the current position, with local multiplier applied.
+        /// </summary>
+        public double densityMul => density * factors.density;
+
+        /// <summary>
         /// The unit vector perpendicular clockwise to the current direction.
         /// </summary>
         public Vector2d perpCW => normal.PerpCW;
@@ -207,34 +227,50 @@ public class PathTracer
         /// </summary>
         public Vector2d perpCCW => normal.PerpCCW;
 
+        /// <summary>
+        /// Construct the base frame for the given path origin.
+        /// </summary>
+        /// <param name="origin">Path origin that defines the frame</param>
+        /// <param name="gridScalar">Multiplier applied to origin position</param>
+        /// <param name="gridOffset">Offset applied to origin position</param>
         public TraceFrame(Origin origin, Vector2d gridScalar, Vector2d gridOffset)
         {
             this.angle = origin.BaseAngle;
             this.width = origin.BaseWidth;
             this.speed = origin.BaseSpeed;
             this.value = origin.BaseValue;
-            this.offset = 0;
-            this.density = origin.BaseDensity;
-            this.normal = Vector2d.Direction(-angle);
             this.pos = origin.Position * gridScalar + gridOffset;
+            this.factors = new LocalFactors();
+            this.normal = Vector2d.Direction(-angle);
+            this.density = origin.BaseDensity;
         }
 
-        public TraceFrame(TraceFrame parent, Segment segment, double distOffset = 0)
+        /// <summary>
+        /// Construct the initial frame for tracing the given path segment.
+        /// </summary>
+        /// <param name="parent">Last frame of the preceding path segment</param>
+        /// <param name="segment">Next path segment to trace</param>
+        /// <param name="gridOffset">Offset applied when retrieving factors from external grids</param>
+        /// <param name="distOffset">Offset applied to the initial trace distance</param>
+        public TraceFrame(TraceFrame parent, Segment segment, Vector2d gridOffset, double distOffset = 0)
         {
             this.angle = (parent.angle + segment.RelAngle).NormalizeDeg();
             this.width = parent.width * segment.RelWidth - distOffset * segment.ExtendParams.WidthLoss;
             this.speed = parent.speed * segment.RelSpeed - distOffset * segment.ExtendParams.SpeedLoss;
             this.value = parent.value + (distOffset < 0 ? speed : parent.speed) * distOffset;
-            this.offset = parent.offset - parent.width * segment.RelOffset;
-            this.density = parent.density;
+            this.offset = parent.offset - parent.width * parent.factors.width * parent.factors.density * segment.RelOffset;
+            this.pos = parent.pos + parent.perpCCW * parent.width * parent.factors.width * segment.RelOffset + distOffset * normal;
+            this.factors = new LocalFactors(segment.ExtendParams, pos - gridOffset);
             this.normal = Vector2d.Direction(-angle);
-            this.pos = parent.pos + parent.perpCCW * parent.width * segment.RelOffset + distOffset * normal;
+            this.density = parent.density;
             this.dist = distOffset;
         }
 
         private TraceFrame(
-            Vector2d pos, Vector2d normal, double angle, double width, double speed,
-            double value, double offset, double density, double dist)
+            Vector2d pos, Vector2d normal,
+            double angle, double width, double speed,
+            double value, double offset, double density,
+            double dist, LocalFactors factors)
         {
             this.pos = pos;
             this.normal = normal;
@@ -245,11 +281,22 @@ public class PathTracer
             this.offset = offset;
             this.density = density;
             this.dist = dist;
+            this.factors = factors;
         }
 
+        /// <summary>
+        /// Move the frame forward in its current direction, returning the result as a new frame.
+        /// </summary>
+        /// <param name="extParams">Path parameters defining how the values of the frame should evolve</param>
+        /// <param name="distDelta">Distance to move forward in the current direction</param>
+        /// <param name="angleDelta">Total angle change to be applied continuously while advancing</param>
+        /// <param name="gridOffset">Offset applied when retrieving factors from external grids</param>
+        /// <param name="pivotPoint">Pivot point resulting from the angle change and distance</param>
+        /// <param name="pivotOffset">Signed distance of the pivot point from the frame position</param>
+        /// <returns></returns>
         public TraceFrame Advance(
             ExtendParams extParams, double distDelta, double angleDelta,
-            double valueDelta, out Vector2d pivotPoint, out double pivotOffset)
+            Vector2d gridOffset, out Vector2d pivotPoint, out double pivotOffset)
         {
             var newAngle = (angle + angleDelta).NormalizeDeg();
             var newNormal = Vector2d.Direction(-newAngle);
@@ -274,9 +321,9 @@ public class PathTracer
             return new TraceFrame(newPos, newNormal, newAngle,
                 width - distDelta * extParams.WidthLoss,
                 speed - distDelta * extParams.SpeedLoss,
-                value + valueDelta, offset,
-                density - distDelta * extParams.DensityLoss,
-                dist + distDelta
+                value + distDelta * (dist >= 0 ? speedMul : speed),
+                offset, density - distDelta * extParams.DensityLoss,
+                dist + distDelta, new LocalFactors(extParams, pos - gridOffset)
             );
         }
 
@@ -286,8 +333,48 @@ public class PathTracer
             $"{nameof(width)}: {width}, " +
             $"{nameof(speed)}: {speed}, " +
             $"{nameof(value)}: {value}, " +
+            $"{nameof(offset)}: {offset}, " +
             $"{nameof(density)}: {density}, " +
-            $"{nameof(dist)}: {dist}";
+            $"{nameof(dist)}: {dist}, " +
+            $"{nameof(factors)}: [{factors}]";
+    }
+
+    [HotSwappable]
+    private readonly struct LocalFactors
+    {
+        /// <summary>
+        /// Local width multiplier at the current frame position.
+        /// </summary>
+        public readonly double width;
+
+        /// <summary>
+        /// Local speed multiplier at the current frame position.
+        /// </summary>
+        public readonly double speed;
+
+        /// <summary>
+        /// Local density multiplier at the current frame position.
+        /// </summary>
+        public readonly double density;
+
+        public LocalFactors()
+        {
+            width = 1;
+            speed = 1;
+            density = 1;
+        }
+
+        public LocalFactors(ExtendParams extendParams, Vector2d pos)
+        {
+            width = extendParams.WidthGrid?.ValueAt(pos) ?? 1;
+            speed = extendParams.SpeedGrid?.ValueAt(pos) ?? 1;
+            density = extendParams.DensityGrid?.ValueAt(pos) ?? 1;
+        }
+
+        public override string ToString() =>
+            $"{nameof(width)}: {width}, " +
+            $"{nameof(speed)}: {speed}, " +
+            $"{nameof(density)}: {density}";
     }
 
     private TraceFrame Trace(TraceTask task)
@@ -295,7 +382,7 @@ public class PathTracer
         var length = task.segment.Length;
         var extParams = task.segment.ExtendParams;
 
-        var initialFrame = new TraceFrame(task.baseFrame, task.segment, -task.marginTail);
+        var initialFrame = new TraceFrame(task.baseFrame, task.segment, GridMargin, -task.marginTail);
 
         DebugOutput($"Trace start with initial frame [{initialFrame}] and length {length}");
 
@@ -353,32 +440,10 @@ public class PathTracer
                 distDelta = -a.dist;
             }
 
-            var valueDelta = a.speed * distDelta;
+            var b = a.Advance(extParams, distDelta, angleDelta, GridMargin, out var pivotPoint, out var pivotOffset);
 
-            if (extParams.SpeedGrid != null && a.dist >= 0)
-            {
-                valueDelta *= extParams.SpeedGrid.ValueAt(a.pos - GridMargin);
-            }
-
-            var b = a.Advance(extParams, distDelta, angleDelta, valueDelta, out var pivotPoint, out var pivotOffset);
-
-            var extendA = a.width / 2;
-            var extendB = b.width / 2;
-
-            if (extParams.WidthGrid != null)
-            {
-                extendA *= extParams.WidthGrid.ValueAt(a.pos - GridMargin);
-                extendB *= extParams.WidthGrid.ValueAt(b.pos - GridMargin);
-            }
-
-            var densityA = a.density;
-            var densityB = b.density;
-
-            if (extParams.DensityGrid != null)
-            {
-                densityA *= extParams.DensityGrid.ValueAt(a.pos - GridMargin);
-                densityB *= extParams.DensityGrid.ValueAt(b.pos - GridMargin);
-            }
+            var extendA = a.widthMul / 2;
+            var extendB = b.widthMul / 2;
 
             var boundIa = extendA + TraceInnerMargin;
             var boundIb = extendB + TraceInnerMargin;
@@ -415,8 +480,8 @@ public class PathTracer
 
                     if (dotA >= 0 && dotB < 0)
                     {
-                        double offset;
-                        double offsetAbs;
+                        double shift;
+                        double shiftAbs;
 
                         double progress = 0.5;
 
@@ -424,42 +489,42 @@ public class PathTracer
                         {
                             var pivotVec = pos - pivotPoint;
 
-                            offset = Math.Sign(-angleDelta) * (pivotVec.Magnitude - Math.Abs(pivotOffset));
-                            offsetAbs = Math.Abs(offset);
+                            shift = Math.Sign(-angleDelta) * (pivotVec.Magnitude - Math.Abs(pivotOffset));
+                            shiftAbs = Math.Abs(shift);
 
-                            if (offsetAbs <= boundIa || offsetAbs <= boundIb)
+                            if (shiftAbs <= boundIa || shiftAbs <= boundIb)
                             {
                                 progress = Vector2d.Angle(a.pos - pivotPoint, pivotVec) / Math.Abs(angleDelta);
                             }
                         }
                         else
                         {
-                            offset = -Vector2d.PerpDot(a.normal, pos - a.pos);
-                            offsetAbs = Math.Abs(offset);
+                            shift = -Vector2d.PerpDot(a.normal, pos - a.pos);
+                            shiftAbs = Math.Abs(shift);
 
                             progress = dotA / distDelta;
                         }
 
-                        var extend = extendA + (extendB - extendA) * progress;
+                        var extend = progress.Lerp(extendA, extendB);
 
-                        if (offsetAbs <= extend + TraceOuterMargin)
+                        if (shiftAbs <= extend + TraceOuterMargin)
                         {
-                            _distanceGrid[x, z] = Math.Min(_distanceGrid[x, z], offsetAbs - extend);
+                            _distanceGrid[x, z] = Math.Min(_distanceGrid[x, z], shiftAbs - extend);
 
-                            if (offsetAbs <= extend + TraceInnerMargin)
+                            if (shiftAbs <= extend + TraceInnerMargin)
                             {
                                 var dist = a.dist + distDelta * progress;
-                                var value = a.value + valueDelta * progress;
 
-                                var frameOffset = a.offset + (b.offset - a.offset) * progress;
-                                var density = densityA + (densityB - densityA) * progress;
+                                var value = progress.Lerp(a.value, b.value);
+                                var offset = progress.Lerp(a.offset, b.offset);
+                                var density = progress.Lerp(a.densityMul, b.densityMul);
 
                                 if (_mainGrid[x, z] == 0)
                                 {
                                     _valueGrid[x, z] = value;
-                                    _offsetGrid[x, z] = frameOffset + offset * density;
+                                    _offsetGrid[x, z] = offset + shift * density;
 
-                                    if (offsetAbs <= extend && dist >= 0 && dist <= length)
+                                    if (shiftAbs <= extend && dist >= 0 && dist <= length)
                                     {
                                         _mainGrid[x, z] = extend;
                                     }

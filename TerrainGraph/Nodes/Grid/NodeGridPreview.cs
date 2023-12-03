@@ -142,6 +142,8 @@ public class NodeGridPreview : NodeBase
         }));
     }
 
+    // TODO add range scheme (0-1, -1-1, 0-10, -10-10 etc)
+
     private static readonly Dictionary<string, IPreviewModel> PreviewModels = new();
     public static readonly IPreviewModel DefaultModel = new DefaultPreviewModel();
     public static readonly IPreviewModel DefaultModel_10 = new DefaultPreviewModel(10f);
