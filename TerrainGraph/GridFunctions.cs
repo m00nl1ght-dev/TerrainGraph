@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using TerrainGraph.Util;
+
+#pragma warning disable CS0659
 
 namespace TerrainGraph;
 
@@ -23,6 +26,19 @@ public static class GridFunction
         public T ValueAt(double x, double z)
         {
             return Value;
+        }
+
+        protected bool Equals(Const<T> other)
+        {
+            return EqualityComparer<T>.Default.Equals(Value, other.Value);
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((Const<T>) obj);
         }
     }
 
@@ -49,6 +65,19 @@ public static class GridFunction
                     return PostProcess(Options[i].ValueAt(x, z), i);
             return PostProcess(Options[Options.Count - 1].ValueAt(x, z), Options.Count - 1);
         }
+
+        protected bool Equals(Select<T> other) =>
+            Input.Equals(other.Input) &&
+            Options.SequenceEqual(other.Options) &&
+            Thresholds.SequenceEqual(other.Thresholds);
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((Select<T>) obj);
+        }
     }
 
     public class Add : IGridFunction<double>
@@ -64,6 +93,18 @@ public static class GridFunction
         public double ValueAt(double x, double z)
         {
             return A.ValueAt(x, z) + B.ValueAt(x, z);
+        }
+
+        protected bool Equals(Add other) =>
+            A.Equals(other.A) &&
+            B.Equals(other.B);
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((Add) obj);
         }
     }
 
@@ -81,6 +122,18 @@ public static class GridFunction
         {
             return A.ValueAt(x, z) - B.ValueAt(x, z);
         }
+
+        protected bool Equals(Subtract other) =>
+            A.Equals(other.A) &&
+            B.Equals(other.B);
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((Subtract) obj);
+        }
     }
 
     public class Multiply : IGridFunction<double>
@@ -97,6 +150,18 @@ public static class GridFunction
         {
             return A.ValueAt(x, z) * B.ValueAt(x, z);
         }
+
+        protected bool Equals(Multiply other) =>
+            A.Equals(other.A) &&
+            B.Equals(other.B);
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((Multiply) obj);
+        }
     }
 
     public class Divide : IGridFunction<double>
@@ -112,6 +177,18 @@ public static class GridFunction
         public double ValueAt(double x, double z)
         {
             return A.ValueAt(x, z) / B.ValueAt(x, z);
+        }
+
+        protected bool Equals(Divide other) =>
+            A.Equals(other.A) &&
+            B.Equals(other.B);
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((Divide) obj);
         }
     }
 
@@ -131,6 +208,19 @@ public static class GridFunction
         public double ValueAt(double x, double z)
         {
             return Input.ValueAt(x, z) * Scale + Bias;
+        }
+
+        protected bool Equals(ScaleWithBias other) =>
+            Input.Equals(other.Input) &&
+            Scale.Equals(other.Scale) &&
+            Bias.Equals(other.Bias);
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((ScaleWithBias) obj);
         }
     }
 
@@ -157,6 +247,18 @@ public static class GridFunction
 
             return (min - Math.Log(1f + Math.Exp(min - max))) / smoothness;
         }
+
+        protected bool Equals(Min other) =>
+            A.Equals(other.A) && B.Equals(other.B) &&
+            Smoothness.Equals(other.Smoothness);
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((Min) obj);
+        }
     }
 
     public class Max : IGridFunction<double>
@@ -182,6 +284,18 @@ public static class GridFunction
 
             return (max + Math.Log(1f + Math.Exp(min - max))) / smoothness;
         }
+
+        protected bool Equals(Max other) =>
+            A.Equals(other.A) && B.Equals(other.B) &&
+            Smoothness.Equals(other.Smoothness);
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((Max) obj);
+        }
     }
 
     public class Invert : IGridFunction<double>
@@ -204,6 +318,20 @@ public static class GridFunction
             if (input < pivot ? ApplyBelow : ApplyAbove) return pivot + (pivot - input);
             return input;
         }
+
+        protected bool Equals(Invert other) =>
+            Input.Equals(other.Input) &&
+            Pivot.Equals(other.Pivot) &&
+            ApplyBelow == other.ApplyBelow &&
+            ApplyAbove == other.ApplyAbove;
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((Invert) obj);
+        }
     }
 
     public class Clamp : IGridFunction<double>
@@ -222,6 +350,19 @@ public static class GridFunction
         public double ValueAt(double x, double z)
         {
             return Math.Max(ClampMin, Math.Min(ClampMax, Input.ValueAt(x, z)));
+        }
+
+        protected bool Equals(Clamp other) =>
+            Input.Equals(other.Input) &&
+            ClampMin.Equals(other.ClampMin) &&
+            ClampMax.Equals(other.ClampMax);
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((Clamp) obj);
         }
     }
 
@@ -268,6 +409,24 @@ public static class GridFunction
 
             return Bias + valX + valZ;
         }
+
+        protected bool Equals(SpanFunction other) =>
+            Bias.Equals(other.Bias) &&
+            OriginX.Equals(other.OriginX) &&
+            OriginZ.Equals(other.OriginZ) &&
+            SpanPx.Equals(other.SpanPx) &&
+            SpanNx.Equals(other.SpanNx) &&
+            SpanPz.Equals(other.SpanPz) &&
+            SpanNz.Equals(other.SpanNz) &&
+            Circular == other.Circular;
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((SpanFunction) obj);
+        }
     }
 
     public class Rotate<T> : IGridFunction<T>
@@ -305,6 +464,20 @@ public static class GridFunction
 
             return input.ValueAt(nx, nz);
         }
+
+        protected bool Equals(Rotate<T> other) =>
+            Input.Equals(other.Input) &&
+            PivotX.Equals(other.PivotX) &&
+            PivotZ.Equals(other.PivotZ) &&
+            Angle.Equals(other.Angle);
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((Rotate<T>) obj);
+        }
     }
 
     public class DeltaMap : IGridFunction<double>
@@ -327,6 +500,18 @@ public static class GridFunction
             var zp = Input.ValueAt(x, z + Step);
 
             return (Math.Abs(mm - xm) + Math.Abs(mm - xp) + Math.Abs(mm - zm) + Math.Abs(mm - zp)) / 4;
+        }
+
+        protected bool Equals(DeltaMap other) =>
+            Input.Equals(other.Input) &&
+            Step.Equals(other.Step);
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((DeltaMap) obj);
         }
     }
 
@@ -357,6 +542,21 @@ public static class GridFunction
         public T ValueAt(double x, double z)
         {
             return Input.ValueAt(x * ScaleX - TranslateX, z * ScaleZ - TranslateZ);
+        }
+
+        protected bool Equals(Transform<T> other) =>
+            Input.Equals(other.Input) &&
+            TranslateX.Equals(other.TranslateX) &&
+            TranslateZ.Equals(other.TranslateZ) &&
+            ScaleX.Equals(other.ScaleX) &&
+            ScaleZ.Equals(other.ScaleZ);
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((Transform<T>) obj);
         }
     }
 
@@ -389,22 +589,19 @@ public static class GridFunction
             var iz = (int) Math.Round(z);
             return ix < 0 || ix >= SizeX || iz < 0 || iz >= SizeZ ? Fallback : Grid[ix, iz];
         }
-    }
 
-    public delegate Func<double, double, double> NoiseFunction(double frequency, double lacunarity, double persistence, int octaves, int seed);
+        protected bool Equals(Cache<T> other) =>
+            SizeX == other.SizeX &&
+            SizeZ == other.SizeZ &&
+            Grid.Equals(other.Grid) &&
+            EqualityComparer<T>.Default.Equals(Fallback, other.Fallback);
 
-    public class NoiseGenerator : IGridFunction<double>
-    {
-        public readonly Func<double, double, double> Function;
-
-        public NoiseGenerator(NoiseFunction function, double frequency, double lacunarity, double persistence, int octaves, int seed)
+        public override bool Equals(object obj)
         {
-            Function = function.Invoke(frequency, lacunarity, persistence, octaves, seed);
-        }
-
-        public double ValueAt(double x, double z)
-        {
-            return Function.Invoke(x, z);
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((Cache<T>) obj);
         }
     }
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using TerrainGraph.Util;
 using static TerrainGraph.Path;
 using static TerrainGraph.GridFunction;
@@ -88,14 +89,62 @@ public class PathTracer
     {
         _totalTraceIterations = 0;
 
+        var taskQueue = new Queue<TraceTask>();
+
         foreach (var origin in path.Origins)
         {
             var baseFrame = new TraceFrame(origin, GridInnerSize, GridMargin);
 
             foreach (var branch in origin.Branches)
             {
-                Trace(branch, null, baseFrame);
+                taskQueue.Enqueue(new TraceTask(branch, baseFrame, branch.IsLeaf ? TraceOuterMargin : 0, TraceOuterMargin));
             }
+        }
+
+        while (taskQueue.Count > 0)
+        {
+            var task = taskQueue.Dequeue();
+
+            var headFrame = Trace(task);
+
+            if (headFrame.width > 0)
+            {
+                foreach (var branch in task.segment.Branches)
+                {
+                    taskQueue.Enqueue(new TraceTask(branch, headFrame, branch.IsLeaf ? TraceOuterMargin : 0, 0));
+                }
+            }
+        }
+    }
+
+    private readonly struct TraceTask
+    {
+        /// <summary>
+        /// The path segment that this task should trace.
+        /// </summary>
+        public readonly Segment segment;
+
+        /// <summary>
+        /// The trace frame containing the starting parameters for this path segment.
+        /// </summary>
+        public readonly TraceFrame baseFrame;
+
+        /// <summary>
+        /// The additional path length to trace at the head end of the segment.
+        /// </summary>
+        public readonly double marginHead;
+
+        /// <summary>
+        /// The additional path length to trace at the tail end of the segment.
+        /// </summary>
+        public readonly double marginTail;
+
+        public TraceTask(Segment segment, TraceFrame baseFrame, double marginHead, double marginTail)
+        {
+            this.segment = segment;
+            this.baseFrame = baseFrame;
+            this.marginHead = marginHead;
+            this.marginTail = marginTail;
         }
     }
 
@@ -134,6 +183,11 @@ public class PathTracer
         public readonly double value;
 
         /// <summary>
+        /// The offset at the current position.
+        /// </summary>
+        public readonly double offset;
+
+        /// <summary>
         /// The offset density at the current position.
         /// </summary>
         public readonly double density;
@@ -159,26 +213,28 @@ public class PathTracer
             this.width = origin.BaseWidth;
             this.speed = origin.BaseSpeed;
             this.value = origin.BaseValue;
+            this.offset = 0;
             this.density = origin.BaseDensity;
             this.normal = Vector2d.Direction(-angle);
             this.pos = origin.Position * gridScalar + gridOffset;
         }
 
-        public TraceFrame(TraceFrame parent, Segment segment, double distOffset)
+        public TraceFrame(TraceFrame parent, Segment segment, double distOffset = 0)
         {
             this.angle = (parent.angle + segment.RelAngle).NormalizeDeg();
             this.width = parent.width * segment.RelWidth - distOffset * segment.ExtendParams.WidthLoss;
             this.speed = parent.speed * segment.RelSpeed - distOffset * segment.ExtendParams.SpeedLoss;
             this.value = parent.value + (distOffset < 0 ? speed : parent.speed) * distOffset;
+            this.offset = parent.offset - parent.width * segment.RelOffset;
             this.density = parent.density;
             this.normal = Vector2d.Direction(-angle);
-            this.pos = parent.pos + distOffset * normal;
+            this.pos = parent.pos + parent.perpCCW * parent.width * segment.RelOffset + distOffset * normal;
             this.dist = distOffset;
         }
 
         private TraceFrame(
-            Vector2d pos, Vector2d normal, double angle, double width,
-            double speed, double value, double density, double dist)
+            Vector2d pos, Vector2d normal, double angle, double width, double speed,
+            double value, double offset, double density, double dist)
         {
             this.pos = pos;
             this.normal = normal;
@@ -186,6 +242,7 @@ public class PathTracer
             this.width = width;
             this.speed = speed;
             this.value = value;
+            this.offset = offset;
             this.density = density;
             this.dist = dist;
         }
@@ -217,7 +274,7 @@ public class PathTracer
             return new TraceFrame(newPos, newNormal, newAngle,
                 width - distDelta * extParams.WidthLoss,
                 speed - distDelta * extParams.SpeedLoss,
-                value + valueDelta,
+                value + valueDelta, offset,
                 density - distDelta * extParams.DensityLoss,
                 dist + distDelta
             );
@@ -233,21 +290,18 @@ public class PathTracer
             $"{nameof(dist)}: {dist}";
     }
 
-    private void Trace(Segment segment, Segment parent, TraceFrame baseFrame)
+    private TraceFrame Trace(TraceTask task)
     {
-        var length = segment.Length;
-        var extParams = segment.ExtendParams;
+        var length = task.segment.Length;
+        var extParams = task.segment.ExtendParams;
 
-        var marginTail = parent == null ? TraceOuterMargin : 0;
-        var marginHead = segment.Branches.Count == 0 ? TraceOuterMargin : 0;
-
-        var initialFrame = new TraceFrame(baseFrame, segment, -marginTail);
+        var initialFrame = new TraceFrame(task.baseFrame, task.segment, -task.marginTail);
 
         DebugOutput($"Trace start with initial frame [{initialFrame}] and length {length}");
 
         var a = initialFrame;
 
-        while (a.dist < length + marginHead)
+        while (a.dist < length + task.marginHead)
         {
             double distDelta;
             double angleDelta;
@@ -290,7 +344,7 @@ public class PathTracer
                     angleDelta += extParams.SwerveGrid.ValueAt(a.pos - GridMargin);
                 }
 
-                var maxAngleDelta = extParams.MaxTurnRate * 180 * distDelta / (a.width * Math.PI);
+                var maxAngleDelta = (1 - extParams.AngleTenacity) * 180 * distDelta / (a.width * Math.PI);
                 angleDelta = (distDelta * angleDelta).NormalizeDeg().InRange(-maxAngleDelta, maxAngleDelta);
             }
             else
@@ -397,14 +451,18 @@ public class PathTracer
                                 var dist = a.dist + distDelta * progress;
                                 var value = a.value + valueDelta * progress;
 
+                                var frameOffset = a.offset + (b.offset - a.offset) * progress;
                                 var density = densityA + (densityB - densityA) * progress;
 
-                                _valueGrid[x, z] = value;
-                                _offsetGrid[x, z] = offset * density;
-
-                                if (offsetAbs <= extend && dist >= 0 && dist <= length)
+                                if (_mainGrid[x, z] == 0)
                                 {
-                                    _mainGrid[x, z] = extend;
+                                    _valueGrid[x, z] = value;
+                                    _offsetGrid[x, z] = frameOffset + offset * density;
+
+                                    if (offsetAbs <= extend && dist >= 0 && dist <= length)
+                                    {
+                                        _mainGrid[x, z] = extend;
+                                    }
                                 }
                             }
                         }
@@ -420,10 +478,7 @@ public class PathTracer
             }
         }
 
-        foreach (var branch in segment.Branches)
-        {
-            Trace(branch, segment, a); // TODO better placement and params
-        }
+        return a;
     }
 
     private IGridFunction<double> BuildGridFunction(double[,] grid)

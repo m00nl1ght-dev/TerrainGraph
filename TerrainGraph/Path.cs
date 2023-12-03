@@ -13,7 +13,7 @@ public class Path
 
     public IReadOnlyList<Origin> Origins => _origins;
 
-    public IEnumerable<Segment> Leaves() => _origins.SelectMany(b => b.Leaves());
+    public IEnumerable<Segment> Leaves() => _origins.SelectMany(b => b.Leaves()).ToList();
 
     private readonly List<Origin> _origins;
 
@@ -141,16 +141,20 @@ public class Path
             BaseDensity.Equals(other.BaseDensity);
     }
 
+    [HotSwappable]
     public class Segment
     {
         public double RelAngle;
         public double RelWidth = 1;
         public double RelSpeed = 1;
+        public double RelOffset;
         public double Length;
 
         public ExtendParams ExtendParams;
 
         public IReadOnlyList<Segment> Branches => _branches;
+
+        public bool IsLeaf => _branches.Count == 0;
 
         private readonly List<Segment> _branches;
 
@@ -164,6 +168,7 @@ public class Path
             RelAngle = other.RelAngle;
             RelWidth = other.RelWidth;
             RelSpeed = other.RelSpeed;
+            RelOffset = other.RelOffset;
             Length = other.Length;
             ExtendParams = other.ExtendParams;
             _branches = other._branches.Select(b => new Segment(b)).ToList();
@@ -192,14 +197,21 @@ public class Path
             return segment;
         }
 
-        public Segment AttachNewBranch(double relAngle = 0, double relWidth = 1, double relSpeed = 1, double length = 0)
+        public Segment AttachNewBranch(
+            double relAngle = 0,
+            double relWidth = 1,
+            double relSpeed = 1,
+            double relOffset = 0,
+            double length = 0)
         {
             var branch = new Segment()
             {
                 RelAngle = relAngle.NormalizeDeg(),
                 RelWidth = relWidth.WithMin(0),
                 RelSpeed = relSpeed,
-                Length = length.WithMin(0)
+                RelOffset = relOffset,
+                Length = length.WithMin(0),
+                ExtendParams = ExtendParams
             };
 
             _branches.Add(branch);
@@ -209,7 +221,7 @@ public class Path
 
         public IEnumerable<Segment> Leaves()
         {
-            if (_branches.NullOrEmpty())
+            if (IsLeaf)
             {
                 yield return this;
             }
@@ -246,16 +258,18 @@ public class Path
             RelAngle.Equals(other.RelAngle) &&
             RelWidth.Equals(other.RelWidth) &&
             RelSpeed.Equals(other.RelSpeed) &&
+            RelOffset.Equals(other.RelOffset) &&
             Length.Equals(other.Length) &&
             ExtendParams.Equals(other.ExtendParams);
     }
 
+    [HotSwappable]
     public struct ExtendParams
     {
         public double WidthLoss;
         public double SpeedLoss;
         public double DensityLoss;
-        public double MaxTurnRate;
+        public double AngleTenacity;
         public double AvoidOverlap;
 
         public IGridFunction<double> AbsFollowGrid;
@@ -269,13 +283,13 @@ public class Path
             WidthLoss.Equals(other.WidthLoss) &&
             SpeedLoss.Equals(other.SpeedLoss) &&
             DensityLoss.Equals(other.DensityLoss) &&
-            MaxTurnRate.Equals(other.MaxTurnRate) &&
+            AngleTenacity.Equals(other.AngleTenacity) &&
             AvoidOverlap.Equals(other.AvoidOverlap) &&
-            ReferenceEquals(AbsFollowGrid, other.AbsFollowGrid) &&
-            ReferenceEquals(RelFollowGrid, other.RelFollowGrid) &&
-            ReferenceEquals(SwerveGrid, other.SwerveGrid) &&
-            ReferenceEquals(WidthGrid, other.WidthGrid) &&
-            ReferenceEquals(SpeedGrid, other.SpeedGrid) &&
-            ReferenceEquals(DensityGrid, other.DensityGrid);
+            AbsFollowGrid.Equals(other.AbsFollowGrid) &&
+            RelFollowGrid.Equals(other.RelFollowGrid) &&
+            SwerveGrid.Equals(other.SwerveGrid) &&
+            WidthGrid.Equals(other.WidthGrid) &&
+            SpeedGrid.Equals(other.SpeedGrid) &&
+            DensityGrid.Equals(other.DensityGrid);
     }
 }

@@ -58,7 +58,7 @@ public class NodePathOrigin : NodeBase
     [ValueConnectionKnob("Output", NodeEditorFramework.Direction.Out, PathFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
 
-    public PlacementMode Mode = PlacementMode.PositionXZ;
+    public PlacementMode Mode = PlacementMode.Position_XZ;
 
     public double Angle;
     public double Offset;
@@ -124,7 +124,7 @@ public class NodePathOrigin : NodeBase
     {
         Mode = mode;
 
-        if (mode == PlacementMode.GridEdge)
+        if (mode == PlacementMode.Grid_Edge)
         {
             AngleKnob ??= (ValueConnectionKnob) CreateConnectionKnob(AngleAttribute);
             OffsetKnob ??= (ValueConnectionKnob) CreateConnectionKnob(OffsetAttribute);
@@ -188,7 +188,7 @@ public class NodePathOrigin : NodeBase
 
     public override bool Calculate()
     {
-        if (Mode == PlacementMode.GridEdge)
+        if (Mode == PlacementMode.Grid_Edge)
         {
             OutputKnob.SetValue<ISupplier<Path>>(new Output_GridEdge(
                 SupplierOrValueFixed(AngleKnob, Angle),
@@ -221,7 +221,7 @@ public class NodePathOrigin : NodeBase
 
     public enum PlacementMode
     {
-        PositionXZ, GridEdge
+        Position_XZ, Grid_Edge
     }
 
     private abstract class AbstractOutput : ISupplier<Path>

@@ -20,9 +20,6 @@ public class NodePathSplit : NodeBase
     public ValueConnectionKnob InputKnob;
 
     [NonSerialized]
-    public List<ValueConnectionKnob> AngleKnobs = new();
-
-    [NonSerialized]
     public List<ValueConnectionKnob> WidthKnobs = new();
 
     [NonSerialized]
@@ -31,13 +28,11 @@ public class NodePathSplit : NodeBase
     [NonSerialized]
     public List<ValueConnectionKnob> OutputKnobs = new();
 
-    public List<double> Angles = new();
     public List<double> Widths = new();
     public List<double> Speeds = new();
 
     public override void RefreshDynamicKnobs()
     {
-        AngleKnobs = dynamicConnectionPorts.Where(k => k.name.StartsWith("Angle")).Cast<ValueConnectionKnob>().ToList();
         WidthKnobs = dynamicConnectionPorts.Where(k => k.name.StartsWith("Width")).Cast<ValueConnectionKnob>().ToList();
         SpeedKnobs = dynamicConnectionPorts.Where(k => k.name.StartsWith("Speed")).Cast<ValueConnectionKnob>().ToList();
         OutputKnobs = dynamicConnectionPorts.Where(k => k.name.StartsWith("Output")).Cast<ValueConnectionKnob>().ToList();
@@ -57,21 +52,17 @@ public class NodePathSplit : NodeBase
 
         for (int i = 0; i < OutputKnobs.Count; i++)
         {
-            var angleKnob = AngleKnobs[i];
             var widthKnob = WidthKnobs[i];
             var speedKnob = SpeedKnobs[i];
             var outputKnob = OutputKnobs[i];
 
-            var angle = Angles[i];
             var width = Widths[i];
             var speed = Speeds[i];
 
-            KnobValueField(angleKnob, ref angle, "Angle " + (i + 1));
-            outputKnob.SetPosition();
             KnobValueField(widthKnob, ref width, "Width " + (i + 1));
+            outputKnob.SetPosition();
             KnobValueField(speedKnob, ref speed, "Speed " + (i + 1));
 
-            Angles[i] = angle;
             Widths[i] = width;
             Speeds[i] = speed;
         }
@@ -103,12 +94,10 @@ public class NodePathSplit : NodeBase
     {
         var idx = OutputKnobs.Count;
 
-        CreateValueConnectionKnob(new("Angle " + idx, Direction.In, ValueFunctionConnection.Id));
         CreateValueConnectionKnob(new("Width " + idx, Direction.In, ValueFunctionConnection.Id));
         CreateValueConnectionKnob(new("Speed " + idx, Direction.In, ValueFunctionConnection.Id));
         CreateValueConnectionKnob(new("Output " + idx, Direction.Out, PathFunctionConnection.Id));
 
-        Angles.Add(0);
         Widths.Add(1);
         Speeds.Add(1);
 
@@ -122,12 +111,10 @@ public class NodePathSplit : NodeBase
 
         var idx = OutputKnobs.Count - 1;
 
-        DeleteConnectionPort(AngleKnobs[idx]);
         DeleteConnectionPort(WidthKnobs[idx]);
         DeleteConnectionPort(SpeedKnobs[idx]);
         DeleteConnectionPort(OutputKnobs[idx]);
 
-        Angles.RemoveAt(idx);
         Widths.RemoveAt(idx);
         Speeds.RemoveAt(idx);
 
@@ -139,18 +126,15 @@ public class NodePathSplit : NodeBase
     {
         for (int i = 0; i < OutputKnobs.Count; i++)
         {
-            GetIfConnected<double>(AngleKnobs[i])?.ResetState();
             GetIfConnected<double>(WidthKnobs[i])?.ResetState();
             GetIfConnected<double>(SpeedKnobs[i])?.ResetState();
         }
 
         for (int i = 0; i < OutputKnobs.Count; i++)
         {
-            var angle = GetIfConnected<double>(AngleKnobs[i]);
             var width = GetIfConnected<double>(WidthKnobs[i]);
             var speed = GetIfConnected<double>(SpeedKnobs[i]);
 
-            if (angle != null) Angles[i] = angle.Get();
             if (width != null) Widths[i] = width.Get();
             if (speed != null) Speeds[i] = speed.Get();
         }
@@ -158,45 +142,91 @@ public class NodePathSplit : NodeBase
 
     public override bool Calculate()
     {
+        var input = SupplierOrFixed(InputKnob, Path.Empty);
+        var widths = new ISupplier<double>[OutputKnobs.Count];
+        var speeds = new ISupplier<double>[OutputKnobs.Count];
+
+        for (int i = 0; i < OutputKnobs.Count; i++)
+        {
+            widths[i] = SupplierOrValueFixed(WidthKnobs[i], Widths[i]);
+            speeds[i] = SupplierOrValueFixed(SpeedKnobs[i], Speeds[i]);
+        }
+
         for (int i = 0; i < OutputKnobs.Count; i++)
         {
             OutputKnobs[i].SetValue<ISupplier<Path>>(new Output(
-                SupplierOrFixed(InputKnob, Path.Empty),
-                SupplierOrValueFixed(AngleKnobs[i], Angles[i]),
-                SupplierOrValueFixed(WidthKnobs[i], Widths[i]),
-                SupplierOrValueFixed(SpeedKnobs[i], Speeds[i])
+                input, widths, speeds, i
             ));
         }
 
         return true;
     }
 
+    [HotSwappable]
     private class Output : ISupplier<Path>
     {
         private readonly ISupplier<Path> _input;
-        private readonly ISupplier<double> _angle;
-        private readonly ISupplier<double> _width;
-        private readonly ISupplier<double> _speed;
+        private readonly ISupplier<double>[] _widths;
+        private readonly ISupplier<double>[] _speeds;
+        private readonly int _index;
 
         public Output(
             ISupplier<Path> input,
-            ISupplier<double> angle,
-            ISupplier<double> width,
-            ISupplier<double> speed)
+            ISupplier<double>[] widths,
+            ISupplier<double>[] speeds,
+            int index)
         {
             _input = input;
-            _angle = angle;
-            _width = width;
-            _speed = speed;
+            _widths = widths;
+            _speeds = speeds;
+            _index = index;
         }
 
         public Path Get()
         {
+            var branchCount = _widths.Length;
+
             var path = new Path(_input.ResetAndGet());
+
+            var widths = new double[branchCount];
+            var speeds = new double[branchCount];
+
+            for (int i = 0; i < branchCount; i++)
+            {
+                widths[i] = _widths[i].Get();
+                speeds[i] = _speeds[i].Get();
+            }
+
+            var rwEnds = widths[0] + widths[branchCount - 1];
+            var rwMid = widths.Sum() - rwEnds;
+
+            var rwPos = 0d;
+            var mdPos = 0d;
+
+            for (var i = 0; i <= _index; i++)
+            {
+                var width = widths[i];
+
+                if (i == 0)
+                {
+                    mdPos = rwPos + width / 2;
+                    rwPos += width;
+                }
+                else if (i == branchCount - 1)
+                {
+                    mdPos = 1 - width / 2;
+                }
+                else
+                {
+                    var rw = width * (1 - rwEnds) / rwMid;
+                    mdPos = rwPos + rw / 2;
+                    rwPos += rw;
+                }
+            }
 
             foreach (var segment in path.Leaves())
             {
-                segment.AttachNewBranch(_angle.Get(), _width.Get(), _speed.Get());
+                segment.AttachNewBranch(0, widths[_index], speeds[_index], mdPos - 0.5);
             }
 
             return path;
@@ -204,9 +234,8 @@ public class NodePathSplit : NodeBase
 
         public void ResetState()
         {
-            _angle.ResetState();
-            _width.ResetState();
-            _speed.ResetState();
+            foreach (var supplier in _widths) supplier.ResetState();
+            foreach (var supplier in _speeds) supplier.ResetState();
         }
     }
 }

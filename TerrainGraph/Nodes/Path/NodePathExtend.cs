@@ -95,7 +95,7 @@ public class NodePathExtend : NodeBase
 
                 var extParams = segment.ExtendParams;
 
-                extParams.MaxTurnRate = 1 - tenacity;
+                extParams.AngleTenacity = tenacity;
 
                 segment.ExtendWithParams(extParams, length);
             }

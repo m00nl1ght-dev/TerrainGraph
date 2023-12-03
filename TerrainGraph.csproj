@@ -138,7 +138,6 @@
         <Compile Include="TerrainGraph\Nodes\Value\NodeValueRandom.cs" />
         <Compile Include="TerrainGraph\Nodes\Grid\GridFunctionConnection.cs" />
         <Compile Include="TerrainGraph\Nodes\Grid\NodeGridOperator.cs" />
-        <Compile Include="TerrainGraph\Nodes\Grid\NodeGridNoise.cs" />
         <Compile Include="TerrainGraph\Nodes\Grid\NodeGridPreview.cs" />
         <Compile Include="TerrainGraph\Nodes\Grid\NodeGridRotate.cs" />
         <Compile Include="TerrainGraph\Nodes\NodeBase.cs" />
