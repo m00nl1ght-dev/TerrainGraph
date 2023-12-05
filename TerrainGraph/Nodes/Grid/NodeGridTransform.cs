@@ -64,12 +64,12 @@ public class NodeGridTransform : NodeBase
         var displaceZ = GetIfConnected<double>(DisplaceZKnob);
         var scaleX = GetIfConnected<double>(ScaleXKnob);
         var scaleZ = GetIfConnected<double>(ScaleZKnob);
-        
+
         displaceX?.ResetState();
         displaceZ?.ResetState();
         scaleX?.ResetState();
         scaleZ?.ResetState();
-        
+
         if (displaceX != null) DisplaceX = displaceX.Get();
         if (displaceZ != null) DisplaceZ = displaceZ.Get();
         if (scaleX != null) ScaleX = scaleX.Get();
@@ -79,11 +79,11 @@ public class NodeGridTransform : NodeBase
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output(
-            SupplierOrGridFixed(InputKnob, GridFunction.Zero),
-            SupplierOrValueFixed(DisplaceXKnob, DisplaceX),
-            SupplierOrValueFixed(DisplaceZKnob, DisplaceZ),
-            SupplierOrValueFixed(ScaleXKnob, ScaleX),
-            SupplierOrValueFixed(ScaleZKnob, ScaleZ),
+            SupplierOrFallback(InputKnob, GridFunction.Zero),
+            SupplierOrFallback(DisplaceXKnob, DisplaceX),
+            SupplierOrFallback(DisplaceZKnob, DisplaceZ),
+            SupplierOrFallback(ScaleXKnob, ScaleX),
+            SupplierOrFallback(ScaleZKnob, ScaleZ),
             GridSize
         ));
         return true;

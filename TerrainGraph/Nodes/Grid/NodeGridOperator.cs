@@ -66,14 +66,14 @@ public class NodeGridOperator : NodeOperatorBase
 
     public override bool Calculate()
     {
-        var applyChance = SupplierOrValueFixed(ApplyChanceKnob, ApplyChance);
-        var smoothness = SupplierOrValueFixed(SmoothnessKnob, Smoothness);
-        var stackCount = SupplierOrValueFixed(StackCountKnob, StackCount);
+        var applyChance = SupplierOrFallback(ApplyChanceKnob, ApplyChance);
+        var smoothness = SupplierOrFallback(SmoothnessKnob, Smoothness);
+        var stackCount = SupplierOrFallback(StackCountKnob, StackCount);
 
         List<ISupplier<IGridFunction<double>>> inputs = new();
         for (int i = 0; i < Math.Min(Values.Count, InputKnobs.Count); i++)
         {
-            inputs.Add(SupplierOrGridFixed(InputKnobs[i], GridFunction.Of(Values[i])));
+            inputs.Add(SupplierOrFallback(InputKnobs[i], GridFunction.Of(Values[i])));
         }
 
         OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output(

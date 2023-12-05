@@ -18,6 +18,8 @@ public static class MathUtil
 
     public static double ToDeg(this double val) => (180 / Math.PI) * val;
 
+    public static double Abs(this double val) => val < 0 ? -val : val;
+
     public static double Lerp(this double t, double a, double b) => a + (b - a) * t;
 
     public static double LerpClamped(this double t, double a, double b) => a + (b - a) * t.InRange01();

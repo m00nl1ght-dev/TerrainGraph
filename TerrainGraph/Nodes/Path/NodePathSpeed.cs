@@ -64,9 +64,9 @@ public class NodePathSpeed : NodeBase
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
-            SupplierOrFixed(InputKnob, Path.Empty),
-            SupplierOrGridFixed(SpeedGridKnob, GridFunction.One),
-            SupplierOrValueFixed(SpeedLossKnob, SpeedLoss)
+            SupplierOrFallback(InputKnob, Path.Empty),
+            SupplierOrFallback(SpeedGridKnob, GridFunction.One),
+            SupplierOrFallback(SpeedLossKnob, SpeedLoss)
         ));
         return true;
     }

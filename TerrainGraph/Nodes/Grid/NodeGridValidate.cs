@@ -110,11 +110,11 @@ public class NodeGridValidate : NodeBase
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output(
-            SupplierOrGridFixed(InputKnob, GridFunction.Zero),
-            SupplierOrValueFixed(MinValueKnob, MinValue),
-            SupplierOrValueFixed(MaxValueKnob, MaxValue),
-            SupplierOrValueFixed(MinCellsKnob, MinCells),
-            SupplierOrValueFixed(MaxCellsKnob, MaxCells),
+            SupplierOrFallback(InputKnob, GridFunction.Zero),
+            SupplierOrFallback(MinValueKnob, MinValue),
+            SupplierOrFallback(MaxValueKnob, MaxValue),
+            SupplierOrFallback(MinCellsKnob, MinCells),
+            SupplierOrFallback(MaxCellsKnob, MaxCells),
             MaxTries, GridSize, EdgeCellsOnly
         ));
         return true;

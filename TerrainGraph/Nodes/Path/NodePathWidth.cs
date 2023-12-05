@@ -64,9 +64,9 @@ public class NodePathWidth : NodeBase
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
-            SupplierOrFixed(InputKnob, Path.Empty),
-            SupplierOrGridFixed(WidthGridKnob, GridFunction.One),
-            SupplierOrValueFixed(WidthLossKnob, WidthLoss)
+            SupplierOrFallback(InputKnob, Path.Empty),
+            SupplierOrFallback(WidthGridKnob, GridFunction.One),
+            SupplierOrFallback(WidthLossKnob, WidthLoss)
         ));
         return true;
     }

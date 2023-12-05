@@ -52,8 +52,8 @@ public class NodeGridDeltaMap : NodeBase
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output(
-            SupplierOrGridFixed(InputKnob, GridFunction.Zero),
-            SupplierOrValueFixed(StepKnob, Step)
+            SupplierOrFallback(InputKnob, GridFunction.Zero),
+            SupplierOrFallback(StepKnob, Step)
         ));
         return true;
     }

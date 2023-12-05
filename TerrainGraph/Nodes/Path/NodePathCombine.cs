@@ -86,7 +86,7 @@ public class NodePathCombine : NodeBase
 
     public override bool Calculate()
     {
-        var inputs = InputKnobs.Select(input => SupplierOrFixed(input, Path.Empty)).ToList();
+        var inputs = InputKnobs.Select(input => SupplierOrFallback(input, Path.Empty)).ToList();
 
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             inputs

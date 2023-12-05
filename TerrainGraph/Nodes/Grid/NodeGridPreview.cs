@@ -102,11 +102,11 @@ public class NodeGridPreview : NodeBase
 
     public override bool Calculate()
     {
-        OutputKnob.SetValue(InputKnob.GetValue<ISupplier<IGridFunction<double>>>()); // TODO doesn't update when input knob disconnected?
+        OutputKnob.SetValue(InputKnob.GetValue<ISupplier<IGridFunction<double>>>());
         return true;
     }
 
-    public override void RefreshPreview()
+    public override void RefreshPreview() // TODO doesn't update when input knob disconnected?
     {
         var previewSize = _previewSize;
         var previewBuffer = _previewBuffer;
@@ -118,11 +118,11 @@ public class NodeGridPreview : NodeBase
         _previewTexture.SetPixels(previewBuffer);
         _previewTexture.Apply();
 
-        var supplier = InputKnob.connected() ? InputKnob.GetValue<ISupplier<IGridFunction<double>>>() : null;
+        var supplier = SupplierOrFallback(InputKnob, GridFunction.Zero);
 
         TerrainCanvas.PreviewScheduler.ScheduleTask(new PreviewTask(this, () =>
         {
-            var previewFunction = _previewFunction = supplier != null ? supplier.ResetAndGet() : GridFunction.Zero;
+            var previewFunction = _previewFunction = supplier.ResetAndGet();
 
             for (int x = 0; x < previewSize; x++)
             {

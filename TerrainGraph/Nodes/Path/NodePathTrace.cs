@@ -34,7 +34,7 @@ public class NodePathTrace : NodeBase
     [ValueConnectionKnob("Distance Output", Direction.Out, GridFunctionConnection.Id)]
     public ValueConnectionKnob DistanceOutputKnob;
 
-    public double StepSize = 1;
+    public double StepSize = 5;
 
     public override void NodeGUI()
     {
@@ -76,7 +76,7 @@ public class NodePathTrace : NodeBase
     public override bool Calculate()
     {
         var output = new Output(
-            SupplierOrFixed(InputKnob, Path.Empty),
+            SupplierOrFallback(InputKnob, Path.Empty),
             TerrainCanvas.GridFullSize,
             StepSize
         );

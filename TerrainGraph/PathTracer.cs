@@ -11,7 +11,7 @@ public class HotSwappableAttribute : Attribute {}
 [HotSwappable]
 public class PathTracer
 {
-    private const int MaxTraceIterations = 1_000_000;
+    private const int MaxTraceFrames = 1_000_000;
 
     private const double RadialThreshold = 0.5;
 
@@ -27,6 +27,7 @@ public class PathTracer
     private readonly double[,] _valueGrid;
     private readonly double[,] _offsetGrid;
     private readonly double[,] _distanceGrid;
+    private readonly Segment[,] _segmentGrid;
 
     public IGridFunction<double> MainGrid => BuildGridFunction(_mainGrid);
     public IGridFunction<double> ValueGrid => BuildGridFunction(_valueGrid);
@@ -38,7 +39,7 @@ public class PathTracer
 
     private readonly IGridFunction<double> _overlapAvoidanceGrid = Zero;
 
-    private int _totalTraceIterations;
+    private int _totalFramesCalculated;
 
     public static Action<string> DebugOutput = _ => {};
 
@@ -68,6 +69,7 @@ public class PathTracer
         _valueGrid = new double[outerSizeX, outerSizeZ];
         _offsetGrid = new double[outerSizeX, outerSizeZ];
         _distanceGrid = new double[outerSizeX, outerSizeZ];
+        _segmentGrid = new Segment[outerSizeX, outerSizeZ];
 
         if (TraceOuterMargin > 0)
         {
@@ -85,10 +87,55 @@ public class PathTracer
         }
     }
 
-    public void Trace(Path path)
+    /// <summary>
+    /// Attempt to trace the given path, trying again in case of a collision.
+    /// </summary>
+    /// <param name="path">Path to trace</param>
+    /// <param name="maxAttempts">Limit for the number of trace attempts</param>
+    /// <returns>True if an attempt was successful, otherwise false</returns>
+    public bool Trace(Path path, int maxAttempts = 50)
     {
-        _totalTraceIterations = 0;
+        _totalFramesCalculated = 0;
 
+        for (int attempt = 0; attempt < maxAttempts - 1; attempt++)
+        {
+            var collisionA = TryTrace(path);
+            if (collisionA == null) return true;
+            Clear();
+
+            var collisionB = TryTrace(path, collisionA);
+            if (collisionB == null) return true;
+            Clear();
+
+            HandleCollision(collisionA, collisionB);
+        }
+
+        return TryTrace(path) == null;
+    }
+
+    public void Clear()
+    {
+        for (int x = 0; x < GridOuterSize.x; x++)
+        {
+            for (int z = 0; z < GridOuterSize.z; z++)
+            {
+                _mainGrid[x, z] = 0;
+                _valueGrid[x, z] = 0;
+                _offsetGrid[x, z] = 0;
+                _distanceGrid[x, z] = TraceOuterMargin;
+                _segmentGrid[x, z] = null;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Attempt to trace the given path once.
+    /// </summary>
+    /// <param name="path">Path to trace</param>
+    /// <param name="collision">Expected collision to stop at, if any</param>
+    /// <returns>Null if the path was fully traced, otherwise the collision that occured</returns>
+    private PathCollision TryTrace(Path path, PathCollision collision = null)
+    {
         var taskQueue = new Queue<TraceTask>();
 
         foreach (var origin in path.Origins)
@@ -97,7 +144,7 @@ public class PathTracer
 
             foreach (var branch in origin.Branches)
             {
-                taskQueue.Enqueue(new TraceTask(branch, baseFrame, branch.IsLeaf ? TraceOuterMargin : 0, TraceOuterMargin));
+                Enqueue(branch, baseFrame, true);
             }
         }
 
@@ -105,15 +152,31 @@ public class PathTracer
         {
             var task = taskQueue.Dequeue();
 
-            var headFrame = Trace(task);
+            var result = TryTrace(task);
 
-            if (headFrame.width > 0)
+            if (result.collision != null)
+            {
+                return result.collision;
+            }
+
+            if (result.finalFrame.width > 0)
             {
                 foreach (var branch in task.segment.Branches)
                 {
-                    taskQueue.Enqueue(new TraceTask(branch, headFrame, branch.IsLeaf ? TraceOuterMargin : 0, 0));
+                    Enqueue(branch, result.finalFrame);
                 }
             }
+        }
+
+        return null;
+
+        void Enqueue(Segment branch, TraceFrame baseFrame, bool fromOrigin = false)
+        {
+            var stopAtCol = collision != null && collision.passiveSegment == branch ? collision : null;
+            var marginHead = branch.IsLeaf ? TraceOuterMargin : 0;
+            var marginTail = fromOrigin ? TraceOuterMargin : 0;
+
+            taskQueue.Enqueue(new TraceTask(branch, baseFrame, stopAtCol, marginHead, marginTail));
         }
     }
 
@@ -130,6 +193,11 @@ public class PathTracer
         public readonly TraceFrame baseFrame;
 
         /// <summary>
+        /// An expected collision with another path segment to stop at, if any.
+        /// </summary>
+        public readonly PathCollision collision;
+
+        /// <summary>
         /// The additional path length to trace at the head end of the segment.
         /// </summary>
         public readonly double marginHead;
@@ -139,12 +207,32 @@ public class PathTracer
         /// </summary>
         public readonly double marginTail;
 
-        public TraceTask(Segment segment, TraceFrame baseFrame, double marginHead, double marginTail)
+        public TraceTask(Segment segment, TraceFrame baseFrame, PathCollision collision, double marginHead, double marginTail)
         {
             this.segment = segment;
             this.baseFrame = baseFrame;
+            this.collision = collision;
             this.marginHead = marginHead;
             this.marginTail = marginTail;
+        }
+    }
+
+    private readonly struct TraceResult
+    {
+        /// <summary>
+        /// The final trace frame that resulted from tracing the path segment.
+        /// </summary>
+        public readonly TraceFrame finalFrame;
+
+        /// <summary>
+        /// Information about a collision with another path segment, if any occured.
+        /// </summary>
+        public readonly PathCollision collision;
+
+        public TraceResult(TraceFrame finalFrame, PathCollision collision = null)
+        {
+            this.finalFrame = finalFrame;
+            this.collision = collision;
         }
     }
 
@@ -377,7 +465,41 @@ public class PathTracer
             $"{nameof(density)}: {density}";
     }
 
-    private TraceFrame Trace(TraceTask task)
+    private class PathCollision
+    {
+        /// <summary>
+        /// First segment involved in the collision, the one that was actively being traced.
+        /// </summary>
+        public Segment activeSegment;
+
+        /// <summary>
+        /// Second segment involved in the collision. May be the same as activeSegment if it collided with itself.
+        /// </summary>
+        public Segment passiveSegment;
+
+        /// <summary>
+        /// Current trace frame of the active segment at the time of the collision.
+        /// </summary>
+        public TraceFrame frame;
+
+        /// <summary>
+        /// The position at which the collision occured.
+        /// </summary>
+        public Vector2d position;
+
+        public bool CorrespondsTo(PathCollision other) =>
+            other.activeSegment == this.passiveSegment &&
+            other.passiveSegment == this.activeSegment &&
+            other.position == this.position;
+
+        public override string ToString() =>
+            $"{nameof(activeSegment)}: {activeSegment.GetHashCode()}, " +
+            $"{nameof(passiveSegment)}: {passiveSegment.GetHashCode()}, " +
+            $"{nameof(frame)}: {frame}, " +
+            $"{nameof(position)}: {position}";
+    }
+
+    private TraceResult TryTrace(TraceTask task)
     {
         var length = task.segment.Length;
         var extParams = task.segment.ExtendParams;
@@ -509,7 +631,13 @@ public class PathTracer
 
                         if (shiftAbs <= extend + TraceOuterMargin)
                         {
-                            _distanceGrid[x, z] = Math.Min(_distanceGrid[x, z], shiftAbs - extend);
+                            var preDist = _distanceGrid[x, z];
+                            var nowDist = shiftAbs - extend;
+
+                            if (nowDist < preDist)
+                            {
+                                _distanceGrid[x, z] = nowDist;
+                            }
 
                             if (shiftAbs <= extend + TraceInnerMargin)
                             {
@@ -519,15 +647,36 @@ public class PathTracer
                                 var offset = progress.Lerp(a.offset, b.offset);
                                 var density = progress.Lerp(a.densityMul, b.densityMul);
 
-                                if (_mainGrid[x, z] == 0)
+                                if (nowDist < preDist)
                                 {
                                     _valueGrid[x, z] = value;
                                     _offsetGrid[x, z] = offset + shift * density;
+                                }
 
-                                    if (shiftAbs <= extend && dist >= 0 && dist <= length)
+                                if (shiftAbs <= extend && dist >= 0 && dist <= length)
+                                {
+                                    if (_mainGrid[x, z] > 0)
                                     {
-                                        _mainGrid[x, z] = extend;
+                                        return new TraceResult(a, new PathCollision
+                                        {
+                                            activeSegment = task.segment,
+                                            passiveSegment = _segmentGrid[x, z],
+                                            position = pos, frame = a
+                                        });
                                     }
+
+                                    if (task.collision != null && task.collision.position == pos)
+                                    {
+                                        return new TraceResult(a, new PathCollision
+                                        {
+                                            activeSegment = task.segment,
+                                            passiveSegment = task.collision.activeSegment,
+                                            position = pos, frame = a
+                                        });
+                                    }
+
+                                    _segmentGrid[x, z] = task.segment;
+                                    _mainGrid[x, z] = extend;
                                 }
                             }
                         }
@@ -537,13 +686,33 @@ public class PathTracer
 
             a = b;
 
-            if (++_totalTraceIterations > MaxTraceIterations)
+            if (++_totalFramesCalculated > MaxTraceFrames)
             {
-                throw new Exception("Exceeded max PathTracer iteration count");
+                throw new Exception("PathTracer exceeded frame limit");
             }
         }
 
-        return a;
+        return new TraceResult(a);
+    }
+
+    private void HandleCollision(PathCollision collisionA, PathCollision collisionB)
+    {
+        DebugOutput($"Path collision: A = [{collisionA}] B = [{collisionB}]");
+
+        if (!collisionA.CorrespondsTo(collisionB))
+        {
+            throw new Exception("PathTracer internal consistency error");
+        }
+
+        if (collisionA.passiveSegment.IsSupportOf(collisionA.activeSegment))
+        {
+            collisionA.activeSegment.Length = collisionA.frame.dist - 5;
+            collisionA.activeSegment.RemoveAllBranches();
+        }
+        else
+        {
+            // TODO
+        }
     }
 
     private IGridFunction<double> BuildGridFunction(double[,] grid)

@@ -48,8 +48,8 @@ public class NodePathSwerve : NodeBase
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
-            SupplierOrFixed(InputKnob, Path.Empty),
-            SupplierOrGridFixed(AngleGridKnob, GridFunction.Zero)
+            SupplierOrFallback(InputKnob, Path.Empty),
+            SupplierOrFallback(AngleGridKnob, GridFunction.Zero)
         ));
         return true;
     }

@@ -64,9 +64,9 @@ public class NodePathDensity : NodeBase
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
-            SupplierOrFixed(InputKnob, Path.Empty),
-            SupplierOrGridFixed(DensityGridKnob, GridFunction.One),
-            SupplierOrValueFixed(DensityLossKnob, DensityLoss)
+            SupplierOrFallback(InputKnob, Path.Empty),
+            SupplierOrFallback(DensityGridKnob, GridFunction.One),
+            SupplierOrFallback(DensityLossKnob, DensityLoss)
         ));
         return true;
     }

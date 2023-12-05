@@ -84,11 +84,12 @@ public abstract class NodeDiscreteGridPreview<T> : NodeBase
         var previewSize = PreviewSize;
         var previewBuffer = PreviewBuffer;
         var previewRatio = TerrainCanvas.GridPreviewRatio;
-        var supplier = InputKnobRef.connected() ? InputKnobRef.GetValue<ISupplier<IGridFunction<T>>>() : null;
+
+        var supplier = SupplierOrFallback(InputKnobRef, Default);
 
         TerrainCanvas.PreviewScheduler.ScheduleTask(new PreviewTask(this, () =>
         {
-            var previewFunction = PreviewFunction = supplier != null ? supplier.ResetAndGet() : Default;
+            var previewFunction = PreviewFunction = supplier.ResetAndGet();
 
             for (int x = 0; x < previewSize; x++)
             {

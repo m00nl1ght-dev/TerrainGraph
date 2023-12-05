@@ -246,15 +246,15 @@ public class NodeGridLinear : NodeBase
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output(
-            SupplierOrValueFixed(BiasKnob, Bias),
-            SupplierOrValueFixed(ClampMinKnob, ClampMin),
-            SupplierOrValueFixed(ClampMaxKnob, ClampMax),
-            SupplierOrValueFixed(OriginXKnob, OriginX),
-            OriginZKnob == null ? Supplier.Zero : SupplierOrValueFixed(OriginZKnob, OriginZ),
-            SupplierOrValueFixed(SpanPxKnob, SpanPx),
-            SpanNxKnob == null ? SupplierOrValueFixed(SpanPxKnob, SpanPx) : SupplierOrValueFixed(SpanNxKnob, SpanNx),
-            SpanPzKnob == null ? Supplier.Zero : SupplierOrValueFixed(SpanPzKnob, SpanPz),
-            SpanNzKnob == null ? SpanPzKnob == null ? Supplier.Zero : SupplierOrValueFixed(SpanPzKnob, SpanPz) : SupplierOrValueFixed(SpanNzKnob, SpanNz),
+            SupplierOrFallback(BiasKnob, Bias),
+            SupplierOrFallback(ClampMinKnob, ClampMin),
+            SupplierOrFallback(ClampMaxKnob, ClampMax),
+            SupplierOrFallback(OriginXKnob, OriginX),
+            OriginZKnob == null ? Supplier.Zero : SupplierOrFallback(OriginZKnob, OriginZ),
+            SupplierOrFallback(SpanPxKnob, SpanPx),
+            SpanNxKnob == null ? SupplierOrFallback(SpanPxKnob, SpanPx) : SupplierOrFallback(SpanNxKnob, SpanNx),
+            SpanPzKnob == null ? Supplier.Zero : SupplierOrFallback(SpanPzKnob, SpanPz),
+            SpanNzKnob == null ? SpanPzKnob == null ? Supplier.Zero : SupplierOrFallback(SpanPzKnob, SpanPz) : SupplierOrFallback(SpanNzKnob, SpanNz),
             Circular, GridSize
         ));
         return true;

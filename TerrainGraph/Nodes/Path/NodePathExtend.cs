@@ -64,9 +64,9 @@ public class NodePathExtend : NodeBase
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
-            SupplierOrFixed(InputKnob, Path.Empty),
-            SupplierOrValueFixed(LengthKnob, Length),
-            SupplierOrValueFixed(TenacityKnob, Tenacity)
+            SupplierOrFallback(InputKnob, Path.Empty),
+            SupplierOrFallback(LengthKnob, Length),
+            SupplierOrFallback(TenacityKnob, Tenacity)
         ));
         return true;
     }

@@ -73,10 +73,10 @@ public class NodePathFollow : NodeBase
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
-            SupplierOrFixed(InputKnob, Path.Empty),
-            SupplierOrGridFixed(AbsGridKnob, GridFunction.Zero),
-            SupplierOrGridFixed(RelGridKnob, GridFunction.Zero),
-            SupplierOrValueFixed(AvoidOverlapKnob, AvoidOverlap)
+            SupplierOrFallback(InputKnob, Path.Empty),
+            SupplierOrFallback(AbsGridKnob, GridFunction.Zero),
+            SupplierOrFallback(RelGridKnob, GridFunction.Zero),
+            SupplierOrFallback(AvoidOverlapKnob, AvoidOverlap)
         ));
         return true;
     }

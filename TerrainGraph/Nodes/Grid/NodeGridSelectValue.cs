@@ -54,12 +54,12 @@ public class NodeGridSelectValue : NodeSelectBase
 
     public override bool Calculate()
     {
-        var input = SupplierOrGridFixed(InputKnob, GridFunction.Zero);
+        var input = SupplierOrFallback(InputKnob, GridFunction.Zero);
 
         List<ISupplier<IGridFunction<double>>> options = new();
         for (int i = 0; i < Math.Min(Values.Count, OptionKnobs.Count); i++)
         {
-            options.Add(SupplierOrGridFixed(OptionKnobs[i], GridFunction.Of(Values[i])));
+            options.Add(SupplierOrFallback(OptionKnobs[i], GridFunction.Of(Values[i])));
         }
 
         OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new GridOutput<double>(input, options, Thresholds));

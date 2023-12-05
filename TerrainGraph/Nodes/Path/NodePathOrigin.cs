@@ -117,14 +117,19 @@ public class NodePathOrigin : NodeBase
 
     public override void PrepareGUI()
     {
-        SetPlacementMode(Mode);
+        UpdateDynamicKnobs();
     }
 
     protected void SetPlacementMode(PlacementMode mode)
     {
         Mode = mode;
+        UpdateDynamicKnobs();
+        canvas.OnNodeChange(this);
+    }
 
-        if (mode == PlacementMode.Grid_Edge)
+    protected void UpdateDynamicKnobs()
+    {
+        if (Mode == PlacementMode.Grid_Edge)
         {
             AngleKnob ??= (ValueConnectionKnob) CreateConnectionKnob(AngleAttribute);
             OffsetKnob ??= (ValueConnectionKnob) CreateConnectionKnob(OffsetAttribute);
@@ -144,7 +149,6 @@ public class NodePathOrigin : NodeBase
         }
 
         RefreshDynamicKnobs();
-        canvas.OnNodeChange(this);
     }
 
     public override void RefreshPreview()
@@ -191,28 +195,28 @@ public class NodePathOrigin : NodeBase
         if (Mode == PlacementMode.Grid_Edge)
         {
             OutputKnob.SetValue<ISupplier<Path>>(new Output_GridEdge(
-                SupplierOrValueFixed(AngleKnob, Angle),
-                SupplierOrValueFixed(OffsetKnob, Offset),
-                SupplierOrValueFixed(MarginKnob, Margin),
-                SupplierOrValueFixed(DirectionKnob, Direction),
-                SupplierOrValueFixed(WidthKnob, Width),
-                SupplierOrValueFixed(ValueKnob, Value),
-                SupplierOrValueFixed(SpeedKnob, Speed),
-                SupplierOrValueFixed(DensityKnob, Density),
-                SupplierOrValueFixed(CountKnob, Count)
+                SupplierOrFallback(AngleKnob, Angle),
+                SupplierOrFallback(OffsetKnob, Offset),
+                SupplierOrFallback(MarginKnob, Margin),
+                SupplierOrFallback(DirectionKnob, Direction),
+                SupplierOrFallback(WidthKnob, Width),
+                SupplierOrFallback(ValueKnob, Value),
+                SupplierOrFallback(SpeedKnob, Speed),
+                SupplierOrFallback(DensityKnob, Density),
+                SupplierOrFallback(CountKnob, Count)
             ));
         }
         else
         {
             OutputKnob.SetValue<ISupplier<Path>>(new Output_PositionXZ(
-                SupplierOrValueFixed(PosXKnob, PosX),
-                SupplierOrValueFixed(PosZKnob, PosZ),
-                SupplierOrValueFixed(DirectionKnob, Direction),
-                SupplierOrValueFixed(WidthKnob, Width),
-                SupplierOrValueFixed(ValueKnob, Value),
-                SupplierOrValueFixed(SpeedKnob, Speed),
-                SupplierOrValueFixed(DensityKnob, Density),
-                SupplierOrValueFixed(CountKnob, Count)
+                SupplierOrFallback(PosXKnob, PosX),
+                SupplierOrFallback(PosZKnob, PosZ),
+                SupplierOrFallback(DirectionKnob, Direction),
+                SupplierOrFallback(WidthKnob, Width),
+                SupplierOrFallback(ValueKnob, Value),
+                SupplierOrFallback(SpeedKnob, Speed),
+                SupplierOrFallback(DensityKnob, Density),
+                SupplierOrFallback(CountKnob, Count)
             ));
         }
 

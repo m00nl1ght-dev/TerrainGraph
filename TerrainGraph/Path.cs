@@ -219,6 +219,16 @@ public class Path
             return branch;
         }
 
+        public void RemoveAllBranches()
+        {
+            _branches.Clear();
+        }
+
+        public bool IsSupportOf(Segment other)
+        {
+            return other == this || _branches.Any(b => b.IsSupportOf(other));
+        }
+
         public IEnumerable<Segment> Leaves()
         {
             if (IsLeaf)
@@ -227,9 +237,9 @@ public class Path
             }
             else
             {
-                foreach (var segment in _branches)
+                foreach (var branch in _branches)
                 {
-                    foreach (var leaf in segment.Leaves())
+                    foreach (var leaf in branch.Leaves())
                     {
                         yield return leaf;
                     }

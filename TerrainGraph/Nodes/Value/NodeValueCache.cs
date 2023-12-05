@@ -22,7 +22,7 @@ public class NodeValueCache : NodeCacheBase
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<double>>(new Output<double>(
-            SupplierOrValueFixed(InputKnob, 0)
+            SupplierOrFallback(InputKnob, 0d)
         ));
         return true;
     }

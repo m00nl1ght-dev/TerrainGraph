@@ -142,14 +142,14 @@ public class NodePathSplit : NodeBase
 
     public override bool Calculate()
     {
-        var input = SupplierOrFixed(InputKnob, Path.Empty);
+        var input = SupplierOrFallback(InputKnob, Path.Empty);
         var widths = new ISupplier<double>[OutputKnobs.Count];
         var speeds = new ISupplier<double>[OutputKnobs.Count];
 
         for (int i = 0; i < OutputKnobs.Count; i++)
         {
-            widths[i] = SupplierOrValueFixed(WidthKnobs[i], Widths[i]);
-            speeds[i] = SupplierOrValueFixed(SpeedKnobs[i], Speeds[i]);
+            widths[i] = SupplierOrFallback(WidthKnobs[i], Widths[i]);
+            speeds[i] = SupplierOrFallback(SpeedKnobs[i], Speeds[i]);
         }
 
         for (int i = 0; i < OutputKnobs.Count; i++)

@@ -78,7 +78,7 @@ namespace NodeEditorFramework.IO
 				{
 					XmlElement port = saveDoc.CreateElement("Port");
 					port.SetAttribute("ID", portData.portID.ToString());
-					port.SetAttribute("name", portData.name);	
+					port.SetAttribute("name", portData.name);
 					port.SetAttribute("dynamic", portData.dynamic.ToString());
 					if (portData.dynamic)
 					{ // Serialize dynamic port
@@ -102,7 +102,7 @@ namespace NodeEditorFramework.IO
 					}
 					else // Serialize value-type fields in-line
 					{
-						XmlElement serializedValue = SerializeObjectToXML(node, varData.value);
+						XmlElement serializedValue = SerializeObjectToXML(node, varData.value, varData.name);
 						if (serializedValue != null)
 							serializedValue.SetAttribute("name", varData.name);
 					}
@@ -130,8 +130,9 @@ namespace NodeEditorFramework.IO
 				XmlElement obj = saveDoc.CreateElement("Object");
 				obj.SetAttribute("refID", objectData.refID.ToString());
 				obj.SetAttribute("type", objectData.data.GetType().FullName);
-				if (SerializeObjectToXML(obj, objectData.data) != null)
-					objects.AppendChild(obj);			}
+				if (SerializeObjectToXML(obj, objectData.data, objectData.data.GetType().FullName) != null)
+					objects.AppendChild(obj);
+			}
 
 			// WRITE
 
@@ -224,7 +225,7 @@ namespace NodeEditorFramework.IO
 					}
 
 					// NODE VARIABLES
-					
+
 					foreach (XmlElement variable in xmlNode.ChildNodes.OfType<XmlElement>())
 					{ // Deserialize all value-type variables
 						if (variable.Name != "Variable" && variable.Name != "Port")
@@ -319,7 +320,7 @@ namespace NodeEditorFramework.IO
 				return null;
 			}
 			object fieldValue = field.GetValue(obj);
-			XmlElement serializedValue = SerializeObjectToXML(parent, fieldValue);
+			XmlElement serializedValue = SerializeObjectToXML(parent, fieldValue, fieldName);
 			if (serializedValue != null)
 			{
 				serializedValue.SetAttribute("name", fieldName);
@@ -349,8 +350,10 @@ namespace NodeEditorFramework.IO
 			return fieldValue;
 		}
 
-		private XmlElement SerializeObjectToXML(XmlElement parent, object obj)
+		private XmlElement SerializeObjectToXML(XmlElement parent, object obj, string debugHint)
 		{
+			if (obj == null) return null;
+
 			// TODOx: Need to handle asset references
 			// Because of runtime compability, always try to embed objects
 			// If that fails, try to find references to assets (e.g. for textures)
@@ -367,7 +370,7 @@ namespace NodeEditorFramework.IO
 			}
 			catch (Exception e)
 			{
-				Debug.Log("Could not serialize " + obj);
+				Debug.Log("Could not serialize " + obj + " (" + debugHint + ")");
 				Debug.LogException(e);
 				return null;
 			}

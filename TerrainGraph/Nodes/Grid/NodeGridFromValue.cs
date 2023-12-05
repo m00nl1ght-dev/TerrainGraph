@@ -43,7 +43,7 @@ public class NodeGridFromValue : NodeBase
         {
             Value = RTEditorGUI.FloatField(GUIContent.none, (float) Value, FullBoxLayout);
         }
-        
+
         GUILayout.EndHorizontal();
         GUILayout.EndVertical();
 
@@ -54,16 +54,16 @@ public class NodeGridFromValue : NodeBase
     public override void RefreshPreview()
     {
         var input = GetIfConnected<double>(InputKnob);
-        
+
         input?.ResetState();
-        
+
         if (input != null) Value = input.Get();
     }
-    
+
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output<double>(
-            SupplierOrValueFixed(InputKnob, Value)
+            SupplierOrFallback(InputKnob, Value)
         ));
         return true;
     }

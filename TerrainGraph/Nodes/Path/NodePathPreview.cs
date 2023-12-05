@@ -81,11 +81,11 @@ public class NodePathPreview : NodeBase
         _previewTexture.SetPixels(previewBuffer);
         _previewTexture.Apply();
 
-        var supplier = InputKnob.connected() ? InputKnob.GetValue<ISupplier<Path>>() : null;
+        var supplier = SupplierOrFallback(InputKnob, Path.Empty);
 
         TerrainCanvas.PreviewScheduler.ScheduleTask(new PreviewTask(this, () =>
         {
-            var path = supplier != null ? supplier.ResetAndGet() : Path.Empty;
+            var path = supplier.ResetAndGet();
 
             var tracer = new PathTracer(
                 TerrainCanvas.GridFullSize,

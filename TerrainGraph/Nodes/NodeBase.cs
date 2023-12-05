@@ -158,39 +158,11 @@ public abstract class NodeBase : Node
         }
     }
 
-    protected ISupplier<double> SupplierOrValueFixed(ValueConnectionKnob input, double fixedValue)
-    {
-        return SupplierOrFallback(input, Supplier.Of(fixedValue));
-    }
-
-    protected ISupplier<double> SupplierOrFallback(ValueConnectionKnob input, ISupplier<double> fixedValue)
-    {
-        return input != null && input.connected() ? input.GetValue<ISupplier<double>>() : fixedValue;
-    }
-
-    protected ISupplier<IGridFunction<T>> SupplierOrGridFixed<T>(ValueConnectionKnob input, IGridFunction<T> fixedValue)
-    {
-        return SupplierOrFixed(input, fixedValue);
-    }
-
-    protected ISupplier<T> SupplierOrFixed<T>(ValueConnectionKnob input, T fixedValue)
+    protected ISupplier<T> SupplierOrFallback<T>(ValueConnectionKnob input, T fallback)
     {
         ISupplier<T> val = null;
-        if (input.connected()) val = input.GetValue<ISupplier<T>>();
-        return val ?? Supplier.Of(fixedValue);
-    }
-
-    protected void RefreshIfConnectedX(ValueConnectionKnob input, ref double value)
-    {
-        if (input != null && input.connected()) value = input.GetValue<ISupplier<double>>()?.ResetAndGet() ?? 0f;
-    }
-
-    protected T RefreshIfConnectedX<T>(ValueConnectionKnob input, T value)
-    {
-        if (input == null || !input.connected()) return value;
-        var supplier = input.GetValue<ISupplier<T>>();
-        if (supplier == null) return value;
-        return supplier.ResetAndGet();
+        if (input != null && input.connected()) val = input.GetValue<ISupplier<T>>();
+        return val ?? Supplier.Of(fallback);
     }
 
     protected ISupplier<T> GetIfConnected<T>(ValueConnectionKnob input)

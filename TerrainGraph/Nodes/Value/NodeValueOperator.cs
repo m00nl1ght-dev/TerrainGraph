@@ -76,14 +76,14 @@ public class NodeValueOperator : NodeOperatorBase
 
     public override bool Calculate()
     {
-        var applyChance = SupplierOrValueFixed(ApplyChanceKnob, ApplyChance);
-        var smoothness = SupplierOrValueFixed(SmoothnessKnob, Smoothness);
-        var stackCount = SupplierOrValueFixed(StackCountKnob, StackCount);
+        var applyChance = SupplierOrFallback(ApplyChanceKnob, ApplyChance);
+        var smoothness = SupplierOrFallback(SmoothnessKnob, Smoothness);
+        var stackCount = SupplierOrFallback(StackCountKnob, StackCount);
 
         List<ISupplier<double>> inputs = new();
         for (int i = 0; i < Math.Min(Values.Count, InputKnobs.Count); i++)
         {
-            inputs.Add(SupplierOrValueFixed(InputKnobs[i], Values[i]));
+            inputs.Add(SupplierOrFallback(InputKnobs[i], Values[i]));
         }
 
         OutputKnob.SetValue<ISupplier<double>>(new Output(

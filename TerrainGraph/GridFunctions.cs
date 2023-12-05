@@ -9,10 +9,10 @@ namespace TerrainGraph;
 
 public static class GridFunction
 {
-    public static readonly Const<double> Zero = new(0f);
-    public static readonly Const<double> One = new(1f);
+    public static readonly IGridFunction<double> Zero = new Const<double>(0f);
+    public static readonly IGridFunction<double> One = new Const<double>(1f);
 
-    public static Const<T> Of<T>(T value) => new(value);
+    public static IGridFunction<T> Of<T>(T value) => new Const<T>(value);
 
     public class Const<T> : IGridFunction<T>
     {
