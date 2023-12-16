@@ -47,7 +47,7 @@ public struct Vector2d
 
     public static double PerpDot(Vector2d a, Vector2d b) => a.x * b.z - a.z * b.x;
 
-    public override string ToString() => $"[ {x} | {z} ]";
+    public override string ToString() => $"[ {x:F2} | {z:F2} ]";
 
     public override int GetHashCode() => x.GetHashCode() ^ z.GetHashCode() << 2;
 
@@ -130,16 +130,33 @@ public struct Vector2d
         out Vector2d point,
         double limit = 0)
     {
+        return TryIntersect(
+            originA, originB,
+            directionA, directionB,
+            out point, out _, limit
+        );
+    }
+
+    public static bool TryIntersect(
+        Vector2d originA,
+        Vector2d originB,
+        Vector2d directionA,
+        Vector2d directionB,
+        out Vector2d point,
+        out double scalarA,
+        double limit = 0)
+    {
         var p = PerpDot(directionB, directionA);
 
         if (Math.Abs(p) <= limit)
         {
+            scalarA = 0;
             point = Zero;
             return false;
         }
 
-        var s = PerpDot(directionB, originB - originA) / p;
-        point = originA + s * directionA;
+        scalarA = PerpDot(directionB, originB - originA) / p;
+        point = originA + scalarA * directionA;
         return true;
     }
 }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using TerrainGraph.Util;
+using static TerrainGraph.GridFunction;
 
 namespace TerrainGraph;
 
@@ -305,6 +306,16 @@ public class Path
         public IGridFunction<double> SpeedGrid;
         public IGridFunction<double> DensityGrid;
 
+        public void ApplyFixedAngle(double angleDelta)
+        {
+            AngleTenacity = 0;
+            AvoidOverlap = 0;
+            ArcRetraceRange = 0;
+            AbsFollowGrid = null;
+            RelFollowGrid = null;
+            SwerveGrid = Of(angleDelta);
+        }
+
         public bool Equals(TraceParams other) =>
             StepSize.Equals(other.StepSize) &&
             WidthLoss.Equals(other.WidthLoss) &&
@@ -313,11 +324,11 @@ public class Path
             AngleTenacity.Equals(other.AngleTenacity) &&
             AvoidOverlap.Equals(other.AvoidOverlap) &&
             ArcRetraceRange.Equals(other.ArcRetraceRange) &&
-            AbsFollowGrid.Equals(other.AbsFollowGrid) &&
-            RelFollowGrid.Equals(other.RelFollowGrid) &&
-            SwerveGrid.Equals(other.SwerveGrid) &&
-            WidthGrid.Equals(other.WidthGrid) &&
-            SpeedGrid.Equals(other.SpeedGrid) &&
-            DensityGrid.Equals(other.DensityGrid);
+            Equals(AbsFollowGrid, other.AbsFollowGrid) &&
+            Equals(RelFollowGrid, other.RelFollowGrid) &&
+            Equals(SwerveGrid, other.SwerveGrid) &&
+            Equals(WidthGrid, other.WidthGrid) &&
+            Equals(SpeedGrid, other.SpeedGrid) &&
+            Equals(DensityGrid, other.DensityGrid);
     }
 }

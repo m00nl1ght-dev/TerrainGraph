@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using NodeEditorFramework;
 using UnityEngine;
 
@@ -66,25 +67,36 @@ public class NodePathTrace : NodeBase
 
     public override bool Calculate()
     {
+        var cache = new List<PathTracer>(5);
+
         var output = new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
             TerrainCanvas.GridFullSize
         );
 
-        MainOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(Supplier.From(output.GetMainGrid, output.ResetState));
-        ValueOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(Supplier.From(output.GetValueGrid, output.ResetState));
-        OffsetOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(Supplier.From(output.GetOffsetGrid, output.ResetState));
-        DistanceOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(Supplier.From(output.GetDistanceGrid, output.ResetState));
+        MainOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
+            new Supplier.CompoundCached<PathTracer,IGridFunction<double>>(output, t => t.MainGrid, cache)
+        );
+
+        ValueOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
+            new Supplier.CompoundCached<PathTracer,IGridFunction<double>>(output, t => t.ValueGrid, cache)
+        );
+
+        OffsetOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
+            new Supplier.CompoundCached<PathTracer,IGridFunction<double>>(output, t => t.OffsetGrid, cache)
+        );
+
+        DistanceOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
+            new Supplier.CompoundCached<PathTracer,IGridFunction<double>>(output, t => t.DistanceGrid, cache)
+        );
 
         return true;
     }
 
-    private class Output
+    private class Output : ISupplier<PathTracer>
     {
         private readonly ISupplier<Path> _input;
         private readonly int _gridSize;
-
-        private PathTracer _tracer;
 
         public Output(ISupplier<Path> input, int gridSize)
         {
@@ -92,7 +104,7 @@ public class NodePathTrace : NodeBase
             _gridSize = gridSize;
         }
 
-        private PathTracer Generate()
+        public PathTracer Get()
         {
             var tracer = new PathTracer(
                 _gridSize, _gridSize,
@@ -106,34 +118,9 @@ public class NodePathTrace : NodeBase
             return tracer;
         }
 
-        public IGridFunction<double> GetMainGrid()
-        {
-            _tracer ??= Generate();
-            return _tracer.MainGrid;
-        }
-
-        public IGridFunction<double> GetValueGrid()
-        {
-            _tracer ??= Generate();
-            return _tracer.ValueGrid;
-        }
-
-        public IGridFunction<double> GetOffsetGrid()
-        {
-            _tracer ??= Generate();
-            return _tracer.OffsetGrid;
-        }
-
-        public IGridFunction<double> GetDistanceGrid()
-        {
-            _tracer ??= Generate();
-            return _tracer.DistanceGrid;
-        }
-
         public void ResetState()
         {
             _input.ResetState();
-            _tracer = null; // TODO investigate: this might cause it to be generated multiple times per map gen
         }
     }
 }

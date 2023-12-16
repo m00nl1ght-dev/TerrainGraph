@@ -172,8 +172,8 @@ public class PathTracer
         void Enqueue(Segment branch, TraceFrame baseFrame, bool fromOrigin = false)
         {
             var stopAtCol = collision != null && collision.passiveSegment == branch ? collision : null;
-            var marginHead = branch.IsLeaf ? TraceOuterMargin : 0;
-            var marginTail = fromOrigin ? TraceOuterMargin : 0;
+            var marginHead = branch.IsLeaf ? TraceInnerMargin : 0;
+            var marginTail = fromOrigin ? TraceInnerMargin : 0;
 
             taskQueue.Enqueue(new TraceTask(branch, baseFrame, stopAtCol, marginHead, marginTail));
         }
@@ -492,6 +492,11 @@ public class PathTracer
         /// </summary>
         public TraceFrame frame => frames[frames.Count - 1];
 
+        /// <summary>
+        /// The length of segment to adjust and retrace to avoid this collision.
+        /// </summary>
+        public double retraceRange => activeSegment.TraceParams.ArcRetraceRange.WithMin(1);
+
         public bool CorrespondsTo(PathCollision other) =>
             other.activeSegment == this.passiveSegment &&
             other.passiveSegment == this.activeSegment &&
@@ -720,44 +725,138 @@ public class PathTracer
             throw new Exception("PathTracer internal consistency error");
         }
 
-        var segmentA = a.activeSegment;
-        var segmentB = b.activeSegment;
-
-        var rangeA = segmentA.TraceParams.ArcRetraceRange.WithMin(1);
-        var rangeB = segmentB.TraceParams.ArcRetraceRange.WithMin(1);
-
-        if (a.passiveSegment.IsSupportOf(segmentA))
+        if (a.passiveSegment.IsSupportOf(a.activeSegment) || !TryMerge(a, b))
         {
-            segmentA.Length = Math.Max(0, a.frame.dist - rangeA);
-            segmentA.RemoveAllBranches();
+            a.activeSegment.Length = Math.Max(0, a.frame.dist - a.retraceRange);
+            a.activeSegment.RemoveAllBranches();
+
+            DebugOutput($"Path merge not possible");
+        }
+    }
+
+    private bool TryMerge(PathCollision a, PathCollision b)
+    {
+        Vector2d normal;
+
+        if (Vector2d.TryIntersect(a.frame.pos, b.frame.pos, a.frame.normal, b.frame.normal, out var midpoint, 0.05))
+        {
+            normal = (a.frame.normal + b.frame.normal).Normalized;
         }
         else
         {
-            Vector2d normal;
+            var perpDot = Vector2d.PerpDot(a.frame.normal, b.frame.normal);
+            normal = perpDot >= 0 ? a.frame.normal.PerpCCW : a.frame.normal.PerpCW;
+            midpoint = a.position;
+        }
 
-            if (Vector2d.TryIntersect(a.frame.pos, b.frame.pos, a.frame.normal, b.frame.normal, out var midpoint, 0.05))
+        var shift = Math.Sign(Vector2d.PerpDot(normal, a.frame.normal));
+
+        for (int i = 0; i < 5; i++)
+        {
+            var range = Math.Max(a.retraceRange, b.retraceRange) * (1 + i * 0.5);
+            var target = midpoint + normal * range;
+
+            DebugOutput($"range: {range} target: {target} normal: {normal} perpDot: {Vector2d.PerpDot(a.frame.normal, b.frame.normal)}");
+
+            if (!CalcArcWithDuct(a, target, normal.PerpCW * shift, out var frameIdxA, out var arcLengthA, out var ductLengthA)) continue;
+            if (!CalcArcWithDuct(b, target, normal.PerpCCW * shift, out var frameIdxB, out var arcLengthB, out var ductLengthB)) continue;
+
+            var arcA = InsertArcWithDuct(a, frameIdxA, arcLengthA, ductLengthA);
+            var arcB = InsertArcWithDuct(b, frameIdxB, arcLengthB, ductLengthB);
+
+            arcA.RemoveAllBranches();
+            arcB.RemoveAllBranches();
+
+            return true;
+        }
+
+        return false;
+
+        Segment InsertArcWithDuct(
+            PathCollision c,
+            int frameIdx,
+            double arcLength,
+            double ductLength)
+        {
+            var frame = c.frames[frameIdx];
+
+            c.activeSegment.Length = frame.dist;
+
+            var arcAngle = -Vector2d.SignedAngle(frame.normal, normal);
+
+            var ductSegment = c.activeSegment.InsertNewBranch();
+            ductSegment.TraceParams.ApplyFixedAngle(0);
+            // ductSegment.RelSpeed = 5; // for debug
+            ductSegment.Length = ductLength;
+
+            var arcSegment = ductSegment.InsertNewBranch();
+            arcSegment.TraceParams.ApplyFixedAngle(arcAngle / arcLength);
+            // arcSegment.RelSpeed = 0.05; // for debug
+            arcSegment.Length = arcLength;
+
+            return arcSegment;
+        }
+
+        bool CalcArcWithDuct(
+            PathCollision c,
+            Vector2d target,
+            Vector2d shiftDir,
+            out int frameIdx,
+            out double arcLength,
+            out double ductLength)
+        {
+            for (frameIdx = c.frames.Count - 1; frameIdx >= 0; frameIdx--)
             {
-                normal = (a.frame.normal + b.frame.normal).Normalized;
+                var frame = c.frames[frameIdx];
+
+                var pointB = frame.pos;
+                var pointC = target + shiftDir * 0.5 * frame.width;
+
+                if (Vector2d.Distance(pointB, c.position) < c.retraceRange && frameIdx > 0) continue;
+
+                var arcAngle = -Vector2d.SignedAngle(frame.normal, normal);
+
+                if (Vector2d.TryIntersect(pointB, pointC, frame.normal, normal, out var pointF, out var scalarB, 0.05))
+                {
+                    if (scalarB < 0) continue;
+
+                    // https://math.stackexchange.com/a/1572508
+                    var distBF = Vector2d.Distance(pointB, pointF);
+                    var distCF = Vector2d.Distance(pointC, pointF);
+
+                    if (distBF >= distCF)
+                    {
+                        ductLength = distBF - distCF;
+
+                        var pointG = pointB + frame.normal * ductLength;
+
+                        if (Vector2d.TryIntersect(pointG, pointC, frame.perpCW, normal.PerpCW, out var pointK, 0.05))
+                        {
+                            var radius = Vector2d.Distance(pointG, pointK);
+                            var chordLength = Vector2d.Distance(pointG, pointC);
+
+                            // https://www.omnicalculator.com/math/arc-length
+                            arcLength = 2 * radius * Math.Asin(0.5 * chordLength / radius);
+
+                            DebugOutput($"pointB: {pointB} pointC: {pointC} pointF: {pointF} pointG: {pointG} pointK: {pointK}");
+                            DebugOutput($"dist: {frame.dist} radius: {radius} chordLength: {chordLength} arcLength: {arcLength} ductLength: {ductLength}");
+
+                            if (double.IsNaN(arcLength)) continue;
+
+                            var arcAngleMax = (1 - c.activeSegment.TraceParams.AngleTenacity) * 180 * arcLength / (frame.width * Math.PI);
+
+                            DebugOutput($"arcAngle: {arcAngle} arcAngleMax: {arcAngleMax}");
+
+                            return arcAngle.Abs() <= arcAngleMax;
+                        }
+                    }
+                }
             }
-            else
-            {
-                normal = a.frame.normal.PerpCW;
-                midpoint = a.position;
-            }
 
-            var target = midpoint + normal * Math.Max(rangeA, rangeB);
+            arcLength = 0;
+            ductLength = 0;
 
-            var perpSign = Math.Sign(Vector2d.PerpDot(normal, a.frame.normal));
-
-            var mergedLength = Math.Max(segmentA.Length - a.frame.dist, segmentB.Length - b.frame.dist);
-
-            segmentA.Length = Math.Max(0, a.frame.dist - rangeA);
-            segmentB.Length = Math.Max(0, b.frame.dist - rangeB);
-
-            var arcA = segmentA.InsertNewBranch();
-            var arcB = segmentB.InsertNewBranch();
-
-
+            return false;
         }
     }
 

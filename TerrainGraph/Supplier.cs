@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace TerrainGraph;
 
@@ -37,6 +38,37 @@ public static class Supplier
         public void ResetState()
         {
             Reset?.Invoke();
+        }
+    }
+
+    public class CompoundCached<TS,T> : ISupplier<T>
+    {
+        private readonly ISupplier<TS> _generator;
+        private readonly Func<TS,T> _selector;
+        private readonly List<TS> _cache;
+
+        private int _iteration;
+
+        public CompoundCached(ISupplier<TS> generator, Func<TS,T> selector, List<TS> cache)
+        {
+            _generator = generator;
+            _selector = selector;
+            _cache = cache;
+        }
+
+        public T Get()
+        {
+            while (_cache.Count <= _iteration)
+            {
+                _cache.Add(_generator.Get());
+            }
+
+            return _selector(_cache[_iteration++]);
+        }
+
+        public void ResetState()
+        {
+            _iteration = 0;
         }
     }
 
