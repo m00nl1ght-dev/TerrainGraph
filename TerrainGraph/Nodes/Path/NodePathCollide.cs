@@ -5,22 +5,24 @@ using UnityEngine;
 namespace TerrainGraph;
 
 [Serializable]
-[Node(false, "Path/Swerve", 605)]
-public class NodePathSwerve : NodeBase
+[Node(false, "Path/Collide", 609)]
+public class NodePathCollide : NodeBase
 {
-    public const string ID = "pathSwerve";
+    public const string ID = "pathCollide";
     public override string GetID => ID;
 
-    public override string Title => "Path: Swerve";
+    public override string Title => "Path: Collide";
 
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
-    [ValueConnectionKnob("Angle Change", Direction.In, GridFunctionConnection.Id)]
-    public ValueConnectionKnob AngleGridKnob;
+    [ValueConnectionKnob("Range", Direction.In, ValueFunctionConnection.Id)]
+    public ValueConnectionKnob RangeKnob;
 
     [ValueConnectionKnob("Output", Direction.Out, PathFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
+
+    public double Range;
 
     public override void NodeGUI()
     {
@@ -33,11 +35,7 @@ public class NodePathSwerve : NodeBase
         GUILayout.Label("Input", BoxLayout);
         GUILayout.EndHorizontal();
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Angle Change", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        AngleGridKnob.SetPosition();
+        KnobValueField(RangeKnob, ref Range);
 
         GUILayout.EndVertical();
 
@@ -45,11 +43,20 @@ public class NodePathSwerve : NodeBase
             canvas.OnNodeChange(this);
     }
 
+    public override void RefreshPreview()
+    {
+        var range = GetIfConnected<double>(RangeKnob);
+
+        range?.ResetState();
+
+        if (range != null) Range = range.Get();
+    }
+
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
-            SupplierOrFallback(AngleGridKnob, GridFunction.Zero)
+            SupplierOrFallback(RangeKnob, Range)
         ));
         return true;
     }
@@ -57,12 +64,12 @@ public class NodePathSwerve : NodeBase
     private class Output : ISupplier<Path>
     {
         private readonly ISupplier<Path> _input;
-        private readonly ISupplier<IGridFunction<double>> _angleGrid;
+        private readonly ISupplier<double> _range;
 
-        public Output(ISupplier<Path> input, ISupplier<IGridFunction<double>> angleGrid)
+        public Output(ISupplier<Path> input, ISupplier<double> range)
         {
             _input = input;
-            _angleGrid = angleGrid;
+            _range = range;
         }
 
         public Path Get()
@@ -73,7 +80,7 @@ public class NodePathSwerve : NodeBase
             {
                 var extParams = segment.TraceParams;
 
-                extParams.SwerveGrid = _angleGrid.Get();
+                extParams.ArcRetraceRange = _range.Get();
 
                 segment.ExtendWithParams(extParams);
             }
@@ -84,7 +91,7 @@ public class NodePathSwerve : NodeBase
         public void ResetState()
         {
             _input.ResetState();
-            _angleGrid.ResetState();
+            _range.ResetState();
         }
     }
 }

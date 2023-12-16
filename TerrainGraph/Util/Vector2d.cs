@@ -88,7 +88,7 @@ public struct Vector2d
     {
         if (angle == 0) return new Vector2d(1, 0);
         if (angle == 90) return new Vector2d(0, 1);
-        if (angle == 180) return new Vector2d(-1, 0);
+        if (angle is 180 or -180) return new Vector2d(-1, 0);
         if (angle == -90) return new Vector2d(0, -1);
         return new Vector2d(Math.Cos(angle.ToRad()), Math.Sin(angle.ToRad()));
     }

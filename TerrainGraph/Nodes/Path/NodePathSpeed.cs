@@ -90,7 +90,7 @@ public class NodePathSpeed : NodeBase
 
             foreach (var segment in path.Leaves())
             {
-                var extParams = segment.ExtendParams;
+                var extParams = segment.TraceParams;
 
                 extParams.SpeedGrid = _speedGrid.Get();
                 extParams.SpeedLoss = _speedLoss.Get();

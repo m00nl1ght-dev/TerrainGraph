@@ -145,12 +145,12 @@ public class Path
     public class Segment
     {
         public double RelAngle;
-        public double RelWidth = 1;
-        public double RelSpeed = 1;
+        public double RelWidth;
+        public double RelSpeed;
         public double RelOffset;
         public double Length;
 
-        public ExtendParams ExtendParams;
+        public TraceParams TraceParams;
 
         public IReadOnlyList<Segment> Branches => _branches;
 
@@ -158,8 +158,18 @@ public class Path
 
         private readonly List<Segment> _branches;
 
-        public Segment()
+        public Segment(
+            double relAngle = 0,
+            double relWidth = 1,
+            double relSpeed = 1,
+            double relOffset = 0,
+            double length = 0)
         {
+            RelAngle = relAngle.NormalizeDeg();
+            RelWidth = relWidth.WithMin(0);
+            RelSpeed = relSpeed;
+            RelOffset = relOffset;
+            Length = length.WithMin(0);
             _branches = new(4);
         }
 
@@ -170,15 +180,15 @@ public class Path
             RelSpeed = other.RelSpeed;
             RelOffset = other.RelOffset;
             Length = other.Length;
-            ExtendParams = other.ExtendParams;
+            TraceParams = other.TraceParams;
             _branches = other._branches.Select(b => new Segment(b)).ToList();
         }
 
-        public Segment ExtendWithParams(ExtendParams extendParams, double length = 0)
+        public Segment ExtendWithParams(TraceParams traceParams, double length = 0)
         {
-            if (Length == 0 || ExtendParams.Equals(extendParams))
+            if (Length == 0 || TraceParams.Equals(traceParams))
             {
-                ExtendParams = extendParams;
+                TraceParams = traceParams;
                 Length += length.WithMin(0);
                 return this;
             }
@@ -186,7 +196,7 @@ public class Path
             var segment = new Segment
             {
                 Length = length.WithMin(0),
-                ExtendParams = extendParams
+                TraceParams = traceParams
             };
 
             segment._branches.AddRange(_branches);
@@ -197,23 +207,28 @@ public class Path
             return segment;
         }
 
-        public Segment AttachNewBranch(
-            double relAngle = 0,
-            double relWidth = 1,
-            double relSpeed = 1,
-            double relOffset = 0,
-            double length = 0)
+        public Segment AttachNewBranch()
         {
-            var branch = new Segment()
+            var branch = new Segment
             {
-                RelAngle = relAngle.NormalizeDeg(),
-                RelWidth = relWidth.WithMin(0),
-                RelSpeed = relSpeed,
-                RelOffset = relOffset,
-                Length = length.WithMin(0),
-                ExtendParams = ExtendParams
+                TraceParams = TraceParams
             };
 
+            _branches.Add(branch);
+
+            return branch;
+        }
+
+        public Segment InsertNewBranch()
+        {
+            var branch = new Segment
+            {
+                TraceParams = TraceParams
+            };
+
+            branch._branches.AddRange(_branches);
+
+            _branches.Clear();
             _branches.Add(branch);
 
             return branch;
@@ -270,17 +285,18 @@ public class Path
             RelSpeed.Equals(other.RelSpeed) &&
             RelOffset.Equals(other.RelOffset) &&
             Length.Equals(other.Length) &&
-            ExtendParams.Equals(other.ExtendParams);
+            TraceParams.Equals(other.TraceParams);
     }
 
-    [HotSwappable]
-    public struct ExtendParams
+    public struct TraceParams
     {
+        public double StepSize;
         public double WidthLoss;
         public double SpeedLoss;
         public double DensityLoss;
         public double AngleTenacity;
         public double AvoidOverlap;
+        public double ArcRetraceRange;
 
         public IGridFunction<double> AbsFollowGrid;
         public IGridFunction<double> RelFollowGrid;
@@ -289,12 +305,14 @@ public class Path
         public IGridFunction<double> SpeedGrid;
         public IGridFunction<double> DensityGrid;
 
-        public bool Equals(ExtendParams other) =>
+        public bool Equals(TraceParams other) =>
+            StepSize.Equals(other.StepSize) &&
             WidthLoss.Equals(other.WidthLoss) &&
             SpeedLoss.Equals(other.SpeedLoss) &&
             DensityLoss.Equals(other.DensityLoss) &&
             AngleTenacity.Equals(other.AngleTenacity) &&
             AvoidOverlap.Equals(other.AvoidOverlap) &&
+            ArcRetraceRange.Equals(other.ArcRetraceRange) &&
             AbsFollowGrid.Equals(other.AbsFollowGrid) &&
             RelFollowGrid.Equals(other.RelFollowGrid) &&
             SwerveGrid.Equals(other.SwerveGrid) &&

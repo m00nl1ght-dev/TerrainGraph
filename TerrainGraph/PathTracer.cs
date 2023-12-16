@@ -6,7 +6,7 @@ using static TerrainGraph.GridFunction;
 
 namespace TerrainGraph;
 
-public class HotSwappableAttribute : Attribute {}
+public class HotSwappableAttribute : Attribute;
 
 [HotSwappable]
 public class PathTracer
@@ -19,7 +19,6 @@ public class PathTracer
     public readonly Vector2d GridOuterSize;
     public readonly Vector2d GridMargin;
 
-    public readonly double StepSize;
     public readonly double TraceInnerMargin;
     public readonly double TraceOuterMargin;
 
@@ -39,16 +38,16 @@ public class PathTracer
 
     private readonly IGridFunction<double> _overlapAvoidanceGrid = Zero;
 
+    private List<TraceFrame> _frameBuffer = new(50);
+
     private int _totalFramesCalculated;
 
     public static Action<string> DebugOutput = _ => {};
 
     public PathTracer(
         int innerSizeX, int innerSizeZ, int gridMargin,
-        double stepSize, double traceInnerMargin, double traceOuterMargin)
+        double traceInnerMargin, double traceOuterMargin)
     {
-        StepSize = stepSize.WithMin(1);
-
         TraceInnerMargin = traceInnerMargin.WithMin(0);
         TraceOuterMargin = traceOuterMargin.WithMin(TraceInnerMargin);
 
@@ -327,9 +326,9 @@ public class PathTracer
             this.width = origin.BaseWidth;
             this.speed = origin.BaseSpeed;
             this.value = origin.BaseValue;
+            this.normal = Vector2d.Direction(-angle);
             this.pos = origin.Position * gridScalar + gridOffset;
             this.factors = new LocalFactors();
-            this.normal = Vector2d.Direction(-angle);
             this.density = origin.BaseDensity;
         }
 
@@ -343,13 +342,13 @@ public class PathTracer
         public TraceFrame(TraceFrame parent, Segment segment, Vector2d gridOffset, double distOffset = 0)
         {
             this.angle = (parent.angle + segment.RelAngle).NormalizeDeg();
-            this.width = parent.width * segment.RelWidth - distOffset * segment.ExtendParams.WidthLoss;
-            this.speed = parent.speed * segment.RelSpeed - distOffset * segment.ExtendParams.SpeedLoss;
+            this.width = parent.width * segment.RelWidth - distOffset * segment.TraceParams.WidthLoss;
+            this.speed = parent.speed * segment.RelSpeed - distOffset * segment.TraceParams.SpeedLoss;
             this.value = parent.value + (distOffset < 0 ? speed : parent.speed) * distOffset;
             this.offset = parent.offset - parent.width * parent.factors.width * parent.factors.density * segment.RelOffset;
-            this.pos = parent.pos + parent.perpCCW * parent.width * parent.factors.width * segment.RelOffset + distOffset * normal;
-            this.factors = new LocalFactors(segment.ExtendParams, pos - gridOffset);
             this.normal = Vector2d.Direction(-angle);
+            this.pos = parent.pos + parent.perpCCW * parent.width * parent.factors.width * segment.RelOffset + distOffset * normal;
+            this.factors = new LocalFactors(segment.TraceParams, pos - gridOffset);
             this.density = parent.density;
             this.dist = distOffset;
         }
@@ -383,7 +382,7 @@ public class PathTracer
         /// <param name="pivotOffset">Signed distance of the pivot point from the frame position</param>
         /// <returns></returns>
         public TraceFrame Advance(
-            ExtendParams extParams, double distDelta, double angleDelta,
+            TraceParams extParams, double distDelta, double angleDelta,
             Vector2d gridOffset, out Vector2d pivotPoint, out double pivotOffset)
         {
             var newAngle = (angle + angleDelta).NormalizeDeg();
@@ -418,6 +417,7 @@ public class PathTracer
         public override string ToString() =>
             $"{nameof(pos)}: {pos}, " +
             $"{nameof(angle)}: {angle}, " +
+            $"{nameof(normal)}: {normal}, " +
             $"{nameof(width)}: {width}, " +
             $"{nameof(speed)}: {speed}, " +
             $"{nameof(value)}: {value}, " +
@@ -452,11 +452,11 @@ public class PathTracer
             density = 1;
         }
 
-        public LocalFactors(ExtendParams extendParams, Vector2d pos)
+        public LocalFactors(TraceParams traceParams, Vector2d pos)
         {
-            width = extendParams.WidthGrid?.ValueAt(pos) ?? 1;
-            speed = extendParams.SpeedGrid?.ValueAt(pos) ?? 1;
-            density = extendParams.DensityGrid?.ValueAt(pos) ?? 1;
+            width = traceParams.WidthGrid?.ValueAt(pos) ?? 1;
+            speed = traceParams.SpeedGrid?.ValueAt(pos) ?? 1;
+            density = traceParams.DensityGrid?.ValueAt(pos) ?? 1;
         }
 
         public override string ToString() =>
@@ -478,14 +478,19 @@ public class PathTracer
         public Segment passiveSegment;
 
         /// <summary>
-        /// Current trace frame of the active segment at the time of the collision.
-        /// </summary>
-        public TraceFrame frame;
-
-        /// <summary>
         /// The position at which the collision occured.
         /// </summary>
         public Vector2d position;
+
+        /// <summary>
+        /// Trace frames of the active segment.
+        /// </summary>
+        public List<TraceFrame> frames;
+
+        /// <summary>
+        /// Current trace frame of the active segment at the time of the collision.
+        /// </summary>
+        public TraceFrame frame => frames[frames.Count - 1];
 
         public bool CorrespondsTo(PathCollision other) =>
             other.activeSegment == this.passiveSegment &&
@@ -502,7 +507,9 @@ public class PathTracer
     private TraceResult TryTrace(TraceTask task)
     {
         var length = task.segment.Length;
-        var extParams = task.segment.ExtendParams;
+        var extParams = task.segment.TraceParams;
+
+        var stepSize = task.segment.TraceParams.StepSize.WithMin(1);
 
         var initialFrame = new TraceFrame(task.baseFrame, task.segment, GridMargin, -task.marginTail);
 
@@ -510,15 +517,18 @@ public class PathTracer
 
         var a = initialFrame;
 
+        _frameBuffer.Clear();
+
         while (a.dist < length + task.marginHead)
         {
-            double distDelta;
-            double angleDelta;
+            _frameBuffer.Add(a);
+
+            double distDelta = 0d;
+            double angleDelta = 0d;
 
             if (a.dist >= 0)
             {
-                angleDelta = 0;
-                distDelta = StepSize;
+                distDelta = Math.Min(stepSize, length + task.marginHead - a.dist);
 
                 var followVec = Vector2d.Zero;
 
@@ -545,7 +555,7 @@ public class PathTracer
 
                 if (followVec != Vector2d.Zero)
                 {
-                    angleDelta = -Vector2d.SignedAngle(a.normal, a.normal + followVec);
+                    angleDelta -= Vector2d.SignedAngle(a.normal, a.normal + followVec);
                 }
 
                 if (extParams.SwerveGrid != null)
@@ -558,8 +568,7 @@ public class PathTracer
             }
             else
             {
-                angleDelta = 0;
-                distDelta = -a.dist;
+                distDelta -= a.dist;
             }
 
             var b = a.Advance(extParams, distDelta, angleDelta, GridMargin, out var pivotPoint, out var pivotOffset);
@@ -657,12 +666,18 @@ public class PathTracer
                                 {
                                     if (_mainGrid[x, z] > 0)
                                     {
-                                        return new TraceResult(a, new PathCollision
+                                        var collided = _segmentGrid[x, z];
+
+                                        if (extParams.ArcRetraceRange > 0 && collided.TraceParams.ArcRetraceRange > 0)
                                         {
-                                            activeSegment = task.segment,
-                                            passiveSegment = _segmentGrid[x, z],
-                                            position = pos, frame = a
-                                        });
+                                            return new TraceResult(a, new PathCollision
+                                            {
+                                                activeSegment = task.segment,
+                                                passiveSegment = collided,
+                                                frames = ExchangeFrameBuffer(),
+                                                position = pos
+                                            });
+                                        }
                                     }
 
                                     if (task.collision != null && task.collision.position == pos)
@@ -671,7 +686,8 @@ public class PathTracer
                                         {
                                             activeSegment = task.segment,
                                             passiveSegment = task.collision.activeSegment,
-                                            position = pos, frame = a
+                                            frames = ExchangeFrameBuffer(),
+                                            position = pos
                                         });
                                     }
 
@@ -695,23 +711,53 @@ public class PathTracer
         return new TraceResult(a);
     }
 
-    private void HandleCollision(PathCollision collisionA, PathCollision collisionB)
+    private void HandleCollision(PathCollision a, PathCollision b)
     {
-        DebugOutput($"Path collision: A = [{collisionA}] B = [{collisionB}]");
+        DebugOutput($"Path collision: A = [{a}] B = [{b}]");
 
-        if (!collisionA.CorrespondsTo(collisionB))
+        if (!a.CorrespondsTo(b))
         {
             throw new Exception("PathTracer internal consistency error");
         }
 
-        if (collisionA.passiveSegment.IsSupportOf(collisionA.activeSegment))
+        var segmentA = a.activeSegment;
+        var segmentB = b.activeSegment;
+
+        var rangeA = segmentA.TraceParams.ArcRetraceRange.WithMin(1);
+        var rangeB = segmentB.TraceParams.ArcRetraceRange.WithMin(1);
+
+        if (a.passiveSegment.IsSupportOf(segmentA))
         {
-            collisionA.activeSegment.Length = collisionA.frame.dist - 5;
-            collisionA.activeSegment.RemoveAllBranches();
+            segmentA.Length = Math.Max(0, a.frame.dist - rangeA);
+            segmentA.RemoveAllBranches();
         }
         else
         {
-            // TODO
+            Vector2d normal;
+
+            if (Vector2d.TryIntersect(a.frame.pos, b.frame.pos, a.frame.normal, b.frame.normal, out var midpoint, 0.05))
+            {
+                normal = (a.frame.normal + b.frame.normal).Normalized;
+            }
+            else
+            {
+                normal = a.frame.normal.PerpCW;
+                midpoint = a.position;
+            }
+
+            var target = midpoint + normal * Math.Max(rangeA, rangeB);
+
+            var perpSign = Math.Sign(Vector2d.PerpDot(normal, a.frame.normal));
+
+            var mergedLength = Math.Max(segmentA.Length - a.frame.dist, segmentB.Length - b.frame.dist);
+
+            segmentA.Length = Math.Max(0, a.frame.dist - rangeA);
+            segmentB.Length = Math.Max(0, b.frame.dist - rangeB);
+
+            var arcA = segmentA.InsertNewBranch();
+            var arcB = segmentB.InsertNewBranch();
+
+
         }
     }
 
@@ -719,5 +765,12 @@ public class PathTracer
     {
         if (GridMargin == Vector2d.Zero) return new Cache<double>(grid);
         return new Transform<double>(new Cache<double>(grid), -GridMargin.x, -GridMargin.z, 1, 1);
+    }
+
+    private List<TraceFrame> ExchangeFrameBuffer()
+    {
+        var buffer = _frameBuffer;
+        _frameBuffer = new(50);
+        return buffer;
     }
 }

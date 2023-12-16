@@ -90,7 +90,7 @@ public class NodePathWidth : NodeBase
 
             foreach (var segment in path.Leaves())
             {
-                var extParams = segment.ExtendParams;
+                var extParams = segment.TraceParams;
 
                 extParams.WidthGrid = _widthGrid.Get();
                 extParams.WidthLoss = _widthLoss.Get();

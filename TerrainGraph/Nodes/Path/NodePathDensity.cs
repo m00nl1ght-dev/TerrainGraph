@@ -90,7 +90,7 @@ public class NodePathDensity : NodeBase
 
             foreach (var segment in path.Leaves())
             {
-                var extParams = segment.ExtendParams;
+                var extParams = segment.TraceParams;
 
                 extParams.DensityGrid = _densityGrid.Get();
                 extParams.DensityLoss = _densityLoss.Get();

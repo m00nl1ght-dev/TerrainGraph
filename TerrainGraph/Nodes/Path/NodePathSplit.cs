@@ -226,7 +226,11 @@ public class NodePathSplit : NodeBase
 
             foreach (var segment in path.Leaves())
             {
-                segment.AttachNewBranch(0, widths[_index], speeds[_index], mdPos - 0.5);
+                var branch = segment.AttachNewBranch();
+
+                branch.RelWidth = widths[_index];
+                branch.RelSpeed = speeds[_index];
+                branch.RelOffset = mdPos - 0.5;
             }
 
             return path;

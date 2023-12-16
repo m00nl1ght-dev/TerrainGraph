@@ -20,6 +20,9 @@ public class NodePathExtend : NodeBase
     [ValueConnectionKnob("Length", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob LengthKnob;
 
+    [ValueConnectionKnob("Step Size", Direction.In, ValueFunctionConnection.Id)]
+    public ValueConnectionKnob StepSizeKnob;
+
     [ValueConnectionKnob("Tenacity", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob TenacityKnob;
 
@@ -27,6 +30,7 @@ public class NodePathExtend : NodeBase
     public ValueConnectionKnob OutputKnob;
 
     public double Length = 1;
+    public double StepSize = 5;
     public double Tenacity = 0.2;
 
     public override void NodeGUI()
@@ -41,6 +45,7 @@ public class NodePathExtend : NodeBase
         GUILayout.EndHorizontal();
 
         KnobValueField(LengthKnob, ref Length);
+        KnobValueField(StepSizeKnob, ref StepSize);
         KnobValueField(TenacityKnob, ref Tenacity);
 
         GUILayout.EndVertical();
@@ -52,12 +57,15 @@ public class NodePathExtend : NodeBase
     public override void RefreshPreview()
     {
         var length = GetIfConnected<double>(LengthKnob);
+        var stepSize = GetIfConnected<double>(StepSizeKnob);
         var tenacity = GetIfConnected<double>(TenacityKnob);
 
         length?.ResetState();
+        stepSize?.ResetState();
         tenacity?.ResetState();
 
         if (length != null) Length = length.Get();
+        if (stepSize != null) StepSize = stepSize.Get();
         if (tenacity != null) Tenacity = tenacity.Get();
     }
 
@@ -66,6 +74,7 @@ public class NodePathExtend : NodeBase
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
             SupplierOrFallback(LengthKnob, Length),
+            SupplierOrFallback(StepSizeKnob, StepSize),
             SupplierOrFallback(TenacityKnob, Tenacity)
         ));
         return true;
@@ -75,12 +84,18 @@ public class NodePathExtend : NodeBase
     {
         private readonly ISupplier<Path> _input;
         private readonly ISupplier<double> _length;
+        private readonly ISupplier<double> _stepSize;
         private readonly ISupplier<double> _tenacity;
 
-        public Output(ISupplier<Path> input, ISupplier<double> length, ISupplier<double> tenacity)
+        public Output(
+            ISupplier<Path> input,
+            ISupplier<double> length,
+            ISupplier<double> stepSize,
+            ISupplier<double> tenacity)
         {
             _input = input;
             _length = length;
+            _stepSize = stepSize;
             _tenacity = tenacity;
         }
 
@@ -91,10 +106,12 @@ public class NodePathExtend : NodeBase
             foreach (var segment in path.Leaves())
             {
                 var length = _length.Get().WithMin(0);
+                var stepSize = _stepSize.Get().WithMin(1);
                 var tenacity = _tenacity.Get().InRange01();
 
-                var extParams = segment.ExtendParams;
+                var extParams = segment.TraceParams;
 
+                extParams.StepSize = stepSize;
                 extParams.AngleTenacity = tenacity;
 
                 segment.ExtendWithParams(extParams, length);
@@ -107,6 +124,7 @@ public class NodePathExtend : NodeBase
         {
             _input.ResetState();
             _length.ResetState();
+            _stepSize.ResetState();
             _tenacity.ResetState();
         }
     }

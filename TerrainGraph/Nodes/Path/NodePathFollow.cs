@@ -106,7 +106,7 @@ public class NodePathFollow : NodeBase
 
             foreach (var segment in path.Leaves())
             {
-                var extParams = segment.ExtendParams;
+                var extParams = segment.TraceParams;
 
                 extParams.AbsFollowGrid = _absGrid.Get();
                 extParams.RelFollowGrid = _relGrid.Get();

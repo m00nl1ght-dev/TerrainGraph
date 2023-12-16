@@ -1,6 +1,5 @@
 using System;
 using NodeEditorFramework;
-using NodeEditorFramework.Utilities;
 using UnityEngine;
 
 namespace TerrainGraph;
@@ -34,8 +33,6 @@ public class NodePathTrace : NodeBase
     [ValueConnectionKnob("Distance Output", Direction.Out, GridFunctionConnection.Id)]
     public ValueConnectionKnob DistanceOutputKnob;
 
-    public double StepSize = 5;
-
     public override void NodeGUI()
     {
         GUILayout.BeginVertical(BoxStyle);
@@ -61,12 +58,6 @@ public class NodePathTrace : NodeBase
         DistanceOutputKnob.SetPosition();
         GUILayout.EndHorizontal();
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Step Size", BoxLayout);
-        GUILayout.FlexibleSpace();
-        StepSize = RTEditorGUI.FloatField(GUIContent.none, (float) StepSize, BoxLayout);
-        GUILayout.EndHorizontal();
-
         GUILayout.EndVertical();
 
         if (GUI.changed)
@@ -77,8 +68,7 @@ public class NodePathTrace : NodeBase
     {
         var output = new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
-            TerrainCanvas.GridFullSize,
-            StepSize
+            TerrainCanvas.GridFullSize
         );
 
         MainOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(Supplier.From(output.GetMainGrid, output.ResetState));
@@ -93,22 +83,20 @@ public class NodePathTrace : NodeBase
     {
         private readonly ISupplier<Path> _input;
         private readonly int _gridSize;
-        private readonly double _stepSize;
 
         private PathTracer _tracer;
 
-        public Output(ISupplier<Path> input, int gridSize, double stepSize)
+        public Output(ISupplier<Path> input, int gridSize)
         {
             _input = input;
             _gridSize = gridSize;
-            _stepSize = stepSize;
         }
 
         private PathTracer Generate()
         {
             var tracer = new PathTracer(
                 _gridSize, _gridSize,
-                GridMarginDefault, _stepSize,
+                GridMarginDefault,
                 TraceMarginInnerDefault,
                 TraceMarginOuterDefault
             );

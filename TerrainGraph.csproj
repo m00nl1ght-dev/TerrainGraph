@@ -108,6 +108,7 @@
         <Compile Include="TerrainGraph\Nodes\NodeOperatorBase.cs" />
         <Compile Include="TerrainGraph\ISupplier.cs" />
         <Compile Include="TerrainGraph\Nodes\NodeSelectBase.cs" />
+        <Compile Include="TerrainGraph\Nodes\Path\NodePathCollide.cs" />
         <Compile Include="TerrainGraph\Nodes\Path\NodePathCombine.cs" />
         <Compile Include="TerrainGraph\Nodes\Path\NodePathDensity.cs" />
         <Compile Include="TerrainGraph\Nodes\Path\NodePathExtend.cs" />

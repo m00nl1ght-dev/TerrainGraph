@@ -11,8 +11,6 @@ public class NodePathPreview : NodeBase
     public const string ID = "pathPreview";
     public override string GetID => ID;
 
-    public const double PreviewTraceStepSize = 5;
-
     public override string Title => "Preview";
     public override Vector2 DefaultSize => new(_previewSize, _previewSize + 20);
     public override bool AutoLayout => false;
@@ -91,7 +89,6 @@ public class NodePathPreview : NodeBase
                 TerrainCanvas.GridFullSize,
                 TerrainCanvas.GridFullSize,
                 NodePathTrace.GridMarginDefault,
-                PreviewTraceStepSize,
                 NodePathTrace.TraceMarginInnerDefault,
                 NodePathTrace.TraceMarginOuterDefault
             );
