@@ -53,4 +53,11 @@ public static class MathUtil
     public static bool NullOrEmpty<T>(this IEnumerable<T> enumerable) => enumerable == null || !enumerable.Any();
 
     public static T ValueAt<T>(this IGridFunction<T> func, Vector2d pos) => func.ValueAt(pos.x, pos.z);
+
+    public static bool AddUnique<T>(this List<T> list, T item)
+    {
+        if (list.Contains(item)) return false;
+        list.Add(item);
+        return true;
+    }
 }

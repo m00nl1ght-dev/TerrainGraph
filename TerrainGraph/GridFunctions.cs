@@ -192,6 +192,48 @@ public static class GridFunction
         }
     }
 
+    public class Lerp : IGridFunction<double>
+    {
+        public readonly IGridFunction<double> A, B, T;
+
+        public Lerp(IGridFunction<double> a, IGridFunction<double> b, IGridFunction<double> t)
+        {
+            A = a;
+            B = b;
+            T = t;
+        }
+
+        public double ValueAt(double x, double z)
+        {
+            var a = A.ValueAt(x, z);
+            var b = B.ValueAt(x, z);
+            var t = T.ValueAt(x, z);
+
+            return a + (b - a) * t;
+        }
+
+        protected bool Equals(Lerp other) =>
+            A.Equals(other.A) &&
+            B.Equals(other.B) &&
+            T.Equals(other.T);
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((Lerp) obj);
+        }
+
+        public static IGridFunction<double> Of(IGridFunction<double> a, IGridFunction<double> b, double t)
+        {
+            if (a == null || t >= 1) return b;
+            if (b == null || t <= 0) return a;
+            if (a.Equals(b)) return a;
+            return new Lerp(a, b, new Const<double>(t));
+        }
+    }
+
     public class ScaleWithBias : IGridFunction<double>
     {
         public readonly IGridFunction<double> Input;

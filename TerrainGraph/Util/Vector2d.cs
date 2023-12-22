@@ -2,6 +2,7 @@ using System;
 
 namespace TerrainGraph.Util;
 
+[HotSwappable]
 public struct Vector2d
 {
     public static readonly Vector2d Zero = new(0, 0);
@@ -112,7 +113,8 @@ public struct Vector2d
 
     public static double SignedAngle(Vector2d from, Vector2d to)
     {
-        return Angle(from, to) * Math.Sign(from.x * to.z - from.z * to.x);
+        var dot = from.x * to.z - from.z * to.x;
+        return Angle(from, to) * (dot < 0 ? -1 : 1);
     }
 
     public static double Distance(Vector2d a, Vector2d b)

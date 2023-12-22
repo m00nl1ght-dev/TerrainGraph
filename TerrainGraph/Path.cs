@@ -8,66 +8,126 @@ namespace TerrainGraph;
 
 public class Path
 {
-    public const double MaxWidth = 200;
-
     public static readonly Path Empty = new();
 
     public IReadOnlyList<Origin> Origins => _origins;
+    public IReadOnlyList<Segment> Segments => _segments;
 
-    public IEnumerable<Segment> Leaves() => _origins.SelectMany(b => b.Leaves()).ToList();
+    public IEnumerable<Segment> Leaves() => _segments.Where(b => b.IsLeaf).ToList();
 
     private readonly List<Origin> _origins;
+    private readonly List<Segment> _segments;
 
     public Path()
     {
         _origins = new(4);
+        _segments = new(10);
     }
 
     public Path(Path other)
     {
-        _origins = other._origins.Select(o => new Origin(o)).ToList();
-    }
+        _origins = new(other._origins.Count);
+        _segments = new(other._segments.Count);
 
-    public Origin AddOrigin(Vector2d position, double baseValue, double baseAngle, double baseWidth, double baseSpeed, double baseDensity)
-    {
-        if (this == Empty) throw new InvalidOperationException();
-
-        var origin = new Origin()
+        foreach (var otherOrigin in other._origins)
         {
-            Position = position,
-            BaseValue = baseValue,
-            BaseAngle = baseAngle.NormalizeDeg(),
-            BaseWidth = baseWidth.WithMin(0),
-            BaseSpeed = baseSpeed,
-            BaseDensity = baseDensity
-        };
+            var origin = new Origin(this);
+            origin.CopyFrom(otherOrigin);
+        }
 
-        _origins.Add(origin);
-
-        return origin;
-    }
-
-    public void Combine(Path other)
-    {
-        if (this == Empty) throw new InvalidOperationException();
-
-        foreach (var origin in other._origins)
+        foreach (var otherSegment in other._segments)
         {
-            var matching = _origins.FirstOrDefault(o => o.SelfEquals(origin));
+            var segment = new Segment(this);
+            segment.CopyFrom(otherSegment);
+        }
 
-            if (matching != null)
+        foreach (var otherOrigin in other._origins)
+        {
+            var origin = _origins[otherOrigin.Id];
+
+            foreach (var id in otherOrigin.BranchIds)
             {
-                matching.Combine(origin);
+                origin.Attach(_segments[id]);
             }
-            else
+        }
+
+        foreach (var otherSegment in other._segments)
+        {
+            var segment = _segments[otherSegment.Id];
+
+            foreach (var id in otherSegment.BranchIds)
             {
-                _origins.Add(new Origin(origin));
+                segment.Attach(_segments[id]);
             }
         }
     }
 
+    public void Combine(Path other)
+    {
+        var segIdMap = new Segment[other._segments.Count];
+        var segQueue = new Queue<Segment>();
+
+        foreach (var otherOrigin in other._origins)
+        {
+            var ownOrigin = _origins.FirstOrDefault(o => o.SelfEquals(otherOrigin));
+
+            if (ownOrigin == null)
+            {
+                ownOrigin = new Origin(this);
+                ownOrigin.CopyFrom(otherOrigin);
+            }
+
+            foreach (var otherSegment in otherOrigin.Branches)
+            {
+                var ownSegment = ownOrigin.Branches.FirstOrDefault(s => s.SelfEquals(otherSegment));
+
+                if (ownSegment == null)
+                {
+                    ownSegment = new Segment(this);
+                    ownSegment.CopyFrom(otherSegment);
+                }
+
+                ownOrigin.Attach(ownSegment);
+
+                segIdMap[otherSegment.Id] = ownSegment;
+                segQueue.Enqueue(otherSegment);
+            }
+        }
+
+        while (segQueue.Count > 0)
+        {
+            var otherSegment = segQueue.Dequeue();
+            var ownSegment = segIdMap[otherSegment.Id];
+
+            foreach (var otherBranch in otherSegment.Branches)
+            {
+                var ownBranch = ownSegment.Branches.FirstOrDefault(s => s.SelfEquals(otherBranch));
+
+                if (ownBranch == null)
+                {
+                    ownBranch = new Segment(this);
+                    ownBranch.CopyFrom(otherBranch);
+                }
+
+                ownSegment.Attach(ownBranch);
+
+                segIdMap[otherBranch.Id] = ownBranch;
+                segQueue.Enqueue(otherBranch);
+            }
+        }
+    }
+
+    private Path EnsureMutable()
+    {
+        if (this == Empty) throw new InvalidOperationException();
+        return this;
+    }
+
     public class Origin
     {
+        public readonly Path Path;
+        public readonly int Id;
+
         public Vector2d Position;
 
         public double BaseValue;
@@ -76,16 +136,20 @@ public class Path
         public double BaseSpeed = 1;
         public double BaseDensity = 1;
 
-        public IReadOnlyList<Segment> Branches => _branches;
+        public IEnumerable<Segment> Branches => _branches.Select(id => Path._segments[id]);
 
-        private readonly List<Segment> _branches;
+        public IReadOnlyList<int> BranchIds => _branches;
 
-        public Origin()
+        private readonly List<int> _branches = new(4);
+
+        public Origin(Path path)
         {
-            _branches = new(4);
+            Path = path.EnsureMutable();
+            Id = Path._origins.Count;
+            Path._origins.Add(this);
         }
 
-        public Origin(Origin other)
+        public void CopyFrom(Origin other)
         {
             Position = other.Position;
             BaseValue = other.BaseValue;
@@ -93,44 +157,25 @@ public class Path
             BaseWidth = other.BaseWidth;
             BaseSpeed = other.BaseSpeed;
             BaseDensity = other.BaseDensity;
-            _branches = other._branches.Select(b => new Segment(b)).ToList();
         }
 
-        public Segment AttachNewBranch(double relAngle = 0, double relWidth = 1, double relSpeed = 1, double length = 0)
+        public Segment AttachNew()
         {
-            var branch = new Segment()
-            {
-                RelAngle = relAngle.NormalizeDeg(),
-                RelWidth = relWidth.WithMin(0),
-                RelSpeed = relSpeed,
-                Length = length.WithMin(0)
-            };
-
-            _branches.Add(branch);
-
-            return branch;
+            var segment = new Segment(Path);
+            Attach(segment);
+            return segment;
         }
 
-        public IEnumerable<Segment> Leaves()
+        public void Attach(Segment segment)
         {
-            return _branches?.SelectMany(b => b.Leaves()) ?? Enumerable.Empty<Segment>();
+            if (segment.Path != Path) throw new InvalidOperationException();
+            _branches.AddUnique(segment.Id);
         }
 
-        public void Combine(Origin other)
+        public void Detach(Segment segment)
         {
-            foreach (var branch in other._branches)
-            {
-                var matching = _branches.FirstOrDefault(b => b.SelfEquals(branch));
-
-                if (matching != null)
-                {
-                    matching.Combine(branch);
-                }
-                else
-                {
-                    _branches.Add(new Segment(branch));
-                }
-            }
+            if (segment.Path != Path) throw new InvalidOperationException();
+            _branches.Remove(segment.Id);
         }
 
         public bool SelfEquals(Origin other) =>
@@ -142,47 +187,47 @@ public class Path
             BaseDensity.Equals(other.BaseDensity);
     }
 
-    [HotSwappable]
     public class Segment
     {
-        public double RelAngle;
-        public double RelWidth;
-        public double RelSpeed;
-        public double RelOffset;
+        public readonly Path Path;
+        public readonly int Id;
+
         public double Length;
+
+        public double RelAngle;
+        public double RelWidth = 1;
+        public double RelSpeed = 1;
+        public double RelOffset;
 
         public TraceParams TraceParams;
 
-        public IReadOnlyList<Segment> Branches => _branches;
+        public IEnumerable<Segment> Parents => _parents.Select(id => Path._segments[id]);
+        public IEnumerable<Segment> Branches => _branches.Select(id => Path._segments[id]);
 
+        public IReadOnlyList<int> ParentIds => _parents;
+        public IReadOnlyList<int> BranchIds => _branches;
+
+        public bool IsRoot => _parents.Count == 0;
         public bool IsLeaf => _branches.Count == 0;
 
-        private readonly List<Segment> _branches;
+        private readonly List<int> _parents = new(2);
+        private readonly List<int> _branches = new(4);
 
-        public Segment(
-            double relAngle = 0,
-            double relWidth = 1,
-            double relSpeed = 1,
-            double relOffset = 0,
-            double length = 0)
+        public Segment(Path path)
         {
-            RelAngle = relAngle.NormalizeDeg();
-            RelWidth = relWidth.WithMin(0);
-            RelSpeed = relSpeed;
-            RelOffset = relOffset;
-            Length = length.WithMin(0);
-            _branches = new(4);
+            Path = path.EnsureMutable();
+            Id = Path._segments.Count;
+            Path._segments.Add(this);
         }
 
-        public Segment(Segment other)
+        public void CopyFrom(Segment other)
         {
+            Length = other.Length;
             RelAngle = other.RelAngle;
             RelWidth = other.RelWidth;
             RelSpeed = other.RelSpeed;
             RelOffset = other.RelOffset;
-            Length = other.Length;
             TraceParams = other.TraceParams;
-            _branches = other._branches.Select(b => new Segment(b)).ToList();
         }
 
         public Segment ExtendWithParams(TraceParams traceParams, double length = 0)
@@ -194,98 +239,71 @@ public class Path
                 return this;
             }
 
-            var segment = new Segment
-            {
-                Length = length.WithMin(0),
-                TraceParams = traceParams
-            };
-
-            segment._branches.AddRange(_branches);
-
-            _branches.Clear();
-            _branches.Add(segment);
-
+            var segment = InsertNew();
+            segment.Length = length.WithMin(0);
+            segment.TraceParams = traceParams;
             return segment;
         }
 
-        public Segment AttachNewBranch()
+        public Segment AttachNew()
         {
-            var branch = new Segment
+            var segment = new Segment(Path)
             {
                 TraceParams = TraceParams
             };
 
-            _branches.Add(branch);
-
-            return branch;
+            Attach(segment);
+            return segment;
         }
 
-        public Segment InsertNewBranch()
+        public Segment InsertNew()
         {
-            var branch = new Segment
+            var segment = new Segment(Path)
             {
                 TraceParams = TraceParams
             };
 
-            branch._branches.AddRange(_branches);
+            foreach (var branch in Branches.ToList())
+            {
+                this.Detach(branch);
+                segment.Attach(branch);
+            }
 
-            _branches.Clear();
-            _branches.Add(branch);
-
-            return branch;
+            Attach(segment);
+            return segment;
         }
 
         public void RemoveAllBranches()
         {
-            _branches.Clear();
+            foreach (var branch in Branches.ToList())
+            {
+                Detach(branch);
+            }
+        }
+
+        public void Attach(Segment branch)
+        {
+            this._branches.AddUnique(branch.Id);
+            branch._parents.AddUnique(this.Id);
+        }
+
+        public void Detach(Segment branch)
+        {
+            this._branches.Remove(branch.Id);
+            branch._parents.Remove(this.Id);
         }
 
         public bool IsSupportOf(Segment other)
         {
-            return other == this || _branches.Any(b => b.IsSupportOf(other));
-        }
-
-        public IEnumerable<Segment> Leaves()
-        {
-            if (IsLeaf)
-            {
-                yield return this;
-            }
-            else
-            {
-                foreach (var branch in _branches)
-                {
-                    foreach (var leaf in branch.Leaves())
-                    {
-                        yield return leaf;
-                    }
-                }
-            }
-        }
-
-        public void Combine(Segment other)
-        {
-            foreach (var branch in other._branches)
-            {
-                var matching = _branches.FirstOrDefault(b => b.SelfEquals(branch));
-
-                if (matching != null)
-                {
-                    matching.Combine(branch);
-                }
-                else
-                {
-                    _branches.Add(new Segment(branch));
-                }
-            }
+            return other == this || Branches.Any(b => b.IsSupportOf(other));
         }
 
         public bool SelfEquals(Segment other) =>
+            Length.Equals(other.Length) &&
             RelAngle.Equals(other.RelAngle) &&
             RelWidth.Equals(other.RelWidth) &&
             RelSpeed.Equals(other.RelSpeed) &&
             RelOffset.Equals(other.RelOffset) &&
-            Length.Equals(other.Length) &&
             TraceParams.Equals(other.TraceParams);
     }
 
@@ -314,6 +332,26 @@ public class Path
             AbsFollowGrid = null;
             RelFollowGrid = null;
             SwerveGrid = Of(angleDelta);
+        }
+
+        public static TraceParams Merge(TraceParams a, TraceParams b, double t = 0.5)
+        {
+            return new TraceParams
+            {
+                StepSize = t.Lerp(a.StepSize, b.StepSize),
+                WidthLoss = t.Lerp(a.WidthLoss, b.WidthLoss),
+                SpeedLoss = t.Lerp(a.SpeedLoss, b.SpeedLoss),
+                DensityLoss = t.Lerp(a.DensityLoss, b.DensityLoss),
+                AngleTenacity = t.Lerp(a.AngleTenacity, b.AngleTenacity),
+                AvoidOverlap = t.Lerp(a.AvoidOverlap, b.AvoidOverlap),
+                ArcRetraceRange = t.Lerp(a.ArcRetraceRange, b.ArcRetraceRange),
+                AbsFollowGrid = Lerp.Of(a.AbsFollowGrid, b.AbsFollowGrid, t),
+                RelFollowGrid = Lerp.Of(a.RelFollowGrid, b.RelFollowGrid, t),
+                SwerveGrid = Lerp.Of(a.SwerveGrid, b.SwerveGrid, t),
+                WidthGrid = Lerp.Of(a.WidthGrid, b.WidthGrid, t),
+                SpeedGrid = Lerp.Of(a.SpeedGrid, b.SpeedGrid, t),
+                DensityGrid = Lerp.Of(a.DensityGrid, b.DensityGrid, t)
+            };
         }
 
         public bool Equals(TraceParams other) =>

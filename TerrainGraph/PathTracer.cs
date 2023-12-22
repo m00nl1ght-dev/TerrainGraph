@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using TerrainGraph.Util;
 using static TerrainGraph.Path;
 using static TerrainGraph.GridFunction;
@@ -136,6 +137,7 @@ public class PathTracer
     private PathCollision TryTrace(Path path, PathCollision collision = null)
     {
         var taskQueue = new Queue<TraceTask>();
+        var taskResults = new Dictionary<Segment, TraceResult>();
 
         foreach (var origin in path.Origins)
         {
@@ -143,7 +145,7 @@ public class PathTracer
 
             foreach (var branch in origin.Branches)
             {
-                Enqueue(branch, baseFrame, true);
+                Enqueue(branch, baseFrame);
             }
         }
 
@@ -152,6 +154,8 @@ public class PathTracer
             var task = taskQueue.Dequeue();
 
             var result = TryTrace(task);
+
+            taskResults[task.segment] = result;
 
             if (result.collision != null)
             {
@@ -162,18 +166,35 @@ public class PathTracer
             {
                 foreach (var branch in task.segment.Branches)
                 {
-                    Enqueue(branch, result.finalFrame);
+                    if (branch.ParentIds.Count <= 1)
+                    {
+                        Enqueue(branch, result.finalFrame);
+                    }
+                    else
+                    {
+                        if (branch.Parents.Any(p => !taskResults.ContainsKey(p))) continue;
+
+                        var parentResults = branch.Parents.Select(p => taskResults[p]).ToList();
+                        var mergedFrame = new TraceFrame(parentResults);
+
+                        DebugOutput($"Merged frame result: {mergedFrame}");
+
+                        Enqueue(branch, mergedFrame);
+                    }
                 }
             }
         }
 
         return null;
 
-        void Enqueue(Segment branch, TraceFrame baseFrame, bool fromOrigin = false)
+        void Enqueue(Segment branch, TraceFrame baseFrame)
         {
+            if (taskResults.ContainsKey(branch) || taskQueue.Any(t => t.segment == branch)) return;
+
             var stopAtCol = collision != null && collision.passiveSegment == branch ? collision : null;
+
             var marginHead = branch.IsLeaf ? TraceInnerMargin : 0;
-            var marginTail = fromOrigin ? TraceInnerMargin : 0;
+            var marginTail = branch.IsRoot ? TraceInnerMargin : 0;
 
             taskQueue.Enqueue(new TraceTask(branch, baseFrame, stopAtCol, marginHead, marginTail));
         }
@@ -216,7 +237,7 @@ public class PathTracer
         }
     }
 
-    private readonly struct TraceResult
+    private class TraceResult
     {
         /// <summary>
         /// The final trace frame that resulted from tracing the path segment.
@@ -285,7 +306,7 @@ public class PathTracer
         public readonly double dist;
 
         /// <summary>
-        /// Multipliers based on the extend parameters at the current position.
+        /// Multipliers based on the trace parameters at the current position.
         /// </summary>
         public readonly LocalFactors factors;
 
@@ -351,6 +372,31 @@ public class PathTracer
             this.factors = new LocalFactors(segment.TraceParams, pos - gridOffset);
             this.density = parent.density;
             this.dist = distOffset;
+        }
+
+        public TraceFrame(List<TraceResult> mergingSegments)
+        {
+            foreach (var result in mergingSegments)
+            {
+                this.pos += result.finalFrame.pos;
+                this.normal += result.finalFrame.normal;
+                this.width += result.finalFrame.width;
+                this.speed += result.finalFrame.speed;
+                this.value += result.finalFrame.value;
+                this.density += result.finalFrame.density;
+            }
+
+            this.pos /= mergingSegments.Count;
+            this.normal /= mergingSegments.Count;
+            this.speed /= mergingSegments.Count;
+            this.value /= mergingSegments.Count;
+            this.density /= mergingSegments.Count;
+
+            this.angle = -Vector2d.SignedAngle(new Vector2d(1, 0), this.normal);
+            this.factors = new LocalFactors();
+
+            this.offset = 0; // TODO
+            this.dist = 0;
         }
 
         private TraceFrame(
@@ -509,6 +555,11 @@ public class PathTracer
             $"{nameof(position)}: {position}";
     }
 
+    /// <summary>
+    /// Attempt to trace a single path segment, with the parameters defined by the given task.
+    /// </summary>
+    /// <returns>result object containing the final frame and collision data (if any has occured)</returns>
+    /// <exception cref="Exception">thrown if MaxTraceFrames is exceeded during this task</exception>
     private TraceResult TryTrace(TraceTask task)
     {
         var length = task.segment.Length;
@@ -716,6 +767,12 @@ public class PathTracer
         return new TraceResult(a);
     }
 
+    /// <summary>
+    /// Rewrite path segments such that the given collision is avoided.
+    /// </summary>
+    /// <param name="a">the collision from the perspective of the first path segment involved</param>
+    /// <param name="b">the collision from the perspective of the second path segment involved</param>
+    /// <exception cref="Exception">thrown if the given collision objects do not correspond to each other</exception>
     private void HandleCollision(PathCollision a, PathCollision b)
     {
         DebugOutput($"Path collision: A = [{a}] B = [{b}]");
@@ -734,6 +791,12 @@ public class PathTracer
         }
     }
 
+    /// <summary>
+    /// Attempt to merge the involved path segments in order to avoid the given collision.
+    /// </summary>
+    /// <param name="a">the collision from the perspective of the first path segment involved</param>
+    /// <param name="b">the collision from the perspective of the second path segment involved</param>
+    /// <returns>true if the segments were merged successfully, otherwise false</returns>
     private bool TryMerge(PathCollision a, PathCollision b)
     {
         Vector2d normal;
@@ -756,6 +819,9 @@ public class PathTracer
             var range = Math.Max(a.retraceRange, b.retraceRange) * (1 + i * 0.5);
             var target = midpoint + normal * range;
 
+            var orgLengthA = a.activeSegment.Length;
+            var orgLengthB = b.activeSegment.Length;
+
             DebugOutput($"range: {range} target: {target} normal: {normal} perpDot: {Vector2d.PerpDot(a.frame.normal, b.frame.normal)}");
 
             if (!CalcArcWithDuct(a, target, normal.PerpCW * shift, out var frameIdxA, out var arcLengthA, out var ductLengthA)) continue;
@@ -766,6 +832,17 @@ public class PathTracer
 
             arcA.RemoveAllBranches();
             arcB.RemoveAllBranches();
+
+            var remainingLength = Math.Max(orgLengthA - a.activeSegment.Length, orgLengthB - b.activeSegment.Length);
+
+            var merged = new Segment(arcA.Path)
+            {
+                TraceParams = TraceParams.Merge(a.activeSegment.TraceParams, b.activeSegment.TraceParams),
+                Length = remainingLength
+            };
+
+            arcA.Attach(merged);
+            arcB.Attach(merged);
 
             return true;
         }
@@ -784,12 +861,12 @@ public class PathTracer
 
             var arcAngle = -Vector2d.SignedAngle(frame.normal, normal);
 
-            var ductSegment = c.activeSegment.InsertNewBranch();
+            var ductSegment = c.activeSegment.InsertNew();
             ductSegment.TraceParams.ApplyFixedAngle(0);
             // ductSegment.RelSpeed = 5; // for debug
             ductSegment.Length = ductLength;
 
-            var arcSegment = ductSegment.InsertNewBranch();
+            var arcSegment = ductSegment.InsertNew();
             arcSegment.TraceParams.ApplyFixedAngle(arcAngle / arcLength);
             // arcSegment.RelSpeed = 0.05; // for debug
             arcSegment.Length = arcLength;
@@ -860,12 +937,18 @@ public class PathTracer
         }
     }
 
+    /// <summary>
+    /// Wrap the given raw grid array in a GridFunction, transforming values into map space.
+    /// </summary>
     private IGridFunction<double> BuildGridFunction(double[,] grid)
     {
         if (GridMargin == Vector2d.Zero) return new Cache<double>(grid);
         return new Transform<double>(new Cache<double>(grid), -GridMargin.x, -GridMargin.z, 1, 1);
     }
 
+    /// <summary>
+    /// Create and set a new trace frame buffer, returning the old one.
+    /// </summary>
     private List<TraceFrame> ExchangeFrameBuffer()
     {
         var buffer = _frameBuffer;

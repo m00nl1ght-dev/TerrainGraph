@@ -257,19 +257,17 @@ public class NodePathOrigin : NodeBase
 
         protected void CreateOrigin(Path path, double posX, double posZ, double angle)
         {
-            double direction = Direction.Get() + 180;
-            double width = Width.Get().InRange(0, Path.MaxWidth);
-            double value = Value.Get();
-            double speed = Speed.Get();
-            double density = Density.Get();
+            var origin = new Path.Origin(path)
+            {
+                Position = new Vector2d(posX, posZ),
+                BaseAngle = (angle + Direction.Get() + 180).NormalizeDeg(),
+                BaseWidth = Width.Get().WithMin(0),
+                BaseValue = Value.Get(),
+                BaseSpeed = Speed.Get(),
+                BaseDensity = Density.Get()
+            };
 
-            var origin = path.AddOrigin(
-                new Vector2d(posX, posZ),
-                value, (angle + direction).NormalizeDeg(),
-                width, speed, density
-            );
-
-            origin.AttachNewBranch();
+            origin.AttachNew();
         }
 
         public virtual void ResetState()
