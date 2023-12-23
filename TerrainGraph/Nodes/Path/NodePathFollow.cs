@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using NodeEditorFramework;
 using UnityEngine;
 
@@ -104,7 +105,7 @@ public class NodePathFollow : NodeBase
         {
             var path = new Path(_input.Get());
 
-            foreach (var segment in path.Leaves())
+            foreach (var segment in path.Leaves.ToList())
             {
                 var extParams = segment.TraceParams;
 

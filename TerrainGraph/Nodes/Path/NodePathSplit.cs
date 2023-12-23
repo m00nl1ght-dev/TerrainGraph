@@ -224,13 +224,13 @@ public class NodePathSplit : NodeBase
                 }
             }
 
-            foreach (var segment in path.Leaves())
+            foreach (var segment in path.Leaves.ToList())
             {
                 var branch = segment.AttachNew();
 
                 branch.RelWidth = widths[_index];
                 branch.RelSpeed = speeds[_index];
-                branch.RelOffset = mdPos - 0.5;
+                branch.RelShift = mdPos - 0.5;
             }
 
             return path;

@@ -10,45 +10,26 @@ public class Path
 {
     public static readonly Path Empty = new();
 
-    public IReadOnlyList<Origin> Origins => _origins;
     public IReadOnlyList<Segment> Segments => _segments;
 
-    public IEnumerable<Segment> Leaves() => _segments.Where(b => b.IsLeaf).ToList();
+    public IEnumerable<Segment> Roots => _segments.Where(b => b.IsRoot);
+    public IEnumerable<Segment> Leaves => _segments.Where(b => b.IsLeaf);
 
-    private readonly List<Origin> _origins;
     private readonly List<Segment> _segments;
 
     public Path()
     {
-        _origins = new(4);
         _segments = new(10);
     }
 
     public Path(Path other)
     {
-        _origins = new(other._origins.Count);
         _segments = new(other._segments.Count);
-
-        foreach (var otherOrigin in other._origins)
-        {
-            var origin = new Origin(this);
-            origin.CopyFrom(otherOrigin);
-        }
 
         foreach (var otherSegment in other._segments)
         {
             var segment = new Segment(this);
             segment.CopyFrom(otherSegment);
-        }
-
-        foreach (var otherOrigin in other._origins)
-        {
-            var origin = _origins[otherOrigin.Id];
-
-            foreach (var id in otherOrigin.BranchIds)
-            {
-                origin.Attach(_segments[id]);
-            }
         }
 
         foreach (var otherSegment in other._segments)
@@ -67,31 +48,18 @@ public class Path
         var segIdMap = new Segment[other._segments.Count];
         var segQueue = new Queue<Segment>();
 
-        foreach (var otherOrigin in other._origins)
+        foreach (var otherSegment in other.Roots)
         {
-            var ownOrigin = _origins.FirstOrDefault(o => o.SelfEquals(otherOrigin));
+            var ownSegment = Roots.FirstOrDefault(s => s.SelfEquals(otherSegment));
 
-            if (ownOrigin == null)
+            if (ownSegment == null)
             {
-                ownOrigin = new Origin(this);
-                ownOrigin.CopyFrom(otherOrigin);
+                ownSegment = new Segment(this);
+                ownSegment.CopyFrom(otherSegment);
             }
 
-            foreach (var otherSegment in otherOrigin.Branches)
-            {
-                var ownSegment = ownOrigin.Branches.FirstOrDefault(s => s.SelfEquals(otherSegment));
-
-                if (ownSegment == null)
-                {
-                    ownSegment = new Segment(this);
-                    ownSegment.CopyFrom(otherSegment);
-                }
-
-                ownOrigin.Attach(ownSegment);
-
-                segIdMap[otherSegment.Id] = ownSegment;
-                segQueue.Enqueue(otherSegment);
-            }
+            segIdMap[otherSegment.Id] = ownSegment;
+            segQueue.Enqueue(otherSegment);
         }
 
         while (segQueue.Count > 0)
@@ -123,70 +91,6 @@ public class Path
         return this;
     }
 
-    public class Origin
-    {
-        public readonly Path Path;
-        public readonly int Id;
-
-        public Vector2d Position;
-
-        public double BaseValue;
-        public double BaseAngle;
-        public double BaseWidth = 1;
-        public double BaseSpeed = 1;
-        public double BaseDensity = 1;
-
-        public IEnumerable<Segment> Branches => _branches.Select(id => Path._segments[id]);
-
-        public IReadOnlyList<int> BranchIds => _branches;
-
-        private readonly List<int> _branches = new(4);
-
-        public Origin(Path path)
-        {
-            Path = path.EnsureMutable();
-            Id = Path._origins.Count;
-            Path._origins.Add(this);
-        }
-
-        public void CopyFrom(Origin other)
-        {
-            Position = other.Position;
-            BaseValue = other.BaseValue;
-            BaseAngle = other.BaseAngle;
-            BaseWidth = other.BaseWidth;
-            BaseSpeed = other.BaseSpeed;
-            BaseDensity = other.BaseDensity;
-        }
-
-        public Segment AttachNew()
-        {
-            var segment = new Segment(Path);
-            Attach(segment);
-            return segment;
-        }
-
-        public void Attach(Segment segment)
-        {
-            if (segment.Path != Path) throw new InvalidOperationException();
-            _branches.AddUnique(segment.Id);
-        }
-
-        public void Detach(Segment segment)
-        {
-            if (segment.Path != Path) throw new InvalidOperationException();
-            _branches.Remove(segment.Id);
-        }
-
-        public bool SelfEquals(Origin other) =>
-            Position.Equals(other.Position) &&
-            BaseValue.Equals(other.BaseValue) &&
-            BaseAngle.Equals(other.BaseAngle) &&
-            BaseWidth.Equals(other.BaseWidth) &&
-            BaseSpeed.Equals(other.BaseSpeed) &&
-            BaseDensity.Equals(other.BaseDensity);
-    }
-
     public class Segment
     {
         public readonly Path Path;
@@ -194,10 +98,18 @@ public class Path
 
         public double Length;
 
+        public double RelValue;
+        public double RelOffset;
+        public double RelShift;
         public double RelAngle;
         public double RelWidth = 1;
         public double RelSpeed = 1;
-        public double RelOffset;
+        public double RelDensity = 1;
+
+        public Vector2d RelPosition;
+
+        public double ValueDelta;
+        public double OffsetDelta;
 
         public TraceParams TraceParams;
 
@@ -223,10 +135,16 @@ public class Path
         public void CopyFrom(Segment other)
         {
             Length = other.Length;
+            RelValue = other.RelValue;
+            RelOffset = other.RelOffset;
+            RelShift = other.RelShift;
             RelAngle = other.RelAngle;
             RelWidth = other.RelWidth;
             RelSpeed = other.RelSpeed;
-            RelOffset = other.RelOffset;
+            RelDensity = other.RelDensity;
+            RelPosition = other.RelPosition;
+            ValueDelta = other.ValueDelta;
+            OffsetDelta = other.OffsetDelta;
             TraceParams = other.TraceParams;
         }
 
@@ -273,7 +191,7 @@ public class Path
             return segment;
         }
 
-        public void RemoveAllBranches()
+        public void DetachAll()
         {
             foreach (var branch in Branches.ToList())
             {
@@ -283,12 +201,14 @@ public class Path
 
         public void Attach(Segment branch)
         {
+            if (branch.Path != Path) throw new InvalidOperationException();
             this._branches.AddUnique(branch.Id);
             branch._parents.AddUnique(this.Id);
         }
 
         public void Detach(Segment branch)
         {
+            if (branch.Path != Path) throw new InvalidOperationException();
             this._branches.Remove(branch.Id);
             branch._parents.Remove(this.Id);
         }
@@ -298,12 +218,39 @@ public class Path
             return other == this || Branches.Any(b => b.IsSupportOf(other));
         }
 
+        public List<Segment> ConnectedSegments()
+        {
+            var queue = new Queue<Segment>(8);
+            var visited = new List<Segment>(8);
+
+            queue.Enqueue(this);
+
+            while (queue.Count > 0)
+            {
+                var segment = queue.Dequeue();
+
+                if (visited.AddUnique(segment))
+                {
+                    foreach (var branch in segment.Branches) queue.Enqueue(branch);
+                    foreach (var parent in segment.Parents) queue.Enqueue(parent);
+                }
+            }
+
+            return visited;
+        }
+
         public bool SelfEquals(Segment other) =>
             Length.Equals(other.Length) &&
+            RelValue.Equals(other.RelValue) &&
+            RelOffset.Equals(other.RelOffset) &&
+            RelShift.Equals(other.RelShift) &&
             RelAngle.Equals(other.RelAngle) &&
             RelWidth.Equals(other.RelWidth) &&
             RelSpeed.Equals(other.RelSpeed) &&
-            RelOffset.Equals(other.RelOffset) &&
+            RelDensity.Equals(other.RelDensity) &&
+            RelPosition.Equals(other.RelPosition) &&
+            ValueDelta.Equals(other.ValueDelta) &&
+            OffsetDelta.Equals(other.OffsetDelta) &&
             TraceParams.Equals(other.TraceParams);
     }
 

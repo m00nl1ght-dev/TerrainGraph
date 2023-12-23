@@ -138,15 +138,11 @@ public class PathTracer
     {
         var taskQueue = new Queue<TraceTask>();
         var taskResults = new Dictionary<Segment, TraceResult>();
+        var originFrame = new TraceFrame(GridMargin);
 
-        foreach (var origin in path.Origins)
+        foreach (var rootSegment in path.Roots)
         {
-            var baseFrame = new TraceFrame(origin, GridInnerSize, GridMargin);
-
-            foreach (var branch in origin.Branches)
-            {
-                Enqueue(branch, baseFrame);
-            }
+            Enqueue(rootSegment, originFrame);
         }
 
         while (taskQueue.Count > 0)
@@ -336,21 +332,16 @@ public class PathTracer
         public Vector2d perpCCW => normal.PerpCCW;
 
         /// <summary>
-        /// Construct the base frame for the given path origin.
+        /// Construct an origin frame at the given position.
         /// </summary>
-        /// <param name="origin">Path origin that defines the frame</param>
-        /// <param name="gridScalar">Multiplier applied to origin position</param>
-        /// <param name="gridOffset">Offset applied to origin position</param>
-        public TraceFrame(Origin origin, Vector2d gridScalar, Vector2d gridOffset)
+        public TraceFrame(Vector2d pos)
         {
-            this.angle = origin.BaseAngle;
-            this.width = origin.BaseWidth;
-            this.speed = origin.BaseSpeed;
-            this.value = origin.BaseValue;
-            this.normal = Vector2d.Direction(-angle);
-            this.pos = origin.Position * gridScalar + gridOffset;
+            this.width = 1;
+            this.speed = 1;
+            this.density = 1;
+            this.pos = pos;
+            this.normal = new Vector2d(1, 0);
             this.factors = new LocalFactors();
-            this.density = origin.BaseDensity;
         }
 
         /// <summary>
@@ -365,12 +356,12 @@ public class PathTracer
             this.angle = (parent.angle + segment.RelAngle).NormalizeDeg();
             this.width = parent.width * segment.RelWidth - distOffset * segment.TraceParams.WidthLoss;
             this.speed = parent.speed * segment.RelSpeed - distOffset * segment.TraceParams.SpeedLoss;
-            this.value = parent.value + (distOffset < 0 ? speed : parent.speed) * distOffset;
-            this.offset = parent.offset - parent.width * parent.factors.width * parent.factors.density * segment.RelOffset;
+            this.value = parent.value + segment.RelValue + distOffset * (distOffset < 0 ? speed : parent.speed);
+            this.offset = parent.offset + segment.RelOffset - segment.RelShift * parent.widthMul * parent.factors.density;
             this.normal = Vector2d.Direction(-angle);
-            this.pos = parent.pos + parent.perpCCW * parent.width * parent.factors.width * segment.RelOffset + distOffset * normal;
-            this.factors = new LocalFactors(segment.TraceParams, pos - gridOffset);
-            this.density = parent.density;
+            this.pos = parent.pos + segment.RelPosition + segment.RelShift * parent.perpCCW * parent.widthMul + distOffset * normal;
+            this.factors = new LocalFactors(segment, pos - gridOffset);
+            this.density = parent.density * segment.RelDensity;
             this.dist = distOffset;
         }
 
@@ -378,7 +369,6 @@ public class PathTracer
         {
             foreach (var result in mergingSegments)
             {
-                this.pos += result.finalFrame.pos;
                 this.normal += result.finalFrame.normal;
                 this.width += result.finalFrame.width;
                 this.speed += result.finalFrame.speed;
@@ -386,23 +376,31 @@ public class PathTracer
                 this.density += result.finalFrame.density;
             }
 
+            var widthAvg = this.width / mergingSegments.Count;
+
+            foreach (var result in mergingSegments)
+            {
+                var widthFactor = result.finalFrame.width / widthAvg;
+
+                this.pos += result.finalFrame.pos * widthFactor;
+                this.offset += result.finalFrame.offset * widthFactor;
+            }
+
             this.pos /= mergingSegments.Count;
             this.normal /= mergingSegments.Count;
             this.speed /= mergingSegments.Count;
             this.value /= mergingSegments.Count;
+            this.offset /= mergingSegments.Count;
             this.density /= mergingSegments.Count;
 
             this.angle = -Vector2d.SignedAngle(new Vector2d(1, 0), this.normal);
             this.factors = new LocalFactors();
-
-            this.offset = 0; // TODO
-            this.dist = 0;
         }
 
         private TraceFrame(
             Vector2d pos, Vector2d normal,
             double angle, double width, double speed,
-            double value, double offset, double density,
+            double density, double value, double offset,
             double dist, LocalFactors factors)
         {
             this.pos = pos;
@@ -410,9 +408,9 @@ public class PathTracer
             this.angle = angle;
             this.width = width;
             this.speed = speed;
+            this.density = density;
             this.value = value;
             this.offset = offset;
-            this.density = density;
             this.dist = dist;
             this.factors = factors;
         }
@@ -420,7 +418,7 @@ public class PathTracer
         /// <summary>
         /// Move the frame forward in its current direction, returning the result as a new frame.
         /// </summary>
-        /// <param name="extParams">Path parameters defining how the values of the frame should evolve</param>
+        /// <param name="segment">Segment with the parameters defining how the values of the frame should evolve</param>
         /// <param name="distDelta">Distance to move forward in the current direction</param>
         /// <param name="angleDelta">Total angle change to be applied continuously while advancing</param>
         /// <param name="gridOffset">Offset applied when retrieving factors from external grids</param>
@@ -428,7 +426,7 @@ public class PathTracer
         /// <param name="pivotOffset">Signed distance of the pivot point from the frame position</param>
         /// <returns></returns>
         public TraceFrame Advance(
-            TraceParams extParams, double distDelta, double angleDelta,
+            Segment segment, double distDelta, double angleDelta,
             Vector2d gridOffset, out Vector2d pivotPoint, out double pivotOffset)
         {
             var newAngle = (angle + angleDelta).NormalizeDeg();
@@ -451,12 +449,29 @@ public class PathTracer
                 newPos = pos + distDelta * normal;
             }
 
+            var newValue = value;
+            var newOffset = offset;
+
+            newValue += distDelta * (dist >= 0 ? speedMul : speed);
+
+            if (dist >= 0)
+            {
+                var progressDelta = distDelta / segment.Length;
+
+                newOffset += segment.OffsetDelta * progressDelta;
+
+                if (segment.ValueDelta != 0)
+                {
+                    newValue += segment.ValueDelta * progressDelta; // TODO smoothly focus onto the middle steps of the segment
+                }
+            }
+
             return new TraceFrame(newPos, newNormal, newAngle,
-                width - distDelta * extParams.WidthLoss,
-                speed - distDelta * extParams.SpeedLoss,
-                value + distDelta * (dist >= 0 ? speedMul : speed),
-                offset, density - distDelta * extParams.DensityLoss,
-                dist + distDelta, new LocalFactors(extParams, pos - gridOffset)
+                width - distDelta * segment.TraceParams.WidthLoss,
+                speed - distDelta * segment.TraceParams.SpeedLoss,
+                density - distDelta * segment.TraceParams.DensityLoss,
+                newValue, newOffset, dist + distDelta,
+                new LocalFactors(segment, pos - gridOffset)
             );
         }
 
@@ -498,11 +513,11 @@ public class PathTracer
             density = 1;
         }
 
-        public LocalFactors(TraceParams traceParams, Vector2d pos)
+        public LocalFactors(Segment segment, Vector2d pos)
         {
-            width = traceParams.WidthGrid?.ValueAt(pos) ?? 1;
-            speed = traceParams.SpeedGrid?.ValueAt(pos) ?? 1;
-            density = traceParams.DensityGrid?.ValueAt(pos) ?? 1;
+            width = segment.TraceParams.WidthGrid?.ValueAt(pos) ?? 1;
+            speed = segment.TraceParams.SpeedGrid?.ValueAt(pos) ?? 1;
+            density = segment.TraceParams.DensityGrid?.ValueAt(pos) ?? 1;
         }
 
         public override string ToString() =>
@@ -627,7 +642,7 @@ public class PathTracer
                 distDelta -= a.dist;
             }
 
-            var b = a.Advance(extParams, distDelta, angleDelta, GridMargin, out var pivotPoint, out var pivotOffset);
+            var b = a.Advance(task.segment, distDelta, angleDelta, GridMargin, out var pivotPoint, out var pivotOffset);
 
             var extendA = a.widthMul / 2;
             var extendB = b.widthMul / 2;
@@ -785,7 +800,7 @@ public class PathTracer
         if (a.passiveSegment.IsSupportOf(a.activeSegment) || !TryMerge(a, b))
         {
             a.activeSegment.Length = Math.Max(0, a.frame.dist - a.retraceRange);
-            a.activeSegment.RemoveAllBranches();
+            a.activeSegment.DetachAll();
 
             DebugOutput($"Path merge not possible");
         }
@@ -814,9 +829,9 @@ public class PathTracer
 
         var shift = Math.Sign(Vector2d.PerpDot(normal, a.frame.normal));
 
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 7; i++)
         {
-            var range = Math.Max(a.retraceRange, b.retraceRange) * (1 + i * 0.5);
+            var range = Math.Max(a.retraceRange, b.retraceRange) * (1 + i * i * 0.25);
             var target = midpoint + normal * range;
 
             var orgLengthA = a.activeSegment.Length;
@@ -827,11 +842,67 @@ public class PathTracer
             if (!CalcArcWithDuct(a, target, normal.PerpCW * shift, out var frameIdxA, out var arcLengthA, out var ductLengthA)) continue;
             if (!CalcArcWithDuct(b, target, normal.PerpCCW * shift, out var frameIdxB, out var arcLengthB, out var ductLengthB)) continue;
 
+            // TODO handle the case where collided branch already has an inserted merge further down the line
+
+            var connectedA = a.activeSegment.ConnectedSegments();
+            var connectedB = b.activeSegment.ConnectedSegments();
+
+            var frameA = a.frames[frameIdxA];
+            var frameB = b.frames[frameIdxB];
+
+            var valueAtMergeA = frameA.value + frameA.speed * (arcLengthA + ductLengthA);
+            var valueAtMergeB = frameB.value + frameB.speed * (arcLengthB + ductLengthB);
+
+            var offsetAtMergeA = frameA.offset + frameA.width * 0.5 * -shift;
+            var offsetAtMergeB = frameB.offset + frameB.width * 0.5 * shift;
+
             var arcA = InsertArcWithDuct(a, frameIdxA, arcLengthA, ductLengthA);
             var arcB = InsertArcWithDuct(b, frameIdxB, arcLengthB, ductLengthB);
 
-            arcA.RemoveAllBranches();
-            arcB.RemoveAllBranches();
+            arcA.DetachAll();
+            arcB.DetachAll();
+
+            if (connectedA.Any(e => connectedB.Contains(e)))
+            {
+                ModifyParents(arcA, valueAtMergeB - valueAtMergeA, offsetAtMergeB - offsetAtMergeA);
+                ModifyParents(arcB, valueAtMergeA - valueAtMergeB, offsetAtMergeA - offsetAtMergeB);
+            }
+            else
+            {
+                ModifyRoots(connectedA, valueAtMergeB - valueAtMergeA, offsetAtMergeB - offsetAtMergeA);
+                ModifyRoots(connectedB, valueAtMergeA - valueAtMergeB, offsetAtMergeA - offsetAtMergeB);
+            }
+
+            void ModifyParents(Segment segment, double valueDiff, double offsetDiff)
+            {
+                var linearParents = new List<Segment>{segment};
+
+                while (linearParents.Count < 99)
+                {
+                    var current = linearParents.Last();
+                    if (current.ParentIds.Count != 1) break;
+                    var next = current.Parents.First();
+                    if (next.BranchIds.Count != 1) break;
+                    linearParents.Add(next);
+                }
+
+                var totalLength = linearParents.Sum(s => s.Length);
+
+                foreach (var parent in linearParents)
+                {
+                    parent.ValueDelta += 0.5 * valueDiff * (parent.Length / totalLength);
+                    parent.OffsetDelta += 0.5 * offsetDiff * (parent.Length / totalLength);
+                }
+            }
+
+            void ModifyRoots(List<Segment> segments, double valueDiff, double offsetDiff)
+            {
+                foreach (var segment in segments.Where(segment => segment.IsRoot))
+                {
+                    segment.RelValue += valueDiff * 0.5;
+                    segment.RelOffset += offsetDiff * 0.5;
+                }
+            }
 
             var remainingLength = Math.Max(orgLengthA - a.activeSegment.Length, orgLengthB - b.activeSegment.Length);
 
@@ -843,6 +914,8 @@ public class PathTracer
 
             arcA.Attach(merged);
             arcB.Attach(merged);
+
+            // TODO re-attach original branches to the merged one
 
             return true;
         }

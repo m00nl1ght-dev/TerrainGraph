@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using NodeEditorFramework;
 using TerrainGraph.Util;
 using UnityEngine;
@@ -103,7 +104,7 @@ public class NodePathExtend : NodeBase
         {
             var path = new Path(_input.Get());
 
-            foreach (var segment in path.Leaves())
+            foreach (var segment in path.Leaves.ToList())
             {
                 var length = _length.Get().WithMin(0);
                 var stepSize = _stepSize.Get().WithMin(1);

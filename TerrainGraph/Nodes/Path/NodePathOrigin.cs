@@ -43,9 +43,6 @@ public class NodePathOrigin : NodeBase
     [ValueConnectionKnob("Width", NodeEditorFramework.Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob WidthKnob;
 
-    [ValueConnectionKnob("Value", NodeEditorFramework.Direction.In, ValueFunctionConnection.Id)]
-    public ValueConnectionKnob ValueKnob;
-
     [ValueConnectionKnob("Speed", NodeEditorFramework.Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob SpeedKnob;
 
@@ -67,7 +64,6 @@ public class NodePathOrigin : NodeBase
     public double PosZ = 0.5;
     public double Direction;
     public double Width = 10;
-    public double Value;
     public double Speed = 1;
     public double Density = 1;
     public double Count = 1;
@@ -95,7 +91,6 @@ public class NodePathOrigin : NodeBase
 
         KnobValueField(DirectionKnob, ref Direction);
         KnobValueField(WidthKnob, ref Width);
-        KnobValueField(ValueKnob, ref Value);
         KnobValueField(SpeedKnob, ref Speed);
         KnobValueField(DensityKnob, ref Density);
         KnobValueField(CountKnob, ref Count);
@@ -160,7 +155,6 @@ public class NodePathOrigin : NodeBase
         var posZ = GetIfConnected<double>(PosZKnob);
         var direction = GetIfConnected<double>(DirectionKnob);
         var width = GetIfConnected<double>(WidthKnob);
-        var value = GetIfConnected<double>(ValueKnob);
         var speed = GetIfConnected<double>(SpeedKnob);
         var density = GetIfConnected<double>(DensityKnob);
         var count = GetIfConnected<double>(CountKnob);
@@ -172,7 +166,6 @@ public class NodePathOrigin : NodeBase
         posZ?.ResetState();
         direction?.ResetState();
         width?.ResetState();
-        value?.ResetState();
         speed?.ResetState();
         density?.ResetState();
         count?.ResetState();
@@ -184,7 +177,6 @@ public class NodePathOrigin : NodeBase
         if (posZ != null) PosZ = posZ.Get();
         if (direction != null) Direction = direction.Get();
         if (width != null) Width = width.Get();
-        if (value != null) Value = value.Get();
         if (speed != null) Speed = speed.Get();
         if (density != null) Density = density.Get();
         if (count != null) Count = count.Get();
@@ -200,10 +192,10 @@ public class NodePathOrigin : NodeBase
                 SupplierOrFallback(MarginKnob, Margin),
                 SupplierOrFallback(DirectionKnob, Direction),
                 SupplierOrFallback(WidthKnob, Width),
-                SupplierOrFallback(ValueKnob, Value),
                 SupplierOrFallback(SpeedKnob, Speed),
                 SupplierOrFallback(DensityKnob, Density),
-                SupplierOrFallback(CountKnob, Count)
+                SupplierOrFallback(CountKnob, Count),
+                TerrainCanvas.GridFullSize
             ));
         }
         else
@@ -213,10 +205,10 @@ public class NodePathOrigin : NodeBase
                 SupplierOrFallback(PosZKnob, PosZ),
                 SupplierOrFallback(DirectionKnob, Direction),
                 SupplierOrFallback(WidthKnob, Width),
-                SupplierOrFallback(ValueKnob, Value),
                 SupplierOrFallback(SpeedKnob, Speed),
                 SupplierOrFallback(DensityKnob, Density),
-                SupplierOrFallback(CountKnob, Count)
+                SupplierOrFallback(CountKnob, Count),
+                TerrainCanvas.GridFullSize
             ));
         }
 
@@ -232,49 +224,41 @@ public class NodePathOrigin : NodeBase
     {
         protected readonly ISupplier<double> Direction;
         protected readonly ISupplier<double> Width;
-        protected readonly ISupplier<double> Value;
         protected readonly ISupplier<double> Speed;
         protected readonly ISupplier<double> Density;
         protected readonly ISupplier<double> Count;
+        protected readonly int GridSize;
 
         protected AbstractOutput(
-            ISupplier<double> direction,
-            ISupplier<double> width,
-            ISupplier<double> value,
-            ISupplier<double> speed,
-            ISupplier<double> density,
-            ISupplier<double> count)
+            ISupplier<double> direction, ISupplier<double> width, ISupplier<double> speed,
+            ISupplier<double> density, ISupplier<double> count, int gridSize)
         {
             Direction = direction;
             Width = width;
-            Value = value;
             Speed = speed;
             Density = density;
             Count = count;
+            GridSize = gridSize;
         }
 
         public abstract Path Get();
 
-        protected void CreateOrigin(Path path, double posX, double posZ, double angle)
+        protected Path.Segment CreateOrigin(Path path, double posX, double posZ, double angle)
         {
-            var origin = new Path.Origin(path)
+            return new Path.Segment(path)
             {
-                Position = new Vector2d(posX, posZ),
-                BaseAngle = (angle + Direction.Get() + 180).NormalizeDeg(),
-                BaseWidth = Width.Get().WithMin(0),
-                BaseValue = Value.Get(),
-                BaseSpeed = Speed.Get(),
-                BaseDensity = Density.Get()
+                RelPosition = new Vector2d(posX, posZ) * GridSize,
+                RelAngle = (angle + Direction.Get() + 180).NormalizeDeg(),
+                RelWidth = Width.Get().WithMin(0),
+                RelSpeed = Speed.Get(),
+                RelDensity = Density.Get()
             };
-
-            origin.AttachNew();
         }
 
         public virtual void ResetState()
         {
             Direction.ResetState();
             Width.ResetState();
-            Value.ResetState();
             Speed.ResetState();
             Density.ResetState();
             Count.ResetState();
@@ -287,15 +271,11 @@ public class NodePathOrigin : NodeBase
         protected readonly ISupplier<double> PosZ;
 
         public Output_PositionXZ(
-            ISupplier<double> posX,
-            ISupplier<double> posZ,
-            ISupplier<double> direction,
-            ISupplier<double> width,
-            ISupplier<double> value,
-            ISupplier<double> speed,
-            ISupplier<double> density,
-            ISupplier<double> count) :
-            base(direction, width, value, speed, density, count)
+            ISupplier<double> posX, ISupplier<double> posZ,
+            ISupplier<double> direction, ISupplier<double> width,
+            ISupplier<double> speed, ISupplier<double> density,
+            ISupplier<double> count, int gridSize) :
+            base(direction, width, speed, density, count, gridSize)
         {
             PosX = posX;
             PosZ = posZ;
@@ -334,16 +314,10 @@ public class NodePathOrigin : NodeBase
         protected readonly ISupplier<double> Margin;
 
         public Output_GridEdge(
-            ISupplier<double> angle,
-            ISupplier<double> offset,
-            ISupplier<double> margin,
-            ISupplier<double> direction,
-            ISupplier<double> width,
-            ISupplier<double> value,
-            ISupplier<double> speed,
-            ISupplier<double> density,
-            ISupplier<double> count) :
-            base(direction, width, value, speed, density, count)
+            ISupplier<double> angle, ISupplier<double> offset, ISupplier<double> margin,
+            ISupplier<double> direction, ISupplier<double> width, ISupplier<double> speed,
+            ISupplier<double> density, ISupplier<double> count, int gridSize) :
+            base(direction, width, speed, density, count, gridSize)
         {
             Angle = angle;
             Offset = offset;
