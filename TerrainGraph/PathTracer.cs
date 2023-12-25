@@ -153,6 +153,8 @@ public class PathTracer
 
             taskResults[task.segment] = result;
 
+            // TODO in case of collision, rather than immediately returning, continue to check if another collision with the just collided branch occurs
+
             if (result.collision != null)
             {
                 return result.collision;
@@ -360,7 +362,7 @@ public class PathTracer
             this.offset = parent.offset + segment.RelOffset - segment.RelShift * parent.widthMul * parent.factors.density;
             this.normal = Vector2d.Direction(-angle);
             this.pos = parent.pos + segment.RelPosition + segment.RelShift * parent.perpCCW * parent.widthMul + distOffset * normal;
-            this.factors = new LocalFactors(segment, pos - gridOffset);
+            this.factors = new LocalFactors(ref segment.TraceParams, pos - gridOffset);
             this.density = parent.density * segment.RelDensity;
             this.dist = distOffset;
         }
@@ -418,15 +420,17 @@ public class PathTracer
         /// <summary>
         /// Move the frame forward in its current direction, returning the result as a new frame.
         /// </summary>
-        /// <param name="segment">Segment with the parameters defining how the values of the frame should evolve</param>
+        /// <param name="extParams">Parameters defining how the values of the frame should evolve</param>
         /// <param name="distDelta">Distance to move forward in the current direction</param>
         /// <param name="angleDelta">Total angle change to be applied continuously while advancing</param>
+        /// <param name="extraValue">Additional value delta to be applied continuously while advancing</param>
+        /// <param name="extraOffset">Additional offset delta to be applied continuously while advancing</param>
         /// <param name="gridOffset">Offset applied when retrieving factors from external grids</param>
         /// <param name="pivotPoint">Pivot point resulting from the angle change and distance</param>
         /// <param name="pivotOffset">Signed distance of the pivot point from the frame position</param>
         /// <returns></returns>
         public TraceFrame Advance(
-            Segment segment, double distDelta, double angleDelta,
+            ref TraceParams extParams, double distDelta, double angleDelta, double extraValue, double extraOffset,
             Vector2d gridOffset, out Vector2d pivotPoint, out double pivotOffset)
         {
             var newAngle = (angle + angleDelta).NormalizeDeg();
@@ -449,29 +453,17 @@ public class PathTracer
                 newPos = pos + distDelta * normal;
             }
 
-            var newValue = value;
-            var newOffset = offset;
+            var newValue = value + extraValue;
+            var newOffset = offset + extraOffset;
 
             newValue += distDelta * (dist >= 0 ? speedMul : speed);
 
-            if (dist >= 0)
-            {
-                var progressDelta = distDelta / segment.Length;
-
-                newOffset += segment.OffsetDelta * progressDelta;
-
-                if (segment.ValueDelta != 0)
-                {
-                    newValue += segment.ValueDelta * progressDelta; // TODO smoothly focus onto the middle steps of the segment
-                }
-            }
-
             return new TraceFrame(newPos, newNormal, newAngle,
-                width - distDelta * segment.TraceParams.WidthLoss,
-                speed - distDelta * segment.TraceParams.SpeedLoss,
-                density - distDelta * segment.TraceParams.DensityLoss,
+                width - distDelta * extParams.WidthLoss,
+                speed - distDelta * extParams.SpeedLoss,
+                density - distDelta * extParams.DensityLoss,
                 newValue, newOffset, dist + distDelta,
-                new LocalFactors(segment, pos - gridOffset)
+                new LocalFactors(ref extParams, pos - gridOffset)
             );
         }
 
@@ -513,11 +505,11 @@ public class PathTracer
             density = 1;
         }
 
-        public LocalFactors(Segment segment, Vector2d pos)
+        public LocalFactors(ref TraceParams extParams, Vector2d pos)
         {
-            width = segment.TraceParams.WidthGrid?.ValueAt(pos) ?? 1;
-            speed = segment.TraceParams.SpeedGrid?.ValueAt(pos) ?? 1;
-            density = segment.TraceParams.DensityGrid?.ValueAt(pos) ?? 1;
+            width = extParams.WidthGrid?.ValueAt(pos) ?? 1;
+            speed = extParams.SpeedGrid?.ValueAt(pos) ?? 1;
+            density = extParams.DensityGrid?.ValueAt(pos) ?? 1;
         }
 
         public override string ToString() =>
@@ -586,6 +578,8 @@ public class PathTracer
 
         DebugOutput($"Trace start with initial frame [{initialFrame}] and length {length}");
 
+        if (length <= 0) return new TraceResult(initialFrame);
+
         var a = initialFrame;
 
         _frameBuffer.Clear();
@@ -596,6 +590,8 @@ public class PathTracer
 
             double distDelta = 0d;
             double angleDelta = 0d;
+            double extraValue = 0d;
+            double extraOffset = 0d;
 
             if (a.dist >= 0)
             {
@@ -636,13 +632,53 @@ public class PathTracer
 
                 var maxAngleDelta = (1 - extParams.AngleTenacity) * 180 * distDelta / (a.width * Math.PI);
                 angleDelta = (distDelta * angleDelta).NormalizeDeg().InRange(-maxAngleDelta, maxAngleDelta);
+
+                if (task.segment.SmoothDelta != null)
+                {
+                    var smoothDelta = task.segment.SmoothDelta;
+
+                    if (smoothDelta.StepsTotal <= 0)
+                    {
+                        extraValue += smoothDelta.ValueDelta;
+                        extraOffset += smoothDelta.OffsetDelta;
+                    }
+                    else
+                    {
+                        var stepsDone = (int) Math.Floor(a.dist / stepSize);
+                        var stepsTotal = (int) Math.Floor(length / stepSize);
+
+                        var pointer = stepsDone;
+                        var factor = 1d;
+
+                        if (stepsDone == stepsTotal - 1)
+                        {
+                            factor = stepSize / (stepSize + length % stepSize);
+                        }
+                        else if (stepsDone == stepsTotal && stepsTotal > 0)
+                        {
+                            pointer = stepsTotal - 1;
+                            factor = length % stepSize / (stepSize + length % stepSize);
+                        }
+
+                        var value = MathUtil.LinearDist(smoothDelta.StepsTotal, smoothDelta.StepsStart + pointer);
+
+                        DebugOutput($"step {smoothDelta.StepsStart + pointer + 1} of {smoothDelta.StepsTotal} v {value} f {factor}");
+
+                        extraValue += smoothDelta.ValueDelta * value * factor;
+                        extraOffset += smoothDelta.OffsetDelta * value * factor;
+                    }
+                }
             }
             else
             {
                 distDelta -= a.dist;
             }
 
-            var b = a.Advance(task.segment, distDelta, angleDelta, GridMargin, out var pivotPoint, out var pivotOffset);
+            var b = a.Advance(
+                ref extParams, distDelta, angleDelta,
+                extraValue, extraOffset, GridMargin,
+                out var pivotPoint, out var pivotOffset
+            );
 
             var extendA = a.widthMul / 2;
             var extendB = b.widthMul / 2;
@@ -842,7 +878,7 @@ public class PathTracer
             if (!CalcArcWithDuct(a, target, normal.PerpCW * shift, out var frameIdxA, out var arcLengthA, out var ductLengthA)) continue;
             if (!CalcArcWithDuct(b, target, normal.PerpCCW * shift, out var frameIdxB, out var arcLengthB, out var ductLengthB)) continue;
 
-            // TODO handle the case where collided branch already has an inserted merge further down the line
+            // TODO check if collided branch already has an inserted merge further down the line (as failsafe)
 
             var connectedA = a.activeSegment.ConnectedSegments();
             var connectedB = b.activeSegment.ConnectedSegments();
@@ -877,21 +913,32 @@ public class PathTracer
             {
                 var linearParents = new List<Segment>{segment};
 
+                var totalSteps = segment.FullSteps.WithMin(1);
+
                 while (linearParents.Count < 99)
                 {
                     var current = linearParents.Last();
                     if (current.ParentIds.Count != 1) break;
+
                     var next = current.Parents.First();
                     if (next.BranchIds.Count != 1) break;
+
                     linearParents.Add(next);
+
+                    if (next.Length > 0)
+                    {
+                        totalSteps += next.FullSteps.WithMin(1);
+                    }
                 }
 
-                var totalLength = linearParents.Sum(s => s.Length);
+                linearParents.Reverse();
 
-                foreach (var parent in linearParents)
+                var currentSteps = 0;
+
+                foreach (var parent in linearParents.Where(parent => parent.Length > 0))
                 {
-                    parent.ValueDelta += 0.5 * valueDiff * (parent.Length / totalLength);
-                    parent.OffsetDelta += 0.5 * offsetDiff * (parent.Length / totalLength);
+                    parent.SmoothDelta = new SmoothDelta(0.5 * valueDiff, 0.5 * offsetDiff, totalSteps, currentSteps);
+                    currentSteps += parent.FullSteps.WithMin(1);
                 }
             }
 
@@ -899,8 +946,8 @@ public class PathTracer
             {
                 foreach (var segment in segments.Where(segment => segment.IsRoot))
                 {
-                    segment.RelValue += valueDiff * 0.5;
-                    segment.RelOffset += offsetDiff * 0.5;
+                    segment.RelValue += 0.5 * valueDiff;
+                    segment.RelOffset += 0.5 * offsetDiff;
                 }
             }
 

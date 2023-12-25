@@ -6,6 +6,20 @@ namespace TerrainGraph.Util;
 
 public static class MathUtil
 {
+    public static long Factorial(long v) => v <= 1 ? 1 : v * Factorial(v - 1);
+
+    public static long Combination(long a, long b) => a <= 1 ? 1 : Factorial(a) / (Factorial(b) * Factorial(a - b));
+
+    public static double BinomialDist(int n, int x, double p = 0.5) => Combination(n, x) * Math.Pow(p, x) * Math.Pow(1 - p, n - x);
+
+    public static double LinearDist(int n, int x)
+    {
+        double nh = Math.Floor(n / 2d);
+        double sum = (nh + n % 2) * (nh + 1);
+        double val = x < nh ? x + 1 : n - x;
+        return val / sum;
+    }
+
     public static double NormalizeDeg(this double value)
     {
         value %= 360;

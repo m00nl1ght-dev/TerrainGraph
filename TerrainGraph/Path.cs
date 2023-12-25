@@ -108,10 +108,11 @@ public class Path
 
         public Vector2d RelPosition;
 
-        public double ValueDelta;
-        public double OffsetDelta;
+        public SmoothDelta SmoothDelta;
 
         public TraceParams TraceParams;
+
+        public int FullSteps => (int) Math.Floor(Length / TraceParams.StepSize.WithMin(1));
 
         public IEnumerable<Segment> Parents => _parents.Select(id => Path._segments[id]);
         public IEnumerable<Segment> Branches => _branches.Select(id => Path._segments[id]);
@@ -143,8 +144,7 @@ public class Path
             RelSpeed = other.RelSpeed;
             RelDensity = other.RelDensity;
             RelPosition = other.RelPosition;
-            ValueDelta = other.ValueDelta;
-            OffsetDelta = other.OffsetDelta;
+            SmoothDelta = other.SmoothDelta;
             TraceParams = other.TraceParams;
         }
 
@@ -249,9 +249,31 @@ public class Path
             RelSpeed.Equals(other.RelSpeed) &&
             RelDensity.Equals(other.RelDensity) &&
             RelPosition.Equals(other.RelPosition) &&
+            Equals(SmoothDelta, other.SmoothDelta) &&
+            TraceParams.Equals(other.TraceParams);
+    }
+
+    public class SmoothDelta
+    {
+        public readonly double ValueDelta;
+        public readonly double OffsetDelta;
+
+        public readonly int StepsTotal;
+        public readonly int StepsStart;
+
+        public SmoothDelta(double valueDelta, double offsetDelta, int stepsTotal, int stepsStart)
+        {
+            ValueDelta = valueDelta;
+            OffsetDelta = offsetDelta;
+            StepsTotal = stepsTotal;
+            StepsStart = stepsStart;
+        }
+
+        public bool Equals(SmoothDelta other) =>
             ValueDelta.Equals(other.ValueDelta) &&
             OffsetDelta.Equals(other.OffsetDelta) &&
-            TraceParams.Equals(other.TraceParams);
+            StepsTotal.Equals(other.StepsTotal) &&
+            StepsStart.Equals(other.StepsStart);
     }
 
     public struct TraceParams
