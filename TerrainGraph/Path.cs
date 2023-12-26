@@ -17,6 +17,12 @@ public class Path
 
     private readonly List<Segment> _segments;
 
+    [ThreadStatic]
+    private static Queue<Segment> _ts_queue;
+
+    [ThreadStatic]
+    private static List<Segment> _ts_visited;
+
     public Path()
     {
         _segments = new(10);
@@ -46,7 +52,8 @@ public class Path
     public void Combine(Path other)
     {
         var segIdMap = new Segment[other._segments.Count];
-        var segQueue = new Queue<Segment>();
+
+        InitThreadStatics();
 
         foreach (var otherSegment in other.Roots)
         {
@@ -59,30 +66,42 @@ public class Path
             }
 
             segIdMap[otherSegment.Id] = ownSegment;
-            segQueue.Enqueue(otherSegment);
+            _ts_queue.Enqueue(otherSegment);
         }
 
-        while (segQueue.Count > 0)
+        while (_ts_queue.Count > 0)
         {
-            var otherSegment = segQueue.Dequeue();
+            var otherSegment = _ts_queue.Dequeue();
             var ownSegment = segIdMap[otherSegment.Id];
 
-            foreach (var otherBranch in otherSegment.Branches)
+            if (_ts_visited.AddUnique(otherSegment))
             {
-                var ownBranch = ownSegment.Branches.FirstOrDefault(s => s.SelfEquals(otherBranch));
-
-                if (ownBranch == null)
+                foreach (var otherBranch in otherSegment.Branches)
                 {
-                    ownBranch = new Segment(this);
-                    ownBranch.CopyFrom(otherBranch);
+                    var ownBranch = ownSegment.Branches.FirstOrDefault(s => s.SelfEquals(otherBranch));
+
+                    if (ownBranch == null)
+                    {
+                        ownBranch = new Segment(this);
+                        ownBranch.CopyFrom(otherBranch);
+                    }
+
+                    ownSegment.Attach(ownBranch);
+
+                    segIdMap[otherBranch.Id] = ownBranch;
+                    _ts_queue.Enqueue(otherBranch);
                 }
-
-                ownSegment.Attach(ownBranch);
-
-                segIdMap[otherBranch.Id] = ownBranch;
-                segQueue.Enqueue(otherBranch);
             }
         }
+    }
+
+    private static void InitThreadStatics()
+    {
+        _ts_queue ??= new Queue<Segment>(8);
+        _ts_queue.Clear();
+
+        _ts_visited ??= new List<Segment>(8);
+        _ts_visited.Clear();
     }
 
     private Path EnsureMutable()
@@ -105,6 +124,9 @@ public class Path
         public double RelWidth = 1;
         public double RelSpeed = 1;
         public double RelDensity = 1;
+
+        public double StableRangeTail; // TODO
+        public double StableRangeHead;
 
         public Vector2d RelPosition;
 
@@ -213,30 +235,76 @@ public class Path
             branch._parents.Remove(this.Id);
         }
 
-        public bool IsSupportOf(Segment other)
+        public bool IsParentOf(Segment other, bool includeSelf)
         {
-            return other == this || Branches.Any(b => b.IsSupportOf(other));
+            return AnyBranchesMatch(s => s == other, includeSelf);
         }
 
-        public List<Segment> ConnectedSegments()
+        public bool IsBranchOf(Segment other, bool includeSelf)
         {
-            var queue = new Queue<Segment>(8);
-            var visited = new List<Segment>(8);
+            return AnyParentsMatch(s => s == other, includeSelf);
+        }
 
-            queue.Enqueue(this);
+        public bool AnyBranchesMatch(Predicate<Segment> condition, bool includeSelf)
+        {
+            InitThreadStatics();
 
-            while (queue.Count > 0)
+            _ts_queue.Enqueue(this);
+
+            while (_ts_queue.Count > 0)
             {
-                var segment = queue.Dequeue();
+                var segment = _ts_queue.Dequeue();
 
-                if (visited.AddUnique(segment))
+                if (_ts_visited.AddUnique(segment))
                 {
-                    foreach (var branch in segment.Branches) queue.Enqueue(branch);
-                    foreach (var parent in segment.Parents) queue.Enqueue(parent);
+                    if ((includeSelf || segment != this) && condition(segment)) return true;
+                    foreach (var branch in segment.Branches) _ts_queue.Enqueue(branch);
                 }
             }
 
-            return visited;
+            return false;
+        }
+
+        public bool AnyParentsMatch(Predicate<Segment> condition, bool includeSelf)
+        {
+            InitThreadStatics();
+
+            _ts_queue.Enqueue(this);
+
+            while (_ts_queue.Count > 0)
+            {
+                var segment = _ts_queue.Dequeue();
+
+                if (_ts_visited.AddUnique(segment))
+                {
+                    if ((includeSelf || segment != this) && condition(segment)) return true;
+                    foreach (var parent in segment.Parents) _ts_queue.Enqueue(parent);
+                }
+            }
+
+            return false;
+        }
+
+        public List<Segment> ConnectedSegments(bool fwd = true, bool bwd = true)
+        {
+            InitThreadStatics();
+
+            var connected = new List<Segment>();
+
+            _ts_queue.Enqueue(this);
+
+            while (_ts_queue.Count > 0)
+            {
+                var segment = _ts_queue.Dequeue();
+
+                if (connected.AddUnique(segment))
+                {
+                    if (fwd) foreach (var branch in segment.Branches) _ts_queue.Enqueue(branch);
+                    if (bwd) foreach (var parent in segment.Parents) _ts_queue.Enqueue(parent);
+                }
+            }
+
+            return connected;
         }
 
         public bool SelfEquals(Segment other) =>

@@ -32,7 +32,7 @@ public class NodePathExtend : NodeBase
 
     public double Length = 1;
     public double StepSize = 5;
-    public double Tenacity = 0.2;
+    public double Tenacity;
 
     public override void NodeGUI()
     {

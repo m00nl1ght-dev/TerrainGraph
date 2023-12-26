@@ -132,9 +132,9 @@ public class PathTracer
     /// Attempt to trace the given path once.
     /// </summary>
     /// <param name="path">Path to trace</param>
-    /// <param name="collision">Expected collision to stop at, if any</param>
+    /// <param name="expectedCollision">Collision to stop at, if any</param>
     /// <returns>Null if the path was fully traced, otherwise the collision that occured</returns>
-    private PathCollision TryTrace(Path path, PathCollision collision = null)
+    private PathCollision TryTrace(Path path, PathCollision expectedCollision = null)
     {
         var taskQueue = new Queue<TraceTask>();
         var taskResults = new Dictionary<Segment, TraceResult>();
@@ -145,6 +145,8 @@ public class PathTracer
             Enqueue(rootSegment, originFrame);
         }
 
+        PathCollision collision = null;
+
         while (taskQueue.Count > 0)
         {
             var task = taskQueue.Dequeue();
@@ -153,11 +155,19 @@ public class PathTracer
 
             taskResults[task.segment] = result;
 
-            // TODO in case of collision, rather than immediately returning, continue to check if another collision with the just collided branch occurs
-
-            if (result.collision != null)
+            if (result.collision != null && (collision == null || result.collision.Precedes(collision)))
             {
-                return result.collision;
+                if (collision != null)
+                {
+                    DebugOutput($"Preceded collision: {collision}");
+                }
+
+                collision = result.collision;
+
+                if (expectedCollision != null && expectedCollision.CorrespondsTo(collision))
+                {
+                    return collision;
+                }
             }
 
             if (result.finalFrame.width > 0)
@@ -183,13 +193,13 @@ public class PathTracer
             }
         }
 
-        return null;
+        return collision;
 
         void Enqueue(Segment branch, TraceFrame baseFrame)
         {
             if (taskResults.ContainsKey(branch) || taskQueue.Any(t => t.segment == branch)) return;
 
-            var stopAtCol = collision != null && collision.passiveSegment == branch ? collision : null;
+            var stopAtCol = expectedCollision != null && expectedCollision.passiveSegment == branch ? expectedCollision : null;
 
             var marginHead = branch.IsLeaf ? TraceInnerMargin : 0;
             var marginTail = branch.IsRoot ? TraceInnerMargin : 0;
@@ -518,6 +528,7 @@ public class PathTracer
             $"{nameof(density)}: {density}";
     }
 
+    [HotSwappable]
     private class PathCollision
     {
         /// <summary>
@@ -549,6 +560,14 @@ public class PathTracer
         /// The length of segment to adjust and retrace to avoid this collision.
         /// </summary>
         public double retraceRange => activeSegment.TraceParams.ArcRetraceRange.WithMin(1);
+
+        public bool Precedes(PathCollision other)
+        {
+            if (passiveSegment.IsParentOf(other.activeSegment, true)) return true;
+            if (passiveSegment.IsParentOf(other.passiveSegment, false)) return true;
+            if (passiveSegment == other.passiveSegment) return true; // TODO && dist comparison
+            return false;
+        }
 
         public bool CorrespondsTo(PathCollision other) =>
             other.activeSegment == this.passiveSegment &&
@@ -833,7 +852,7 @@ public class PathTracer
             throw new Exception("PathTracer internal consistency error");
         }
 
-        if (a.passiveSegment.IsSupportOf(a.activeSegment) || !TryMerge(a, b))
+        if (!TryMerge(a, b))
         {
             a.activeSegment.Length = Math.Max(0, a.frame.dist - a.retraceRange);
             a.activeSegment.DetachAll();
@@ -863,6 +882,11 @@ public class PathTracer
             midpoint = a.position;
         }
 
+        if (a.activeSegment.IsBranchOf(a.passiveSegment, true)) return false;
+
+        if (a.activeSegment.AnyBranchesMatch(s => s.ParentIds.Count > 1, false)) return false;
+        if (b.activeSegment.AnyBranchesMatch(s => s.ParentIds.Count > 1, false)) return false;
+
         var shift = Math.Sign(Vector2d.PerpDot(normal, a.frame.normal));
 
         for (int i = 0; i < 7; i++)
@@ -877,8 +901,6 @@ public class PathTracer
 
             if (!CalcArcWithDuct(a, target, normal.PerpCW * shift, out var frameIdxA, out var arcLengthA, out var ductLengthA)) continue;
             if (!CalcArcWithDuct(b, target, normal.PerpCCW * shift, out var frameIdxB, out var arcLengthB, out var ductLengthB)) continue;
-
-            // TODO check if collided branch already has an inserted merge further down the line (as failsafe)
 
             var connectedA = a.activeSegment.ConnectedSegments();
             var connectedB = b.activeSegment.ConnectedSegments();
@@ -913,7 +935,7 @@ public class PathTracer
             {
                 var linearParents = new List<Segment>{segment};
 
-                var totalSteps = segment.FullSteps.WithMin(1);
+                var totalSteps = segment.FullSteps;
 
                 while (linearParents.Count < 99)
                 {
@@ -923,22 +945,23 @@ public class PathTracer
                     var next = current.Parents.First();
                     if (next.BranchIds.Count != 1) break;
 
+                    totalSteps += next.FullSteps;
                     linearParents.Add(next);
-
-                    if (next.Length > 0)
-                    {
-                        totalSteps += next.FullSteps.WithMin(1);
-                    }
                 }
 
                 linearParents.Reverse();
 
                 var currentSteps = 0;
 
-                foreach (var parent in linearParents.Where(parent => parent.Length > 0))
+                foreach (var parent in linearParents)
                 {
-                    parent.SmoothDelta = new SmoothDelta(0.5 * valueDiff, 0.5 * offsetDiff, totalSteps, currentSteps);
-                    currentSteps += parent.FullSteps.WithMin(1);
+                    var fullSteps = parent.FullSteps;
+
+                    if (fullSteps > 0)
+                    {
+                        parent.SmoothDelta = new SmoothDelta(0.5 * valueDiff, 0.5 * offsetDiff, totalSteps, currentSteps);
+                        currentSteps += fullSteps;
+                    }
                 }
             }
 
