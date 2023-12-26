@@ -97,20 +97,30 @@ public class PathTracer
     {
         _totalFramesCalculated = 0;
 
+        var simulatedCollisions = new List<PathCollision>();
+        var occuredCollisions = new List<PathCollision>();
+
         for (int attempt = 0; attempt < maxAttempts - 1; attempt++)
         {
-            var collisionA = TryTrace(path);
-            if (collisionA == null) return true;
+            TryTrace(path, occuredCollisions);
+            if (occuredCollisions.Count == 0) return true;
             Clear();
 
-            var collisionB = TryTrace(path, collisionA);
-            if (collisionB == null) return true;
+            simulatedCollisions.AddRange(occuredCollisions);
+            occuredCollisions.Clear();
+
+            TryTrace(path, occuredCollisions, simulatedCollisions);
+            if (occuredCollisions.Count == 0) return true;
             Clear();
 
-            HandleCollision(collisionA, collisionB);
+            HandleFirstCollision(simulatedCollisions);
+
+            simulatedCollisions.Clear();
+            occuredCollisions.Clear();
         }
 
-        return TryTrace(path) == null;
+        TryTrace(path, occuredCollisions);
+        return occuredCollisions.Count == 0;
     }
 
     public void Clear()
@@ -132,9 +142,10 @@ public class PathTracer
     /// Attempt to trace the given path once.
     /// </summary>
     /// <param name="path">Path to trace</param>
-    /// <param name="expectedCollision">Collision to stop at, if any</param>
+    /// <param name="occuredCollisions">Collisions that occur while tracing will be added to this list</param>
+    /// <param name="simulatedCollisions">List of collisions to be simulated, may be null if there are none</param>
     /// <returns>Null if the path was fully traced, otherwise the collision that occured</returns>
-    private PathCollision TryTrace(Path path, PathCollision expectedCollision = null)
+    private void TryTrace(Path path, List<PathCollision> occuredCollisions, List<PathCollision> simulatedCollisions = null)
     {
         var taskQueue = new Queue<TraceTask>();
         var taskResults = new Dictionary<Segment, TraceResult>();
@@ -145,8 +156,6 @@ public class PathTracer
             Enqueue(rootSegment, originFrame);
         }
 
-        PathCollision collision = null;
-
         while (taskQueue.Count > 0)
         {
             var task = taskQueue.Dequeue();
@@ -155,19 +164,9 @@ public class PathTracer
 
             taskResults[task.segment] = result;
 
-            if (result.collision != null && (collision == null || result.collision.Precedes(collision)))
+            if (result.collision != null)
             {
-                if (collision != null)
-                {
-                    DebugOutput($"Preceded collision: {collision}");
-                }
-
-                collision = result.collision;
-
-                if (expectedCollision != null && expectedCollision.CorrespondsTo(collision))
-                {
-                    return collision;
-                }
+                occuredCollisions.Add(result.collision);
             }
 
             if (result.finalFrame.width > 0)
@@ -193,18 +192,20 @@ public class PathTracer
             }
         }
 
-        return collision;
+        return;
 
         void Enqueue(Segment branch, TraceFrame baseFrame)
         {
             if (taskResults.ContainsKey(branch) || taskQueue.Any(t => t.segment == branch)) return;
 
-            var stopAtCol = expectedCollision != null && expectedCollision.passiveSegment == branch ? expectedCollision : null;
+            var collisionList = simulatedCollisions?.Where(c => c.segmentB == branch).ToList();
+
+            if (collisionList is { Count: 0 }) collisionList = null;
 
             var marginHead = branch.IsLeaf ? TraceInnerMargin : 0;
             var marginTail = branch.IsRoot ? TraceInnerMargin : 0;
 
-            taskQueue.Enqueue(new TraceTask(branch, baseFrame, stopAtCol, marginHead, marginTail));
+            taskQueue.Enqueue(new TraceTask(branch, baseFrame, collisionList, marginHead, marginTail));
         }
     }
 
@@ -221,9 +222,9 @@ public class PathTracer
         public readonly TraceFrame baseFrame;
 
         /// <summary>
-        /// An expected collision with another path segment to stop at, if any.
+        /// Collisions with other path segments to be simulated, may be null if there are none.
         /// </summary>
-        public readonly PathCollision collision;
+        public readonly IEnumerable<PathCollision> simulated;
 
         /// <summary>
         /// The additional path length to trace at the head end of the segment.
@@ -235,11 +236,14 @@ public class PathTracer
         /// </summary>
         public readonly double marginTail;
 
-        public TraceTask(Segment segment, TraceFrame baseFrame, PathCollision collision, double marginHead, double marginTail)
+        public TraceTask(
+            Segment segment, TraceFrame baseFrame,
+            IEnumerable<PathCollision> simulated,
+            double marginHead, double marginTail)
         {
             this.segment = segment;
             this.baseFrame = baseFrame;
-            this.collision = collision;
+            this.simulated = simulated;
             this.marginHead = marginHead;
             this.marginTail = marginTail;
         }
@@ -534,12 +538,12 @@ public class PathTracer
         /// <summary>
         /// First segment involved in the collision, the one that was actively being traced.
         /// </summary>
-        public Segment activeSegment;
+        public Segment segmentA;
 
         /// <summary>
         /// Second segment involved in the collision. May be the same as activeSegment if it collided with itself.
         /// </summary>
-        public Segment passiveSegment;
+        public Segment segmentB;
 
         /// <summary>
         /// The position at which the collision occured.
@@ -547,45 +551,61 @@ public class PathTracer
         public Vector2d position;
 
         /// <summary>
-        /// Trace frames of the active segment.
+        /// Trace frames of the first segment.
         /// </summary>
-        public List<TraceFrame> frames;
+        public List<TraceFrame> framesA;
 
         /// <summary>
-        /// Current trace frame of the active segment at the time of the collision.
+        /// Trace frames of the second segment.
         /// </summary>
-        public TraceFrame frame => frames[frames.Count - 1];
+        public List<TraceFrame> framesB;
 
         /// <summary>
-        /// The length of segment to adjust and retrace to avoid this collision.
+        /// Current trace frame of the first segment at the time of the collision.
         /// </summary>
-        public double retraceRange => activeSegment.TraceParams.ArcRetraceRange.WithMin(1);
+        public TraceFrame frameA => framesA[framesA.Count - 1];
+
+        /// <summary>
+        /// Current trace frame of the second segment at the time of the collision.
+        /// </summary>
+        public TraceFrame frameB => framesB[framesB.Count - 1];
+
+        /// <summary>
+        /// The length of first segment to adjust and retrace to avoid this collision.
+        /// </summary>
+        public double retraceRangeA => segmentA.TraceParams.ArcRetraceRange.WithMin(1);
+
+        /// <summary>
+        /// The length of second segment to adjust and retrace to avoid this collision.
+        /// </summary>
+        public double retraceRangeB => segmentB.TraceParams.ArcRetraceRange.WithMin(1);
+
+        /// <summary>
+        /// Whether the trace frames of both involved segments are available.
+        /// </summary>
+        public bool complete => framesA != null && framesB != null;
 
         public bool Precedes(PathCollision other)
         {
-            if (passiveSegment.IsParentOf(other.activeSegment, true)) return true;
-            if (passiveSegment.IsParentOf(other.passiveSegment, false)) return true;
-            if (passiveSegment == other.passiveSegment) return true; // TODO && dist comparison
+            if (segmentB.IsParentOf(other.segmentA, true)) return true;
+            if (segmentB.IsParentOf(other.segmentB, false)) return true;
+            if (!complete && !other.complete) return false;
+            if (segmentB == other.segmentB && frameB.dist < other.frameB.dist) return true;
             return false;
         }
 
-        public bool CorrespondsTo(PathCollision other) =>
-            other.activeSegment == this.passiveSegment &&
-            other.passiveSegment == this.activeSegment &&
-            other.position == this.position;
-
         public override string ToString() =>
-            $"{nameof(activeSegment)}: {activeSegment.GetHashCode()}, " +
-            $"{nameof(passiveSegment)}: {passiveSegment.GetHashCode()}, " +
-            $"{nameof(frame)}: {frame}, " +
+            $"{nameof(segmentA)}: {segmentA.GetHashCode()}, " +
+            $"{nameof(segmentB)}: {segmentB.GetHashCode()}, " +
+            $"{nameof(frameA)}: {(framesA == null ? "?" : frameA)}, " +
+            $"{nameof(frameB)}: {(framesB == null ? "?" : frameB)}, " +
             $"{nameof(position)}: {position}";
     }
 
     /// <summary>
     /// Attempt to trace a single path segment, with the parameters defined by the given task.
     /// </summary>
-    /// <returns>result object containing the final frame and collision data (if any has occured)</returns>
-    /// <exception cref="Exception">thrown if MaxTraceFrames is exceeded during this task</exception>
+    /// <exception cref="Exception">Thrown if MaxTraceFrames is exceeded during this task</exception>
     private TraceResult TryTrace(TraceTask task)
     {
         var length = task.segment.Length;
@@ -798,23 +818,23 @@ public class PathTracer
                                         {
                                             return new TraceResult(a, new PathCollision
                                             {
-                                                activeSegment = task.segment,
-                                                passiveSegment = collided,
-                                                frames = ExchangeFrameBuffer(),
+                                                segmentA = task.segment,
+                                                segmentB = collided,
+                                                framesA = ExchangeFrameBuffer(),
                                                 position = pos
                                             });
                                         }
                                     }
 
-                                    if (task.collision != null && task.collision.position == pos)
+                                    if (task.simulated != null)
                                     {
-                                        return new TraceResult(a, new PathCollision
+                                        foreach (var simulated in task.simulated)
                                         {
-                                            activeSegment = task.segment,
-                                            passiveSegment = task.collision.activeSegment,
-                                            frames = ExchangeFrameBuffer(),
-                                            position = pos
-                                        });
+                                            if (simulated.position == pos && simulated.framesB == null)
+                                            {
+                                                simulated.framesB = ExchangeFrameBuffer();
+                                            }
+                                        }
                                     }
 
                                     _segmentGrid[x, z] = task.segment;
@@ -838,75 +858,109 @@ public class PathTracer
     }
 
     /// <summary>
-    /// Rewrite path segments such that the given collision is avoided.
+    /// Rewrite path segments such that the earliest of the given collisions is avoided.
     /// </summary>
-    /// <param name="a">the collision from the perspective of the first path segment involved</param>
-    /// <param name="b">the collision from the perspective of the second path segment involved</param>
-    /// <exception cref="Exception">thrown if the given collision objects do not correspond to each other</exception>
-    private void HandleCollision(PathCollision a, PathCollision b)
+    /// <param name="collisions">list of collisions that should be considered</param>
+    private void HandleFirstCollision(List<PathCollision> collisions)
     {
-        DebugOutput($"Path collision: A = [{a}] B = [{b}]");
+        PathCollision first = null;
 
-        if (!a.CorrespondsTo(b))
+        foreach (var collision in collisions)
         {
-            throw new Exception("PathTracer internal consistency error");
+            if (first == null || collision.Precedes(first))
+            {
+                first = collision;
+            }
         }
 
-        if (!TryMerge(a, b))
+        if (first != null)
         {
-            a.activeSegment.Length = Math.Max(0, a.frame.dist - a.retraceRange);
-            a.activeSegment.DetachAll();
+            if (first.complete)
+            {
+                DebugOutput($"Attempting merge: {first}");
 
-            DebugOutput($"Path merge not possible");
+                if (TryMerge(first))
+                {
+                    DebugOutput($"Path merge was successful");
+                }
+                else
+                {
+                    DebugOutput($"Path merge not possible, stubbing instead");
+                    Stub(first);
+                }
+            }
+            else
+            {
+                DebugOutput($"!!! Collision missing data: {first}");
+                Stub(first);
+            }
         }
+    }
+
+    /// <summary>
+    /// Stub the active path segment in order to avoid the given collision.
+    /// </summary>
+    private void Stub(PathCollision c)
+    {
+        c.segmentA.Length = Math.Max(0, c.frameA.dist - c.retraceRangeA);
+        c.segmentA.DetachAll();
     }
 
     /// <summary>
     /// Attempt to merge the involved path segments in order to avoid the given collision.
     /// </summary>
-    /// <param name="a">the collision from the perspective of the first path segment involved</param>
-    /// <param name="b">the collision from the perspective of the second path segment involved</param>
     /// <returns>true if the segments were merged successfully, otherwise false</returns>
-    private bool TryMerge(PathCollision a, PathCollision b)
+    private bool TryMerge(PathCollision c)
     {
         Vector2d normal;
 
-        if (Vector2d.TryIntersect(a.frame.pos, b.frame.pos, a.frame.normal, b.frame.normal, out var midpoint, 0.05))
+        if (Vector2d.TryIntersect(c.frameA.pos, c.frameB.pos, c.frameA.normal, c.frameB.normal, out var midpoint, 0.05))
         {
-            normal = (a.frame.normal + b.frame.normal).Normalized;
+            normal = (c.frameA.normal + c.frameB.normal).Normalized;
         }
         else
         {
-            var perpDot = Vector2d.PerpDot(a.frame.normal, b.frame.normal);
-            normal = perpDot >= 0 ? a.frame.normal.PerpCCW : a.frame.normal.PerpCW;
-            midpoint = a.position;
+            var perpDot = Vector2d.PerpDot(c.frameA.normal, c.frameB.normal);
+            normal = perpDot >= 0 ? c.frameA.normal.PerpCCW : c.frameA.normal.PerpCW;
+            midpoint = c.position;
         }
 
-        if (a.activeSegment.IsBranchOf(a.passiveSegment, true)) return false;
+        if (c.segmentA.IsBranchOf(c.segmentB, true)) return false;
 
-        if (a.activeSegment.AnyBranchesMatch(s => s.ParentIds.Count > 1, false)) return false;
-        if (b.activeSegment.AnyBranchesMatch(s => s.ParentIds.Count > 1, false)) return false;
+        if (c.segmentA.AnyBranchesMatch(s => s.ParentIds.Count > 1, false)) return false;
+        if (c.segmentB.AnyBranchesMatch(s => s.ParentIds.Count > 1, false)) return false;
 
-        var shift = Math.Sign(Vector2d.PerpDot(normal, a.frame.normal));
+        var shift = Math.Sign(Vector2d.PerpDot(normal, c.frameA.normal));
 
         for (int i = 0; i < 7; i++)
         {
-            var range = Math.Max(a.retraceRange, b.retraceRange) * (1 + i * i * 0.25);
+            var range = Math.Max(c.retraceRangeA, c.retraceRangeB) * (1 + i * i * 0.25);
             var target = midpoint + normal * range;
 
-            var orgLengthA = a.activeSegment.Length;
-            var orgLengthB = b.activeSegment.Length;
+            var orgLengthA = c.segmentA.Length;
+            var orgLengthB = c.segmentB.Length;
 
-            DebugOutput($"range: {range} target: {target} normal: {normal} perpDot: {Vector2d.PerpDot(a.frame.normal, b.frame.normal)}");
+            DebugOutput($"range: {range} target: {target} normal: {normal} perpDot: {Vector2d.PerpDot(c.frameA.normal, c.frameB.normal)}");
 
-            if (!CalcArcWithDuct(a, target, normal.PerpCW * shift, out var frameIdxA, out var arcLengthA, out var ductLengthA)) continue;
-            if (!CalcArcWithDuct(b, target, normal.PerpCCW * shift, out var frameIdxB, out var arcLengthB, out var ductLengthB)) continue;
+            var frameIdxA = CalcArcWithDuct(
+                c.segmentA, c.framesA, target, normal.PerpCW * shift,
+                c.retraceRangeA, out var arcLengthA, out var ductLengthA
+            );
 
-            var connectedA = a.activeSegment.ConnectedSegments();
-            var connectedB = b.activeSegment.ConnectedSegments();
+            if (frameIdxA < 0) continue;
 
-            var frameA = a.frames[frameIdxA];
-            var frameB = b.frames[frameIdxB];
+            var frameIdxB = CalcArcWithDuct(
+                c.segmentB, c.framesB, target, normal.PerpCCW * shift,
+                c.retraceRangeB, out var arcLengthB, out var ductLengthB
+            );
+
+            if (frameIdxB < 0) continue;
+
+            var connectedA = c.segmentA.ConnectedSegments();
+            var connectedB = c.segmentB.ConnectedSegments();
+
+            var frameA = c.framesA[frameIdxA];
+            var frameB = c.framesB[frameIdxB];
 
             var valueAtMergeA = frameA.value + frameA.speed * (arcLengthA + ductLengthA);
             var valueAtMergeB = frameB.value + frameB.speed * (arcLengthB + ductLengthB);
@@ -914,8 +968,8 @@ public class PathTracer
             var offsetAtMergeA = frameA.offset + frameA.width * 0.5 * -shift;
             var offsetAtMergeB = frameB.offset + frameB.width * 0.5 * shift;
 
-            var arcA = InsertArcWithDuct(a, frameIdxA, arcLengthA, ductLengthA);
-            var arcB = InsertArcWithDuct(b, frameIdxB, arcLengthB, ductLengthB);
+            var arcA = InsertArcWithDuct(c.segmentA, ref frameA, arcLengthA, ductLengthA);
+            var arcB = InsertArcWithDuct(c.segmentB, ref frameB, arcLengthB, ductLengthB);
 
             arcA.DetachAll();
             arcB.DetachAll();
@@ -974,11 +1028,11 @@ public class PathTracer
                 }
             }
 
-            var remainingLength = Math.Max(orgLengthA - a.activeSegment.Length, orgLengthB - b.activeSegment.Length);
+            var remainingLength = Math.Max(orgLengthA - c.segmentA.Length, orgLengthB - c.segmentB.Length);
 
             var merged = new Segment(arcA.Path)
             {
-                TraceParams = TraceParams.Merge(a.activeSegment.TraceParams, b.activeSegment.TraceParams),
+                TraceParams = TraceParams.Merge(c.segmentA.TraceParams, c.segmentB.TraceParams),
                 Length = remainingLength
             };
 
@@ -993,46 +1047,43 @@ public class PathTracer
         return false;
 
         Segment InsertArcWithDuct(
-            PathCollision c,
-            int frameIdx,
+            Segment segment,
+            ref TraceFrame frame,
             double arcLength,
             double ductLength)
         {
-            var frame = c.frames[frameIdx];
-
-            c.activeSegment.Length = frame.dist;
+            segment.Length = frame.dist;
 
             var arcAngle = -Vector2d.SignedAngle(frame.normal, normal);
 
-            var ductSegment = c.activeSegment.InsertNew();
+            var ductSegment = segment.InsertNew();
             ductSegment.TraceParams.ApplyFixedAngle(0);
-            // ductSegment.RelSpeed = 5; // for debug
             ductSegment.Length = ductLength;
 
             var arcSegment = ductSegment.InsertNew();
             arcSegment.TraceParams.ApplyFixedAngle(arcAngle / arcLength);
-            // arcSegment.RelSpeed = 0.05; // for debug
             arcSegment.Length = arcLength;
 
             return arcSegment;
         }
 
-        bool CalcArcWithDuct(
-            PathCollision c,
+        int CalcArcWithDuct(
+            Segment segment,
+            List<TraceFrame> frames,
             Vector2d target,
             Vector2d shiftDir,
-            out int frameIdx,
+            double maxRange,
             out double arcLength,
             out double ductLength)
         {
-            for (frameIdx = c.frames.Count - 1; frameIdx >= 0; frameIdx--)
+            for (var frameIdx = frames.Count - 1; frameIdx >= 0; frameIdx--)
             {
-                var frame = c.frames[frameIdx];
+                var frame = frames[frameIdx];
 
                 var pointB = frame.pos;
                 var pointC = target + shiftDir * 0.5 * frame.width;
 
-                if (Vector2d.Distance(pointB, c.position) < c.retraceRange && frameIdx > 0) continue;
+                if (Vector2d.Distance(pointB, c.position) < maxRange && frameIdx > 0) continue;
 
                 var arcAngle = -Vector2d.SignedAngle(frame.normal, normal);
 
@@ -1063,11 +1114,11 @@ public class PathTracer
 
                             if (double.IsNaN(arcLength)) continue;
 
-                            var arcAngleMax = (1 - c.activeSegment.TraceParams.AngleTenacity) * 180 * arcLength / (frame.width * Math.PI);
+                            var arcAngleMax = (1 - segment.TraceParams.AngleTenacity) * 180 * arcLength / (frame.width * Math.PI);
 
                             DebugOutput($"arcAngle: {arcAngle} arcAngleMax: {arcAngleMax}");
 
-                            return arcAngle.Abs() <= arcAngleMax;
+                            return arcAngle.Abs() <= arcAngleMax ? frameIdx : -1;
                         }
                     }
                 }
@@ -1076,7 +1127,7 @@ public class PathTracer
             arcLength = 0;
             ductLength = 0;
 
-            return false;
+            return -1;
         }
     }
 

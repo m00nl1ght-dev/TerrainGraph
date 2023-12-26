@@ -113,7 +113,7 @@ public class NodePathTrace : NodeBase
                 TraceMarginOuterDefault
             );
 
-            tracer.Trace(_input.Get()); // TODO exception handling
+            tracer.Trace(_input.Get());
 
             return tracer;
         }
