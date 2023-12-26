@@ -325,17 +325,17 @@ public class PathTracer
         /// <summary>
         /// The path width at the current position, with local multiplier applied.
         /// </summary>
-        public double widthMul => width * factors.width;
+        public double widthMul => width * factors.width.ScaleAround(1, factors.scalar);
 
         /// <summary>
         /// The rate of value change at the current position, with local multiplier applied.
         /// </summary>
-        public double speedMul => speed * factors.speed;
+        public double speedMul => speed * factors.speed.ScaleAround(1, factors.scalar);
 
         /// <summary>
         /// The offset density at the current position, with local multiplier applied.
         /// </summary>
-        public double densityMul => density * factors.density;
+        public double densityMul => density * factors.density.ScaleAround(1, factors.scalar);
 
         /// <summary>
         /// The unit vector perpendicular clockwise to the current direction.
@@ -373,10 +373,10 @@ public class PathTracer
             this.width = parent.width * segment.RelWidth - distOffset * segment.TraceParams.WidthLoss;
             this.speed = parent.speed * segment.RelSpeed - distOffset * segment.TraceParams.SpeedLoss;
             this.value = parent.value + segment.RelValue + distOffset * (distOffset < 0 ? speed : parent.speed);
-            this.offset = parent.offset + segment.RelOffset - segment.RelShift * parent.widthMul * parent.factors.density;
+            this.offset = parent.offset + segment.RelOffset - segment.RelShift * parent.widthMul * parent.densityMul; // TODO test
             this.normal = Vector2d.Direction(-angle);
             this.pos = parent.pos + segment.RelPosition + segment.RelShift * parent.perpCCW * parent.widthMul + distOffset * normal;
-            this.factors = new LocalFactors(ref segment.TraceParams, pos - gridOffset);
+            this.factors = new LocalFactors(segment, pos - gridOffset, distOffset);
             this.density = parent.density * segment.RelDensity;
             this.dist = distOffset;
         }
@@ -434,7 +434,7 @@ public class PathTracer
         /// <summary>
         /// Move the frame forward in its current direction, returning the result as a new frame.
         /// </summary>
-        /// <param name="extParams">Parameters defining how the values of the frame should evolve</param>
+        /// <param name="segment">Segment with parameters defining how the values of the frame should evolve</param>
         /// <param name="distDelta">Distance to move forward in the current direction</param>
         /// <param name="angleDelta">Total angle change to be applied continuously while advancing</param>
         /// <param name="extraValue">Additional value delta to be applied continuously while advancing</param>
@@ -444,7 +444,7 @@ public class PathTracer
         /// <param name="pivotOffset">Signed distance of the pivot point from the frame position</param>
         /// <returns></returns>
         public TraceFrame Advance(
-            ref TraceParams extParams, double distDelta, double angleDelta, double extraValue, double extraOffset,
+            Segment segment, double distDelta, double angleDelta, double extraValue, double extraOffset,
             Vector2d gridOffset, out Vector2d pivotPoint, out double pivotOffset)
         {
             var newAngle = (angle + angleDelta).NormalizeDeg();
@@ -473,11 +473,11 @@ public class PathTracer
             newValue += distDelta * (dist >= 0 ? speedMul : speed);
 
             return new TraceFrame(newPos, newNormal, newAngle,
-                width - distDelta * extParams.WidthLoss,
-                speed - distDelta * extParams.SpeedLoss,
-                density - distDelta * extParams.DensityLoss,
+                width - distDelta * segment.TraceParams.WidthLoss,
+                speed - distDelta * segment.TraceParams.SpeedLoss,
+                density - distDelta * segment.TraceParams.DensityLoss,
                 newValue, newOffset, dist + distDelta,
-                new LocalFactors(ref extParams, pos - gridOffset)
+                new LocalFactors(segment, pos - gridOffset, dist)
             );
         }
 
@@ -500,36 +500,48 @@ public class PathTracer
         /// <summary>
         /// Local width multiplier at the current frame position.
         /// </summary>
-        public readonly double width;
+        public readonly double width = 1;
 
         /// <summary>
         /// Local speed multiplier at the current frame position.
         /// </summary>
-        public readonly double speed;
+        public readonly double speed = 1;
 
         /// <summary>
         /// Local density multiplier at the current frame position.
         /// </summary>
-        public readonly double density;
+        public readonly double density = 1;
 
-        public LocalFactors()
-        {
-            width = 1;
-            speed = 1;
-            density = 1;
-        }
+        /// <summary>
+        /// Scalar applied to all local multipliers.
+        /// </summary>
+        public readonly double scalar = 1;
 
-        public LocalFactors(ref TraceParams extParams, Vector2d pos)
+        public LocalFactors() {}
+
+        public LocalFactors(Segment segment, Vector2d pos, double dist)
         {
-            width = extParams.WidthGrid?.ValueAt(pos) ?? 1;
-            speed = extParams.SpeedGrid?.ValueAt(pos) ?? 1;
-            density = extParams.DensityGrid?.ValueAt(pos) ?? 1;
+            width = segment.TraceParams.WidthGrid?.ValueAt(pos) ?? 1;
+            speed = segment.TraceParams.SpeedGrid?.ValueAt(pos) ?? 1;
+            density = segment.TraceParams.DensityGrid?.ValueAt(pos) ?? 1;
+
+            var toTail = dist.InRange(0, segment.Length);
+            var toHead = segment.Length - toTail;
+
+            if (toTail < segment.StableRangeTail) scalar = Math.Min(scalar, toTail / segment.StableRangeTail);
+            if (toHead < segment.StableRangeHead) scalar = Math.Min(scalar, toHead / segment.StableRangeHead);
+
+            if (scalar != 1)
+            {
+                DebugOutput($"scalar at {pos + new Vector2d(3, 3)} is {scalar}");
+            }
         }
 
         public override string ToString() =>
             $"{nameof(width)}: {width}, " +
             $"{nameof(speed)}: {speed}, " +
-            $"{nameof(density)}: {density}";
+            $"{nameof(density)}: {density}, " +
+            $"{nameof(scalar)}: {scalar}";
     }
 
     [HotSwappable]
@@ -714,7 +726,7 @@ public class PathTracer
             }
 
             var b = a.Advance(
-                ref extParams, distDelta, angleDelta,
+                task.segment, distDelta, angleDelta,
                 extraValue, extraOffset, GridMargin,
                 out var pivotPoint, out var pivotOffset
             );
@@ -1036,8 +1048,14 @@ public class PathTracer
                 Length = remainingLength
             };
 
+            arcA.StableRangeHead = Math.Min(arcLengthA, c.segmentA.TraceParams.ArcStableRange.WithMin(1));
+            arcB.StableRangeHead = Math.Min(arcLengthB, c.segmentB.TraceParams.ArcStableRange.WithMin(1));
+            merged.StableRangeTail = Math.Min(merged.Length, merged.TraceParams.ArcStableRange.WithMin(1));
+
             arcA.Attach(merged);
             arcB.Attach(merged);
+
+            DebugOutput($"stable range: a {arcA.StableRangeHead} b {arcB.StableRangeHead} m {merged.StableRangeTail}");
 
             // TODO re-attach original branches to the merged one
 
@@ -1057,11 +1075,11 @@ public class PathTracer
             var arcAngle = -Vector2d.SignedAngle(frame.normal, normal);
 
             var ductSegment = segment.InsertNew();
-            ductSegment.TraceParams.ApplyFixedAngle(0);
+            ductSegment.TraceParams.ApplyFixedAngle(0, true);
             ductSegment.Length = ductLength;
 
             var arcSegment = ductSegment.InsertNew();
-            arcSegment.TraceParams.ApplyFixedAngle(arcAngle / arcLength);
+            arcSegment.TraceParams.ApplyFixedAngle(arcAngle / arcLength, true);
             arcSegment.Length = arcLength;
 
             return arcSegment;

@@ -125,7 +125,7 @@ public class Path
         public double RelSpeed = 1;
         public double RelDensity = 1;
 
-        public double StableRangeTail; // TODO
+        public double StableRangeTail;
         public double StableRangeHead;
 
         public Vector2d RelPosition;
@@ -353,6 +353,7 @@ public class Path
         public double AngleTenacity;
         public double AvoidOverlap;
         public double ArcRetraceRange;
+        public double ArcStableRange;
 
         public IGridFunction<double> AbsFollowGrid;
         public IGridFunction<double> RelFollowGrid;
@@ -361,14 +362,24 @@ public class Path
         public IGridFunction<double> SpeedGrid;
         public IGridFunction<double> DensityGrid;
 
-        public void ApplyFixedAngle(double angleDelta)
+        public void ApplyFixedAngle(double angleDelta, bool stable)
         {
-            AngleTenacity = 0;
             AvoidOverlap = 0;
             ArcRetraceRange = 0;
+            ArcStableRange = 0;
+            AngleTenacity = 0;
+
             AbsFollowGrid = null;
             RelFollowGrid = null;
+
             SwerveGrid = Of(angleDelta);
+
+            if (stable)
+            {
+                WidthLoss = 0;
+                SpeedLoss = 0;
+                SpeedGrid = null;
+            }
         }
 
         public static TraceParams Merge(TraceParams a, TraceParams b, double t = 0.5)
@@ -382,6 +393,7 @@ public class Path
                 AngleTenacity = t.Lerp(a.AngleTenacity, b.AngleTenacity),
                 AvoidOverlap = t.Lerp(a.AvoidOverlap, b.AvoidOverlap),
                 ArcRetraceRange = t.Lerp(a.ArcRetraceRange, b.ArcRetraceRange),
+                ArcStableRange = t.Lerp(a.ArcStableRange, b.ArcStableRange),
                 AbsFollowGrid = Lerp.Of(a.AbsFollowGrid, b.AbsFollowGrid, t),
                 RelFollowGrid = Lerp.Of(a.RelFollowGrid, b.RelFollowGrid, t),
                 SwerveGrid = Lerp.Of(a.SwerveGrid, b.SwerveGrid, t),
@@ -399,6 +411,7 @@ public class Path
             AngleTenacity.Equals(other.AngleTenacity) &&
             AvoidOverlap.Equals(other.AvoidOverlap) &&
             ArcRetraceRange.Equals(other.ArcRetraceRange) &&
+            ArcStableRange.Equals(other.ArcStableRange) &&
             Equals(AbsFollowGrid, other.AbsFollowGrid) &&
             Equals(RelFollowGrid, other.RelFollowGrid) &&
             Equals(SwerveGrid, other.SwerveGrid) &&

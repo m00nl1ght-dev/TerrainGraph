@@ -17,13 +17,17 @@ public class NodePathCollide : NodeBase
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
-    [ValueConnectionKnob("Range", Direction.In, ValueFunctionConnection.Id)]
-    public ValueConnectionKnob RangeKnob;
+    [ValueConnectionKnob("Arc Range", Direction.In, ValueFunctionConnection.Id)]
+    public ValueConnectionKnob ArcRangeKnob;
+
+    [ValueConnectionKnob("Stable Range", Direction.In, ValueFunctionConnection.Id)]
+    public ValueConnectionKnob StableRangeKnob;
 
     [ValueConnectionKnob("Output", Direction.Out, PathFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
 
-    public double Range;
+    public double ArcRange;
+    public double StableRange;
 
     public override void NodeGUI()
     {
@@ -36,7 +40,8 @@ public class NodePathCollide : NodeBase
         GUILayout.Label("Input", BoxLayout);
         GUILayout.EndHorizontal();
 
-        KnobValueField(RangeKnob, ref Range);
+        KnobValueField(ArcRangeKnob, ref ArcRange);
+        KnobValueField(StableRangeKnob, ref StableRange);
 
         GUILayout.EndVertical();
 
@@ -46,18 +51,22 @@ public class NodePathCollide : NodeBase
 
     public override void RefreshPreview()
     {
-        var range = GetIfConnected<double>(RangeKnob);
+        var arcRange = GetIfConnected<double>(ArcRangeKnob);
+        var stableRange = GetIfConnected<double>(StableRangeKnob);
 
-        range?.ResetState();
+        arcRange?.ResetState();
+        stableRange?.ResetState();
 
-        if (range != null) Range = range.Get();
+        if (arcRange != null) ArcRange = arcRange.Get();
+        if (stableRange != null) StableRange = stableRange.Get();
     }
 
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
-            SupplierOrFallback(RangeKnob, Range)
+            SupplierOrFallback(ArcRangeKnob, ArcRange),
+            SupplierOrFallback(StableRangeKnob, StableRange)
         ));
         return true;
     }
@@ -65,12 +74,14 @@ public class NodePathCollide : NodeBase
     private class Output : ISupplier<Path>
     {
         private readonly ISupplier<Path> _input;
-        private readonly ISupplier<double> _range;
+        private readonly ISupplier<double> _arcRange;
+        private readonly ISupplier<double> _stableRange;
 
-        public Output(ISupplier<Path> input, ISupplier<double> range)
+        public Output(ISupplier<Path> input, ISupplier<double> arcRange, ISupplier<double> stableRange)
         {
             _input = input;
-            _range = range;
+            _arcRange = arcRange;
+            _stableRange = stableRange;
         }
 
         public Path Get()
@@ -81,7 +92,8 @@ public class NodePathCollide : NodeBase
             {
                 var extParams = segment.TraceParams;
 
-                extParams.ArcRetraceRange = _range.Get();
+                extParams.ArcRetraceRange = _arcRange.Get();
+                extParams.ArcStableRange = _stableRange.Get();
 
                 segment.ExtendWithParams(extParams);
             }
@@ -92,7 +104,8 @@ public class NodePathCollide : NodeBase
         public void ResetState()
         {
             _input.ResetState();
-            _range.ResetState();
+            _arcRange.ResetState();
+            _stableRange.ResetState();
         }
     }
 }
