@@ -373,7 +373,7 @@ public class PathTracer
             this.width = parent.width * segment.RelWidth - distOffset * segment.TraceParams.WidthLoss;
             this.speed = parent.speed * segment.RelSpeed - distOffset * segment.TraceParams.SpeedLoss;
             this.value = parent.value + segment.RelValue + distOffset * (distOffset < 0 ? speed : parent.speed);
-            this.offset = parent.offset + segment.RelOffset - segment.RelShift * parent.widthMul * parent.densityMul; // TODO test
+            this.offset = parent.offset + segment.RelOffset - segment.RelShift * parent.widthMul * parent.densityMul;
             this.normal = Vector2d.Direction(-angle);
             this.pos = parent.pos + segment.RelPosition + segment.RelShift * parent.perpCCW * parent.widthMul + distOffset * normal;
             this.factors = new LocalFactors(segment, pos - gridOffset, distOffset);
@@ -525,16 +525,11 @@ public class PathTracer
             speed = segment.TraceParams.SpeedGrid?.ValueAt(pos) ?? 1;
             density = segment.TraceParams.DensityGrid?.ValueAt(pos) ?? 1;
 
-            var toTail = dist.InRange(0, segment.Length);
-            var toHead = segment.Length - toTail;
+            var progress = segment.Length <= 0 ? 0 : (dist / segment.Length).InRange01();
 
-            if (toTail < segment.StableRangeTail) scalar = Math.Min(scalar, toTail / segment.StableRangeTail);
-            if (toHead < segment.StableRangeHead) scalar = Math.Min(scalar, toHead / segment.StableRangeHead);
+            scalar = 1 - progress.Lerp(segment.LocalStabilityAtTail, segment.LocalStabilityAtHead).InRange01();
 
-            if (scalar != 1)
-            {
-                DebugOutput($"scalar at {pos + new Vector2d(3, 3)} is {scalar}");
-            }
+            // if (scalar != 1) DebugOutput($"scalar at {pos + new Vector2d(3, 3)} is {scalar} and width is {width.ScaleAround(1, scalar)}");
         }
 
         public override string ToString() =>
@@ -713,7 +708,7 @@ public class PathTracer
 
                         var value = MathUtil.LinearDist(smoothDelta.StepsTotal, smoothDelta.StepsStart + pointer);
 
-                        DebugOutput($"step {smoothDelta.StepsStart + pointer + 1} of {smoothDelta.StepsTotal} v {value} f {factor}");
+                        // DebugOutput($"step {smoothDelta.StepsStart + pointer + 1} of {smoothDelta.StepsTotal} v {value} f {factor}");
 
                         extraValue += smoothDelta.ValueDelta * value * factor;
                         extraOffset += smoothDelta.OffsetDelta * value * factor;
@@ -844,7 +839,7 @@ public class PathTracer
                                         {
                                             if (simulated.position == pos && simulated.framesB == null)
                                             {
-                                                simulated.framesB = ExchangeFrameBuffer();
+                                                simulated.framesB = ExchangeFrameBuffer(true);
                                             }
                                         }
                                     }
@@ -912,7 +907,7 @@ public class PathTracer
     /// <summary>
     /// Stub the active path segment in order to avoid the given collision.
     /// </summary>
-    private void Stub(PathCollision c)
+    private void Stub(PathCollision c) // TODO implement smooth stub
     {
         c.segmentA.Length = Math.Max(0, c.frameA.dist - c.retraceRangeA);
         c.segmentA.DetachAll();
@@ -928,7 +923,7 @@ public class PathTracer
 
         if (Vector2d.TryIntersect(c.frameA.pos, c.frameB.pos, c.frameA.normal, c.frameB.normal, out var midpoint, 0.05))
         {
-            normal = (c.frameA.normal + c.frameB.normal).Normalized;
+            normal = (c.frameA.normal * c.frameA.width + c.frameB.normal * c.frameB.width).Normalized;
         }
         else
         {
@@ -1048,14 +1043,16 @@ public class PathTracer
                 Length = remainingLength
             };
 
-            arcA.StableRangeHead = Math.Min(arcLengthA, c.segmentA.TraceParams.ArcStableRange.WithMin(1));
-            arcB.StableRangeHead = Math.Min(arcLengthB, c.segmentB.TraceParams.ArcStableRange.WithMin(1));
-            merged.StableRangeTail = Math.Min(merged.Length, merged.TraceParams.ArcStableRange.WithMin(1));
+            var stabilityRangeA = c.segmentA.TraceParams.ArcStableRange.WithMin(1);
+            var stabilityRangeB = c.segmentB.TraceParams.ArcStableRange.WithMin(1);
+
+            arcA.ApplyLocalStabilityAtHead(stabilityRangeA / 2, stabilityRangeA / 2);
+            arcB.ApplyLocalStabilityAtHead(stabilityRangeB / 2, stabilityRangeB / 2);
+
+            merged.ApplyLocalStabilityAtTail(0, 0.5.Lerp(stabilityRangeA, stabilityRangeB) / 2);
 
             arcA.Attach(merged);
             arcB.Attach(merged);
-
-            DebugOutput($"stable range: a {arcA.StableRangeHead} b {arcB.StableRangeHead} m {merged.StableRangeTail}");
 
             // TODO re-attach original branches to the merged one
 
@@ -1109,6 +1106,10 @@ public class PathTracer
                 {
                     if (scalarB < 0) continue;
 
+                    var scalarF = Vector2d.PerpDot(frame.normal, pointB - pointC) / Vector2d.PerpDot(frame.normal, normal);
+
+                    if (scalarF > 0) continue;
+
                     // https://math.stackexchange.com/a/1572508
                     var distBF = Vector2d.Distance(pointB, pointF);
                     var distCF = Vector2d.Distance(pointC, pointF);
@@ -1161,10 +1162,10 @@ public class PathTracer
     /// <summary>
     /// Create and set a new trace frame buffer, returning the old one.
     /// </summary>
-    private List<TraceFrame> ExchangeFrameBuffer()
+    private List<TraceFrame> ExchangeFrameBuffer(bool copy = false)
     {
         var buffer = _frameBuffer;
-        _frameBuffer = new(50);
+        _frameBuffer = copy ? new(buffer) : new(50);
         return buffer;
     }
 }

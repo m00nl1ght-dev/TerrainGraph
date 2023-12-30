@@ -38,7 +38,7 @@ public static class MathUtil
 
     public static double LerpClamped(this double t, double a, double b) => a + (b - a) * t.InRange01();
 
-    public static double ScaleAround(this double v, double m, double s) => (v - m) * s + v;
+    public static double ScaleAround(this double v, double m, double s) => (v - m) * s + m;
 
     public static double WithMin(this double value, double min) => value < min ? min : value;
 

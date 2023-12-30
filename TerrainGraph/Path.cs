@@ -21,6 +21,9 @@ public class Path
     private static Queue<Segment> _ts_queue;
 
     [ThreadStatic]
+    private static Queue<double> _ts_values;
+
+    [ThreadStatic]
     private static List<Segment> _ts_visited;
 
     public Path()
@@ -53,55 +56,55 @@ public class Path
     {
         var segIdMap = new Segment[other._segments.Count];
 
-        InitThreadStatics();
+        _ts_queue ??= new Queue<Segment>(8);
+        _ts_visited ??= new List<Segment>(8);
 
-        foreach (var otherSegment in other.Roots)
+        try
         {
-            var ownSegment = Roots.FirstOrDefault(s => s.SelfEquals(otherSegment));
-
-            if (ownSegment == null)
+            foreach (var otherSegment in other.Roots)
             {
-                ownSegment = new Segment(this);
-                ownSegment.CopyFrom(otherSegment);
+                var ownSegment = Roots.FirstOrDefault(s => s.SelfEquals(otherSegment));
+
+                if (ownSegment == null)
+                {
+                    ownSegment = new Segment(this);
+                    ownSegment.CopyFrom(otherSegment);
+                }
+
+                segIdMap[otherSegment.Id] = ownSegment;
+                _ts_queue.Enqueue(otherSegment);
             }
 
-            segIdMap[otherSegment.Id] = ownSegment;
-            _ts_queue.Enqueue(otherSegment);
-        }
-
-        while (_ts_queue.Count > 0)
-        {
-            var otherSegment = _ts_queue.Dequeue();
-            var ownSegment = segIdMap[otherSegment.Id];
-
-            if (_ts_visited.AddUnique(otherSegment))
+            while (_ts_queue.Count > 0)
             {
-                foreach (var otherBranch in otherSegment.Branches)
+                var otherSegment = _ts_queue.Dequeue();
+                var ownSegment = segIdMap[otherSegment.Id];
+
+                if (_ts_visited.AddUnique(otherSegment))
                 {
-                    var ownBranch = ownSegment.Branches.FirstOrDefault(s => s.SelfEquals(otherBranch));
-
-                    if (ownBranch == null)
+                    foreach (var otherBranch in otherSegment.Branches)
                     {
-                        ownBranch = new Segment(this);
-                        ownBranch.CopyFrom(otherBranch);
+                        var ownBranch = ownSegment.Branches.FirstOrDefault(s => s.SelfEquals(otherBranch));
+
+                        if (ownBranch == null)
+                        {
+                            ownBranch = new Segment(this);
+                            ownBranch.CopyFrom(otherBranch);
+                        }
+
+                        ownSegment.Attach(ownBranch);
+
+                        segIdMap[otherBranch.Id] = ownBranch;
+                        _ts_queue.Enqueue(otherBranch);
                     }
-
-                    ownSegment.Attach(ownBranch);
-
-                    segIdMap[otherBranch.Id] = ownBranch;
-                    _ts_queue.Enqueue(otherBranch);
                 }
             }
         }
-    }
-
-    private static void InitThreadStatics()
-    {
-        _ts_queue ??= new Queue<Segment>(8);
-        _ts_queue.Clear();
-
-        _ts_visited ??= new List<Segment>(8);
-        _ts_visited.Clear();
+        finally
+        {
+            _ts_queue.Clear();
+            _ts_visited.Clear();
+        }
     }
 
     private Path EnsureMutable()
@@ -110,6 +113,7 @@ public class Path
         return this;
     }
 
+    [HotSwappable]
     public class Segment
     {
         public readonly Path Path;
@@ -125,8 +129,8 @@ public class Path
         public double RelSpeed = 1;
         public double RelDensity = 1;
 
-        public double StableRangeTail;
-        public double StableRangeHead;
+        public double LocalStabilityAtTail;
+        public double LocalStabilityAtHead;
 
         public Vector2d RelPosition;
 
@@ -165,6 +169,8 @@ public class Path
             RelWidth = other.RelWidth;
             RelSpeed = other.RelSpeed;
             RelDensity = other.RelDensity;
+            LocalStabilityAtTail = other.LocalStabilityAtTail;
+            LocalStabilityAtHead = other.LocalStabilityAtHead;
             RelPosition = other.RelPosition;
             SmoothDelta = other.SmoothDelta;
             TraceParams = other.TraceParams;
@@ -235,6 +241,74 @@ public class Path
             branch._parents.Remove(this.Id);
         }
 
+        public void ApplyLocalStabilityAtTail(double constantRange, double linearRange)
+        {
+            ApplyLocalStability(constantRange, linearRange, false);
+        }
+
+        public void ApplyLocalStabilityAtHead(double constantRange, double linearRange)
+        {
+            ApplyLocalStability(constantRange, linearRange, true);
+        }
+
+        private void ApplyLocalStability(double constantRange, double linearRange, bool backwards)
+        {
+            constantRange = constantRange.WithMin(0);
+            linearRange = linearRange.WithMin(1);
+
+            var totalRange = constantRange + linearRange;
+            var initialValue = 1 + constantRange / linearRange;
+
+            _ts_queue ??= new Queue<Segment>(8);
+            _ts_visited ??= new List<Segment>(8);
+            _ts_values ??= new Queue<double>(8);
+
+            try
+            {
+                _ts_queue.Enqueue(this);
+                _ts_values.Enqueue(0);
+
+                while (_ts_queue.Count > 0)
+                {
+                    var segment = _ts_queue.Dequeue();
+                    var distance = _ts_values.Dequeue();
+
+                    if (_ts_visited.AddUnique(segment))
+                    {
+                        var a = (1 - distance / totalRange) * initialValue;
+
+                        distance += segment.Length;
+
+                        var b = (1 - distance / totalRange) * initialValue;
+
+                        var newTail = backwards ? b : a;
+                        var newHead = backwards ? a : b;
+
+                        var oldTail = segment.LocalStabilityAtTail;
+                        var oldHead = segment.LocalStabilityAtHead;
+
+                        segment.LocalStabilityAtTail = oldTail > 0 && oldTail > newTail ? oldTail : newTail;
+                        segment.LocalStabilityAtHead = oldHead > 0 && oldHead > newHead ? oldHead : newHead;
+
+                        if (b > 0)
+                        {
+                            foreach (var next in backwards ? segment.Parents : segment.Branches)
+                            {
+                                _ts_queue.Enqueue(next);
+                                _ts_values.Enqueue(distance);
+                            }
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                _ts_queue.Clear();
+                _ts_visited.Clear();
+                _ts_values.Clear();
+            }
+        }
+
         public bool IsParentOf(Segment other, bool includeSelf)
         {
             return AnyBranchesMatch(s => s == other, includeSelf);
@@ -247,19 +321,28 @@ public class Path
 
         public bool AnyBranchesMatch(Predicate<Segment> condition, bool includeSelf)
         {
-            InitThreadStatics();
+            _ts_queue ??= new Queue<Segment>(8);
+            _ts_visited ??= new List<Segment>(8);
 
-            _ts_queue.Enqueue(this);
-
-            while (_ts_queue.Count > 0)
+            try
             {
-                var segment = _ts_queue.Dequeue();
+                _ts_queue.Enqueue(this);
 
-                if (_ts_visited.AddUnique(segment))
+                while (_ts_queue.Count > 0)
                 {
-                    if ((includeSelf || segment != this) && condition(segment)) return true;
-                    foreach (var branch in segment.Branches) _ts_queue.Enqueue(branch);
+                    var segment = _ts_queue.Dequeue();
+
+                    if (_ts_visited.AddUnique(segment))
+                    {
+                        if ((includeSelf || segment != this) && condition(segment)) return true;
+                        foreach (var branch in segment.Branches) _ts_queue.Enqueue(branch);
+                    }
                 }
+            }
+            finally
+            {
+                _ts_queue.Clear();
+                _ts_visited.Clear();
             }
 
             return false;
@@ -267,19 +350,28 @@ public class Path
 
         public bool AnyParentsMatch(Predicate<Segment> condition, bool includeSelf)
         {
-            InitThreadStatics();
+            _ts_queue ??= new Queue<Segment>(8);
+            _ts_visited ??= new List<Segment>(8);
 
-            _ts_queue.Enqueue(this);
-
-            while (_ts_queue.Count > 0)
+            try
             {
-                var segment = _ts_queue.Dequeue();
+                _ts_queue.Enqueue(this);
 
-                if (_ts_visited.AddUnique(segment))
+                while (_ts_queue.Count > 0)
                 {
-                    if ((includeSelf || segment != this) && condition(segment)) return true;
-                    foreach (var parent in segment.Parents) _ts_queue.Enqueue(parent);
+                    var segment = _ts_queue.Dequeue();
+
+                    if (_ts_visited.AddUnique(segment))
+                    {
+                        if ((includeSelf || segment != this) && condition(segment)) return true;
+                        foreach (var parent in segment.Parents) _ts_queue.Enqueue(parent);
+                    }
                 }
+            }
+            finally
+            {
+                _ts_queue.Clear();
+                _ts_visited.Clear();
             }
 
             return false;
@@ -287,21 +379,28 @@ public class Path
 
         public List<Segment> ConnectedSegments(bool fwd = true, bool bwd = true)
         {
-            InitThreadStatics();
+            _ts_queue ??= new Queue<Segment>(8);
 
             var connected = new List<Segment>();
 
-            _ts_queue.Enqueue(this);
-
-            while (_ts_queue.Count > 0)
+            try
             {
-                var segment = _ts_queue.Dequeue();
+                _ts_queue.Enqueue(this);
 
-                if (connected.AddUnique(segment))
+                while (_ts_queue.Count > 0)
                 {
-                    if (fwd) foreach (var branch in segment.Branches) _ts_queue.Enqueue(branch);
-                    if (bwd) foreach (var parent in segment.Parents) _ts_queue.Enqueue(parent);
+                    var segment = _ts_queue.Dequeue();
+
+                    if (connected.AddUnique(segment))
+                    {
+                        if (fwd) foreach (var branch in segment.Branches) _ts_queue.Enqueue(branch);
+                        if (bwd) foreach (var parent in segment.Parents) _ts_queue.Enqueue(parent);
+                    }
                 }
+            }
+            finally
+            {
+                _ts_queue.Clear();
             }
 
             return connected;
