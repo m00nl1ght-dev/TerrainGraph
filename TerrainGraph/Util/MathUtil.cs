@@ -70,7 +70,9 @@ public static class MathUtil
 
     public static T ValueAt<T>(this IGridFunction<T> func, Vector2d pos) => func.ValueAt(pos.x, pos.z);
 
-    public static bool AddUnique<T>(this List<T> list, T item)
+    public static bool ElementsEqual<T>(this IReadOnlyCollection<T> a, IReadOnlyCollection<T> b) => a.Count == b.Count || a.All(b.Contains);
+
+    public static bool AddUnique<T>(this ICollection<T> list, T item)
     {
         if (list.Contains(item)) return false;
         list.Add(item);

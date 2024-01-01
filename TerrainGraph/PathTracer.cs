@@ -706,9 +706,18 @@ public class PathTracer
                             factor = length % stepSize / (stepSize + length % stepSize);
                         }
 
-                        var value = MathUtil.LinearDist(smoothDelta.StepsTotal, smoothDelta.StepsStart + pointer);
+                        var n = smoothDelta.StepsTotal;
+                        var x = smoothDelta.StepsStart + pointer;
 
-                        // DebugOutput($"step {smoothDelta.StepsStart + pointer + 1} of {smoothDelta.StepsTotal} v {value} f {factor}");
+                        if (n > smoothDelta.StepsPadding * 2)
+                        {
+                            n -= smoothDelta.StepsPadding * 2;
+                            x -= smoothDelta.StepsPadding;
+                        }
+
+                        var value = x < 0 || x >= n ? 0 : MathUtil.LinearDist(n, x);
+
+                        DebugOutput($"step {x} of {n} v {value} f {factor}");
 
                         extraValue += smoothDelta.ValueDelta * value * factor;
                         extraOffset += smoothDelta.OffsetDelta * value * factor;
@@ -821,7 +830,7 @@ public class PathTracer
                                     {
                                         var collided = _segmentGrid[x, z];
 
-                                        if (extParams.ArcRetraceRange > 0 && collided.TraceParams.ArcRetraceRange > 0)
+                                        if (CanCollide(task.segment, collided, dist))
                                         {
                                             return new TraceResult(a, new PathCollision
                                             {
@@ -862,6 +871,13 @@ public class PathTracer
         }
 
         return new TraceResult(a);
+    }
+
+    private bool CanCollide(Segment active, Segment passive, double dist)
+    {
+        if (active.TraceParams.ArcRetraceRange <= 0 || passive.TraceParams.ArcRetraceRange <= 0) return false;
+        if (active.ParentIds.ElementsEqual(passive.ParentIds) && dist < active.TraceParams.ArcRetraceRange) return false;
+        return true;
     }
 
     /// <summary>
@@ -907,9 +923,11 @@ public class PathTracer
     /// <summary>
     /// Stub the active path segment in order to avoid the given collision.
     /// </summary>
-    private void Stub(PathCollision c) // TODO implement smooth stub
+    private void Stub(PathCollision c)
     {
         c.segmentA.Length = Math.Max(0, c.frameA.dist - c.retraceRangeA);
+        c.segmentA.TraceParams.WidthLoss = c.framesA[0].width / c.segmentA.Length;
+        c.segmentA.TraceParams.DensityLoss = -2 * c.framesA[0].density / c.segmentA.Length;
         c.segmentA.DetachAll();
     }
 
@@ -996,7 +1014,7 @@ public class PathTracer
             {
                 var linearParents = new List<Segment>{segment};
 
-                var totalSteps = segment.FullSteps;
+                var totalSteps = segment.FullStepsCount(valueDiff > 0);
 
                 while (linearParents.Count < 99)
                 {
@@ -1006,21 +1024,23 @@ public class PathTracer
                     var next = current.Parents.First();
                     if (next.BranchIds.Count != 1) break;
 
-                    totalSteps += next.FullSteps;
+                    totalSteps += next.FullStepsCount(valueDiff > 0);
                     linearParents.Add(next);
                 }
 
                 linearParents.Reverse();
 
+                var padding = totalSteps / 8;
+
                 var currentSteps = 0;
 
                 foreach (var parent in linearParents)
                 {
-                    var fullSteps = parent.FullSteps;
+                    var fullSteps = parent.FullStepsCount(valueDiff > 0);
 
                     if (fullSteps > 0)
                     {
-                        parent.SmoothDelta = new SmoothDelta(0.5 * valueDiff, 0.5 * offsetDiff, totalSteps, currentSteps);
+                        parent.SmoothDelta = new SmoothDelta(0.5 * valueDiff, 0.5 * offsetDiff, totalSteps, currentSteps, padding);
                         currentSteps += fullSteps;
                     }
                 }

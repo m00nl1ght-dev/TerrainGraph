@@ -236,8 +236,6 @@ public class NodePathSplit : NodeBase
 
                 segment.ApplyLocalStabilityAtHead(0, stableRange / 2);
                 branch.ApplyLocalStabilityAtTail(stableRange / 2, stableRange / 2);
-
-                // TODO grace period for collisions (to avoid immediate collision when slightly overlapping after split)
             }
 
             return path;

@@ -138,8 +138,6 @@ public class Path
 
         public TraceParams TraceParams;
 
-        public int FullSteps => (int) Math.Floor(Length / TraceParams.StepSize.WithMin(1));
-
         public IEnumerable<Segment> Parents => _parents.Select(id => Path._segments[id]);
         public IEnumerable<Segment> Branches => _branches.Select(id => Path._segments[id]);
 
@@ -406,6 +404,13 @@ public class Path
             return connected;
         }
 
+        public int FullStepsCount(bool allowSingle)
+        {
+            var stepSize = TraceParams.StepSize.WithMin(1);
+            if (Length < stepSize && allowSingle) return 1;
+            return (int) Math.Floor(Length / stepSize);
+        }
+
         public bool SelfEquals(Segment other) =>
             Length.Equals(other.Length) &&
             RelValue.Equals(other.RelValue) &&
@@ -427,20 +432,23 @@ public class Path
 
         public readonly int StepsTotal;
         public readonly int StepsStart;
+        public readonly int StepsPadding;
 
-        public SmoothDelta(double valueDelta, double offsetDelta, int stepsTotal, int stepsStart)
+        public SmoothDelta(double valueDelta, double offsetDelta, int stepsTotal, int stepsStart, int stepsPadding)
         {
             ValueDelta = valueDelta;
             OffsetDelta = offsetDelta;
             StepsTotal = stepsTotal;
             StepsStart = stepsStart;
+            StepsPadding = stepsPadding;
         }
 
         public bool Equals(SmoothDelta other) =>
             ValueDelta.Equals(other.ValueDelta) &&
             OffsetDelta.Equals(other.OffsetDelta) &&
             StepsTotal.Equals(other.StepsTotal) &&
-            StepsStart.Equals(other.StepsStart);
+            StepsStart.Equals(other.StepsStart) &&
+            StepsPadding.Equals(other.StepsPadding);
     }
 
     public struct TraceParams
