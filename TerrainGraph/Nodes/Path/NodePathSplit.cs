@@ -231,11 +231,6 @@ public class NodePathSplit : NodeBase
                 branch.RelWidth = widths[_index];
                 branch.RelSpeed = speeds[_index];
                 branch.RelShift = mdPos - 0.5;
-
-                var stableRange = segment.TraceParams.ArcStableRange;
-
-                segment.ApplyLocalStabilityAtHead(0, stableRange / 2);
-                branch.ApplyLocalStabilityAtTail(stableRange / 2, stableRange / 2);
             }
 
             return path;

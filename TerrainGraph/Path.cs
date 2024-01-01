@@ -317,6 +317,11 @@ public class Path
             return AnyParentsMatch(s => s == other, includeSelf);
         }
 
+        public bool IsSiblingOf(Segment other, bool includeSelf)
+        {
+            return other.Path == Path && _parents.Any(other._parents.Contains) && (other != this || includeSelf);
+        }
+
         public bool AnyBranchesMatch(Predicate<Segment> condition, bool includeSelf)
         {
             _ts_queue ??= new Queue<Segment>(8);
@@ -451,6 +456,7 @@ public class Path
             StepsPadding.Equals(other.StepsPadding);
     }
 
+    [HotSwappable]
     public struct TraceParams
     {
         public double StepSize;
@@ -485,6 +491,7 @@ public class Path
             {
                 WidthLoss = 0;
                 SpeedLoss = 0;
+                DensityLoss = 0;
                 SpeedGrid = null;
             }
         }

@@ -27,12 +27,14 @@ public class PathTracer
     private readonly double[,] _valueGrid;
     private readonly double[,] _offsetGrid;
     private readonly double[,] _distanceGrid;
+    private readonly double[,] _debugGrid;
     private readonly Segment[,] _segmentGrid;
 
     public IGridFunction<double> MainGrid => BuildGridFunction(_mainGrid);
     public IGridFunction<double> ValueGrid => BuildGridFunction(_valueGrid);
     public IGridFunction<double> OffsetGrid => BuildGridFunction(_offsetGrid);
     public IGridFunction<double> DistanceGrid => BuildGridFunction(_distanceGrid);
+    public IGridFunction<double> DebugGrid => BuildGridFunction(_debugGrid);
 
     private readonly GridKernel _followGridKernel = GridKernel.Square(3, 5);
     private readonly GridKernel _avoidGridKernel = GridKernel.Shield(2, 5, 3);
@@ -69,6 +71,7 @@ public class PathTracer
         _valueGrid = new double[outerSizeX, outerSizeZ];
         _offsetGrid = new double[outerSizeX, outerSizeZ];
         _distanceGrid = new double[outerSizeX, outerSizeZ];
+        _debugGrid = new double[outerSizeX, outerSizeZ];
         _segmentGrid = new Segment[outerSizeX, outerSizeZ];
 
         if (TraceOuterMargin > 0)
@@ -95,6 +98,8 @@ public class PathTracer
     /// <returns>True if an attempt was successful, otherwise false</returns>
     public bool Trace(Path path, int maxAttempts = 50)
     {
+        Preprocess(path);
+
         _totalFramesCalculated = 0;
 
         var simulatedCollisions = new List<PathCollision>();
@@ -133,7 +138,41 @@ public class PathTracer
                 _valueGrid[x, z] = 0;
                 _offsetGrid[x, z] = 0;
                 _distanceGrid[x, z] = TraceOuterMargin;
+                _debugGrid[x, z] = 0;
                 _segmentGrid[x, z] = null;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Adjust stability values within the given path for smoother splitting and merging.
+    /// </summary>
+    private void Preprocess(Path path)
+    {
+        foreach (var segment in path.Segments)
+        {
+            if (segment.BranchIds.Count > 1)
+            {
+                var rangeMain = segment.TraceParams.ArcStableRange;
+                segment.ApplyLocalStabilityAtHead(0, rangeMain / 2);
+
+                foreach (var branch in segment.Branches)
+                {
+                    var rangeBranch = branch.TraceParams.ArcStableRange;
+                    branch.ApplyLocalStabilityAtTail(rangeBranch / 2, rangeBranch / 2);
+                }
+            }
+
+            if (segment.ParentIds.Count > 1)
+            {
+                var rangeMain = segment.TraceParams.ArcStableRange;
+                segment.ApplyLocalStabilityAtTail(0, rangeMain / 2);
+
+                foreach (var parent in segment.Parents)
+                {
+                    var rangeParent = parent.TraceParams.ArcStableRange;
+                    parent.ApplyLocalStabilityAtTail(rangeParent / 2, rangeParent / 2);
+                }
             }
         }
     }
@@ -467,6 +506,7 @@ public class PathTracer
                 newPos = pos + distDelta * normal;
             }
 
+            var newDist = dist + distDelta;
             var newValue = value + extraValue;
             var newOffset = offset + extraOffset;
 
@@ -476,8 +516,8 @@ public class PathTracer
                 width - distDelta * segment.TraceParams.WidthLoss,
                 speed - distDelta * segment.TraceParams.SpeedLoss,
                 density - distDelta * segment.TraceParams.DensityLoss,
-                newValue, newOffset, dist + distDelta,
-                new LocalFactors(segment, pos - gridOffset, dist)
+                newValue, newOffset, newDist,
+                new LocalFactors(segment, pos - gridOffset, newDist)
             );
         }
 
@@ -717,7 +757,7 @@ public class PathTracer
 
                         var value = x < 0 || x >= n ? 0 : MathUtil.LinearDist(n, x);
 
-                        DebugOutput($"step {x} of {n} v {value} f {factor}");
+                        // DebugOutput($"step {x} of {n} v {value} f {factor}");
 
                         extraValue += smoothDelta.ValueDelta * value * factor;
                         extraOffset += smoothDelta.OffsetDelta * value * factor;
@@ -743,8 +783,9 @@ public class PathTracer
             var boundOa = extendA + TraceOuterMargin;
             var boundOb = extendB + TraceOuterMargin;
 
-            if (extendA <= 0 && a.dist >= 0)
+            if (extendA < 1 && a.dist >= 0)
             {
+                DebugOutput($"Extend is less than 1 at {a.pos}");
                 length = Math.Min(length, b.dist);
             }
 
@@ -808,6 +849,7 @@ public class PathTracer
                             if (nowDist < preDist)
                             {
                                 _distanceGrid[x, z] = nowDist;
+                                _debugGrid[x, z] = a.factors.scalar;
                             }
 
                             if (shiftAbs <= extend + TraceInnerMargin)
@@ -870,13 +912,15 @@ public class PathTracer
             }
         }
 
+        DebugOutput($"Trace finished with final frame [{a}]");
+
         return new TraceResult(a);
     }
 
     private bool CanCollide(Segment active, Segment passive, double dist)
     {
-        if (active.TraceParams.ArcRetraceRange <= 0 || passive.TraceParams.ArcRetraceRange <= 0) return false;
-        if (active.ParentIds.ElementsEqual(passive.ParentIds) && dist < active.TraceParams.ArcRetraceRange) return false;
+        if (active.TraceParams.ArcRetraceRange <= 0) return false;
+        if (active.IsSiblingOf(passive, false) && dist < active.TraceParams.ArcRetraceRange) return false;
         return true;
     }
 
@@ -927,7 +971,7 @@ public class PathTracer
     {
         c.segmentA.Length = Math.Max(0, c.frameA.dist - c.retraceRangeA);
         c.segmentA.TraceParams.WidthLoss = c.framesA[0].width / c.segmentA.Length;
-        c.segmentA.TraceParams.DensityLoss = -2 * c.framesA[0].density / c.segmentA.Length;
+        c.segmentA.TraceParams.DensityLoss = -1 * c.framesA[0].density / c.segmentA.Length;
         c.segmentA.DetachAll();
     }
 
@@ -990,11 +1034,15 @@ public class PathTracer
             var valueAtMergeA = frameA.value + frameA.speed * (arcLengthA + ductLengthA);
             var valueAtMergeB = frameB.value + frameB.speed * (arcLengthB + ductLengthB);
 
-            var offsetAtMergeA = frameA.offset + frameA.width * 0.5 * -shift;
-            var offsetAtMergeB = frameB.offset + frameB.width * 0.5 * shift;
+            var targetDensity = 0.5.Lerp(frameA.density, frameB.density);
+
+            var offsetAtMergeA = frameA.offset + frameA.width * targetDensity * 0.5 * -shift;
+            var offsetAtMergeB = frameB.offset + frameB.width * targetDensity * 0.5 * shift;
 
             var arcA = InsertArcWithDuct(c.segmentA, ref frameA, arcLengthA, ductLengthA);
             var arcB = InsertArcWithDuct(c.segmentB, ref frameB, arcLengthB, ductLengthB);
+
+            var followingBranches = arcA.Branches.ToList();
 
             arcA.DetachAll();
             arcB.DetachAll();
@@ -1057,6 +1105,12 @@ public class PathTracer
 
             var remainingLength = Math.Max(orgLengthA - c.segmentA.Length, orgLengthB - c.segmentB.Length);
 
+            if (frameA.density != frameB.density)
+            {
+                arcA.TraceParams.DensityLoss = (frameA.density - targetDensity) / arcA.Length;
+                arcB.TraceParams.DensityLoss = (frameB.density - targetDensity) / arcB.Length;
+            }
+
             var merged = new Segment(arcA.Path)
             {
                 TraceParams = TraceParams.Merge(c.segmentA.TraceParams, c.segmentB.TraceParams),
@@ -1074,7 +1128,10 @@ public class PathTracer
             arcA.Attach(merged);
             arcB.Attach(merged);
 
-            // TODO re-attach original branches to the merged one
+            foreach (var branch in followingBranches)
+            {
+                merged.Attach(branch);
+            }
 
             return true;
         }

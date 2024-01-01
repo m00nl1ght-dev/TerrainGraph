@@ -19,6 +19,8 @@ public class NodePathTrace : NodeBase
 
     public override string Title => "Path: Trace";
 
+    public static IGridFunction<double> DebugGrid;
+
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
@@ -71,7 +73,8 @@ public class NodePathTrace : NodeBase
 
         var output = new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
-            TerrainCanvas.GridFullSize
+            TerrainCanvas.GridFullSize,
+            !TerrainCanvas.HasActiveGUI
         );
 
         MainOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
@@ -97,11 +100,13 @@ public class NodePathTrace : NodeBase
     {
         private readonly ISupplier<Path> _input;
         private readonly int _gridSize;
+        private readonly bool _debug;
 
-        public Output(ISupplier<Path> input, int gridSize)
+        public Output(ISupplier<Path> input, int gridSize, bool debug)
         {
             _input = input;
             _gridSize = gridSize;
+            _debug = debug;
         }
 
         public PathTracer Get()
@@ -114,6 +119,11 @@ public class NodePathTrace : NodeBase
             );
 
             tracer.Trace(_input.Get());
+
+            if (_debug)
+            {
+                DebugGrid = tracer.DebugGrid;
+            }
 
             return tracer;
         }
