@@ -14,7 +14,9 @@ public class PathTracer
 {
     private const int MaxTraceFrames = 1_000_000;
 
-    private const double RadialThreshold = 0.5;
+    public double RadialThreshold = 0.5;
+    public double MergeValueDeltaLimit = 0.3;
+    public double MergeOffsetDeltaLimit = 0.2;
 
     public readonly Vector2d GridInnerSize;
     public readonly Vector2d GridOuterSize;
@@ -154,7 +156,7 @@ public class PathTracer
             if (segment.BranchIds.Count > 1)
             {
                 var rangeMain = segment.TraceParams.ArcStableRange;
-                segment.ApplyLocalStabilityAtHead(0, rangeMain / 2);
+                segment.ApplyLocalStabilityAtHead(0, rangeMain);
 
                 foreach (var branch in segment.Branches)
                 {
@@ -481,17 +483,18 @@ public class PathTracer
         /// <param name="gridOffset">Offset applied when retrieving factors from external grids</param>
         /// <param name="pivotPoint">Pivot point resulting from the angle change and distance</param>
         /// <param name="pivotOffset">Signed distance of the pivot point from the frame position</param>
+        /// <param name="radial">If true, the path will advance along a circle arc, otherwise linearly</param>
         /// <returns></returns>
         public TraceFrame Advance(
             Segment segment, double distDelta, double angleDelta, double extraValue, double extraOffset,
-            Vector2d gridOffset, out Vector2d pivotPoint, out double pivotOffset)
+            Vector2d gridOffset, out Vector2d pivotPoint, out double pivotOffset, bool radial)
         {
             var newAngle = (angle + angleDelta).NormalizeDeg();
             var newNormal = Vector2d.Direction(-newAngle);
 
             Vector2d newPos;
 
-            if (Math.Abs(angleDelta) >= RadialThreshold)
+            if (radial)
             {
                 pivotOffset = 180 * distDelta / (Math.PI * -angleDelta);
                 pivotPoint = pos + perpCCW * pivotOffset;
@@ -772,7 +775,8 @@ public class PathTracer
             var b = a.Advance(
                 task.segment, distDelta, angleDelta,
                 extraValue, extraOffset, GridMargin,
-                out var pivotPoint, out var pivotOffset
+                out var pivotPoint, out var pivotOffset,
+                Math.Abs(angleDelta) >= RadialThreshold
             );
 
             var extendA = a.widthMul / 2;
@@ -1025,9 +1029,6 @@ public class PathTracer
 
             if (frameIdxB < 0) continue;
 
-            var connectedA = c.segmentA.ConnectedSegments();
-            var connectedB = c.segmentB.ConnectedSegments();
-
             var frameA = c.framesA[frameIdxA];
             var frameB = c.framesB[frameIdxB];
 
@@ -1039,15 +1040,36 @@ public class PathTracer
             var offsetAtMergeA = frameA.offset + frameA.width * targetDensity * 0.5 * -shift;
             var offsetAtMergeB = frameB.offset + frameB.width * targetDensity * 0.5 * shift;
 
+            var followingBranches = c.segmentA.Branches.ToList();
+
+            var connectedA = c.segmentA.ConnectedSegments();
+            var connectedB = c.segmentB.ConnectedSegments();
+
+            c.segmentA.DetachAll();
+            c.segmentB.DetachAll();
+
+            var interconnected = connectedA.Any(e => connectedB.Contains(e));
+
+            if (interconnected)
+            {
+                var mutableDist = arcLengthA + ductLengthA + arcLengthB + ductLengthB;
+
+                mutableDist += GetLinearParents(c.segmentA).Sum(s => s.Length);
+                mutableDist += GetLinearParents(c.segmentB).Sum(s => s.Length);
+
+                var valueDelta = Math.Abs(valueAtMergeA - valueAtMergeB);
+                var offsetDelta = Math.Abs(offsetAtMergeA - offsetAtMergeB);
+
+                DebugOutput($"Merge spans value {valueDelta} and offset {offsetDelta} over mutable distance of {mutableDist}");
+
+                if (valueDelta / mutableDist > MergeValueDeltaLimit) return false;
+                if (offsetDelta / mutableDist > MergeOffsetDeltaLimit) return false;
+            }
+
             var arcA = InsertArcWithDuct(c.segmentA, ref frameA, arcLengthA, ductLengthA);
             var arcB = InsertArcWithDuct(c.segmentB, ref frameB, arcLengthB, ductLengthB);
 
-            var followingBranches = arcA.Branches.ToList();
-
-            arcA.DetachAll();
-            arcB.DetachAll();
-
-            if (connectedA.Any(e => connectedB.Contains(e)))
+            if (interconnected)
             {
                 ModifyParents(arcA, valueAtMergeB - valueAtMergeA, offsetAtMergeB - offsetAtMergeA);
                 ModifyParents(arcB, valueAtMergeA - valueAtMergeB, offsetAtMergeA - offsetAtMergeB);
@@ -1058,23 +1080,19 @@ public class PathTracer
                 ModifyRoots(connectedB, valueAtMergeA - valueAtMergeB, offsetAtMergeA - offsetAtMergeB);
             }
 
+            List<Segment> GetLinearParents(Segment segment)
+            {
+                return segment.ConnectedSegments(false, true,
+                    s => s.BranchIds.Count == 1 || s == segment,
+                    s => s.ParentIds.Count == 1
+                );
+            }
+
             void ModifyParents(Segment segment, double valueDiff, double offsetDiff)
             {
-                var linearParents = new List<Segment>{segment};
+                var linearParents = GetLinearParents(segment);
 
-                var totalSteps = segment.FullStepsCount(valueDiff > 0);
-
-                while (linearParents.Count < 99)
-                {
-                    var current = linearParents.Last();
-                    if (current.ParentIds.Count != 1) break;
-
-                    var next = current.Parents.First();
-                    if (next.BranchIds.Count != 1) break;
-
-                    totalSteps += next.FullStepsCount(valueDiff > 0);
-                    linearParents.Add(next);
-                }
+                var totalSteps = linearParents.Sum(s => s.FullStepsCount(valueDiff > 0));
 
                 linearParents.Reverse();
 

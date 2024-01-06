@@ -380,7 +380,10 @@ public class Path
             return false;
         }
 
-        public List<Segment> ConnectedSegments(bool fwd = true, bool bwd = true)
+        public List<Segment> ConnectedSegments(
+            bool fwd = true, bool bwd = true,
+            Predicate<Segment> entryCondition = null,
+            Predicate<Segment> exitCondition = null)
         {
             _ts_queue ??= new Queue<Segment>(8);
 
@@ -394,10 +397,16 @@ public class Path
                 {
                     var segment = _ts_queue.Dequeue();
 
-                    if (connected.AddUnique(segment))
+                    if (entryCondition == null || entryCondition(segment))
                     {
-                        if (fwd) foreach (var branch in segment.Branches) _ts_queue.Enqueue(branch);
-                        if (bwd) foreach (var parent in segment.Parents) _ts_queue.Enqueue(parent);
+                        if (connected.AddUnique(segment))
+                        {
+                            if (exitCondition == null || exitCondition(segment))
+                            {
+                                if (fwd) foreach (var branch in segment.Branches) _ts_queue.Enqueue(branch);
+                                if (bwd) foreach (var parent in segment.Parents) _ts_queue.Enqueue(parent);
+                            }
+                        }
                     }
                 }
             }
