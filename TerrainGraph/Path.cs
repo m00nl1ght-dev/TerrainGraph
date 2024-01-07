@@ -129,8 +129,8 @@ public class Path
         public double RelSpeed = 1;
         public double RelDensity = 1;
 
-        public double LocalStabilityAtTail;
-        public double LocalStabilityAtHead;
+        public double LocalStabilityAtTail = -9999;
+        public double LocalStabilityAtHead = -9999;
 
         public Vector2d RelPosition;
 
@@ -279,21 +279,46 @@ public class Path
 
                         var b = (1 - distance / totalRange) * initialValue;
 
-                        var newTail = backwards ? b : a;
-                        var newHead = backwards ? a : b;
-
-                        var oldTail = segment.LocalStabilityAtTail;
-                        var oldHead = segment.LocalStabilityAtHead;
-
-                        segment.LocalStabilityAtTail = oldTail > 0 && oldTail > newTail ? oldTail : newTail;
-                        segment.LocalStabilityAtHead = oldHead > 0 && oldHead > newHead ? oldHead : newHead;
-
                         if (b > 0)
                         {
                             foreach (var next in backwards ? segment.Parents : segment.Branches)
                             {
                                 _ts_queue.Enqueue(next);
                                 _ts_values.Enqueue(distance);
+                            }
+                        }
+
+                        var newTail = backwards ? b : a;
+                        var newHead = backwards ? a : b;
+
+                        var oldTail = segment.LocalStabilityAtTail;
+                        var oldHead = segment.LocalStabilityAtHead;
+
+                        if (newTail >= oldTail && newHead >= oldHead)
+                        {
+                            segment.LocalStabilityAtTail = newTail;
+                            segment.LocalStabilityAtHead = newHead;
+                        }
+                        else if (newTail > oldTail || newHead > oldHead)
+                        {
+                            var maxTail = Math.Max(oldTail, newTail);
+                            var minTail = Math.Min(oldTail, newTail);
+                            var maxHead = Math.Max(oldHead, newHead);
+                            var minHead = Math.Min(oldHead, newHead);
+
+                            var p = (maxTail - minTail) / (maxTail - minHead - minTail + maxHead);
+
+                            if (p is >= 0 and <= 1)
+                            {
+                                var inserted = segment.InsertNew();
+
+                                inserted.Length = (1 - p) * segment.Length;
+                                segment.Length -= inserted.Length;
+
+                                segment.LocalStabilityAtTail = maxTail;
+                                segment.LocalStabilityAtHead = maxTail + (minHead - maxTail) * p;
+                                inserted.LocalStabilityAtTail = segment.LocalStabilityAtHead;
+                                inserted.LocalStabilityAtHead = maxHead;
                             }
                         }
                     }

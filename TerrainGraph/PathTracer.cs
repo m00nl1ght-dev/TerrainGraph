@@ -151,30 +151,30 @@ public class PathTracer
     /// </summary>
     private void Preprocess(Path path)
     {
-        foreach (var segment in path.Segments)
+        foreach (var segment in path.Segments.ToList())
         {
             if (segment.BranchIds.Count > 1)
             {
-                var rangeMain = segment.TraceParams.ArcStableRange;
-                segment.ApplyLocalStabilityAtHead(0, rangeMain);
-
                 foreach (var branch in segment.Branches)
                 {
                     var rangeBranch = branch.TraceParams.ArcStableRange;
                     branch.ApplyLocalStabilityAtTail(rangeBranch / 2, rangeBranch / 2);
                 }
+
+                var rangeMain = segment.TraceParams.ArcStableRange;
+                segment.ApplyLocalStabilityAtHead(0, rangeMain);
             }
 
             if (segment.ParentIds.Count > 1)
             {
-                var rangeMain = segment.TraceParams.ArcStableRange;
-                segment.ApplyLocalStabilityAtTail(0, rangeMain / 2);
-
                 foreach (var parent in segment.Parents)
                 {
                     var rangeParent = parent.TraceParams.ArcStableRange;
-                    parent.ApplyLocalStabilityAtTail(rangeParent / 2, rangeParent / 2);
+                    parent.ApplyLocalStabilityAtHead(rangeParent / 2, rangeParent / 2);
                 }
+
+                var rangeMain = segment.TraceParams.ArcStableRange;
+                segment.ApplyLocalStabilityAtTail(0, rangeMain / 2);
             }
         }
     }
@@ -1032,6 +1032,9 @@ public class PathTracer
             var frameA = c.framesA[frameIdxA];
             var frameB = c.framesB[frameIdxB];
 
+            var stabilityRangeA = c.segmentA.TraceParams.ArcStableRange.WithMin(1);
+            var stabilityRangeB = c.segmentB.TraceParams.ArcStableRange.WithMin(1);
+
             var valueAtMergeA = frameA.value + frameA.speed * (arcLengthA + ductLengthA);
             var valueAtMergeB = frameB.value + frameB.speed * (arcLengthB + ductLengthB);
 
@@ -1068,6 +1071,11 @@ public class PathTracer
 
             var arcA = InsertArcWithDuct(c.segmentA, ref frameA, arcLengthA, ductLengthA);
             var arcB = InsertArcWithDuct(c.segmentB, ref frameB, arcLengthB, ductLengthB);
+
+            var remainingLength = Math.Max(orgLengthA - c.segmentA.Length, orgLengthB - c.segmentB.Length);
+
+            arcA.ApplyLocalStabilityAtHead(stabilityRangeA / 2, stabilityRangeA / 2);
+            arcB.ApplyLocalStabilityAtHead(stabilityRangeB / 2, stabilityRangeB / 2);
 
             if (interconnected)
             {
@@ -1121,8 +1129,6 @@ public class PathTracer
                 }
             }
 
-            var remainingLength = Math.Max(orgLengthA - c.segmentA.Length, orgLengthB - c.segmentB.Length);
-
             if (frameA.density != frameB.density)
             {
                 arcA.TraceParams.DensityLoss = (frameA.density - targetDensity) / arcA.Length;
@@ -1134,12 +1140,6 @@ public class PathTracer
                 TraceParams = TraceParams.Merge(c.segmentA.TraceParams, c.segmentB.TraceParams),
                 Length = remainingLength
             };
-
-            var stabilityRangeA = c.segmentA.TraceParams.ArcStableRange.WithMin(1);
-            var stabilityRangeB = c.segmentB.TraceParams.ArcStableRange.WithMin(1);
-
-            arcA.ApplyLocalStabilityAtHead(stabilityRangeA / 2, stabilityRangeA / 2);
-            arcB.ApplyLocalStabilityAtHead(stabilityRangeB / 2, stabilityRangeB / 2);
 
             merged.ApplyLocalStabilityAtTail(0, 0.5.Lerp(stabilityRangeA, stabilityRangeB) / 2);
 
