@@ -118,7 +118,22 @@ public class NodePathTrace : NodeBase
                 TraceMarginOuterDefault
             );
 
-            tracer.Trace(_input.Get());
+            var maxAttempts = 50;
+
+            if (_debug)
+            {
+                if (Input.GetKey(KeyCode.Alpha1)) maxAttempts = 1;
+                if (Input.GetKey(KeyCode.Alpha2)) maxAttempts = 2;
+                if (Input.GetKey(KeyCode.Alpha3)) maxAttempts = 3;
+                if (Input.GetKey(KeyCode.Alpha4)) maxAttempts = 4;
+                if (Input.GetKey(KeyCode.Alpha5)) maxAttempts = 5;
+                if (Input.GetKey(KeyCode.Alpha6)) maxAttempts = 6;
+                if (Input.GetKey(KeyCode.Alpha7)) maxAttempts = 7;
+                if (Input.GetKey(KeyCode.Alpha8)) maxAttempts = 8;
+                if (Input.GetKey(KeyCode.Alpha9)) maxAttempts = 9;
+            }
+
+            tracer.Trace(_input.Get(), maxAttempts);
 
             if (_debug)
             {

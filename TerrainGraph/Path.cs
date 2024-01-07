@@ -217,11 +217,12 @@ public class Path
             return segment;
         }
 
-        public void DetachAll()
+        public void DetachAll(bool discard = false)
         {
             foreach (var branch in Branches.ToList())
             {
                 Detach(branch);
+                if (discard) branch.Discard();
             }
         }
 
@@ -237,6 +238,12 @@ public class Path
             if (branch.Path != Path) throw new InvalidOperationException();
             this._branches.Remove(branch.Id);
             branch._parents.Remove(this.Id);
+        }
+
+        public void Discard()
+        {
+            this.RelWidth = 0;
+            this.Length = 0;
         }
 
         public void ApplyLocalStabilityAtTail(double constantRange, double linearRange)
@@ -337,12 +344,22 @@ public class Path
             return AnyBranchesMatch(s => s == other, includeSelf);
         }
 
+        public bool IsDirectParentOf(Segment other, bool includeSelf)
+        {
+            return (includeSelf && other == this) || (Path == other.Path && _branches.Contains(other.Id));
+        }
+
         public bool IsBranchOf(Segment other, bool includeSelf)
         {
             return AnyParentsMatch(s => s == other, includeSelf);
         }
 
-        public bool IsSiblingOf(Segment other, bool includeSelf)
+        public bool IsDirectBranchOf(Segment other, bool includeSelf)
+        {
+            return (includeSelf && other == this) || (Path == other.Path && _parents.Contains(other.Id));
+        }
+
+        public bool IsDirectSiblingOf(Segment other, bool includeSelf)
         {
             return other.Path == Path && _parents.Any(other._parents.Contains) && (other != this || includeSelf);
         }

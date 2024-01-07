@@ -47,7 +47,9 @@ public class PathTracer
 
     private int _totalFramesCalculated;
 
-    public static Action<string> DebugOutput = _ => {};
+    public static readonly Action<string> DebugOff = _ => {};
+
+    public static Action<string> DebugOutput = DebugOff;
 
     public PathTracer(
         int innerSizeX, int innerSizeZ, int gridMargin,
@@ -109,6 +111,8 @@ public class PathTracer
 
         for (int attempt = 0; attempt < maxAttempts - 1; attempt++)
         {
+            DebugOutput($"### ATTEMPT {attempt} ###");
+
             TryTrace(path, occuredCollisions);
             if (occuredCollisions.Count == 0) return true;
             Clear();
@@ -116,15 +120,24 @@ public class PathTracer
             simulatedCollisions.AddRange(occuredCollisions);
             occuredCollisions.Clear();
 
+            var debugOutput = DebugOutput;
+            DebugOutput = DebugOff;
+
+            DebugOutput($"### SIM FOR ATTEMPT {attempt} ###");
+
             TryTrace(path, occuredCollisions, simulatedCollisions);
             if (occuredCollisions.Count == 0) return true;
             Clear();
+
+            DebugOutput = debugOutput;
 
             HandleFirstCollision(simulatedCollisions);
 
             simulatedCollisions.Clear();
             occuredCollisions.Clear();
         }
+
+        DebugOutput($"### FINAL ATTEMPT ###");
 
         TryTrace(path, occuredCollisions);
         return occuredCollisions.Count == 0;
@@ -185,7 +198,6 @@ public class PathTracer
     /// <param name="path">Path to trace</param>
     /// <param name="occuredCollisions">Collisions that occur while tracing will be added to this list</param>
     /// <param name="simulatedCollisions">List of collisions to be simulated, may be null if there are none</param>
-    /// <returns>Null if the path was fully traced, otherwise the collision that occured</returns>
     private void TryTrace(Path path, List<PathCollision> occuredCollisions, List<PathCollision> simulatedCollisions = null)
     {
         var taskQueue = new Queue<TraceTask>();
@@ -194,7 +206,10 @@ public class PathTracer
 
         foreach (var rootSegment in path.Roots)
         {
-            Enqueue(rootSegment, originFrame);
+            if (rootSegment.RelWidth > 0)
+            {
+                Enqueue(rootSegment, originFrame);
+            }
         }
 
         while (taskQueue.Count > 0)
@@ -207,10 +222,10 @@ public class PathTracer
 
             if (result.collision != null)
             {
+                DebugOutput($"Collision happened: {result.collision}");
                 occuredCollisions.Add(result.collision);
             }
-
-            if (result.finalFrame.width > 0)
+            else if (result.finalFrame.width > 0)
             {
                 foreach (var branch in task.segment.Branches)
                 {
@@ -637,6 +652,7 @@ public class PathTracer
 
         public bool Precedes(PathCollision other)
         {
+            if (segmentA.IsBranchOf(other.segmentB, true)) return false;
             if (segmentB.IsParentOf(other.segmentA, true)) return true;
             if (segmentB.IsParentOf(other.segmentB, false)) return true;
             if (!complete && !other.complete) return false;
@@ -645,8 +661,8 @@ public class PathTracer
         }
 
         public override string ToString() =>
-            $"{nameof(segmentA)}: {segmentA.GetHashCode()}, " +
-            $"{nameof(segmentB)}: {segmentB.GetHashCode()}, " +
+            $"{nameof(segmentA)}: {segmentA.Id}, " +
+            $"{nameof(segmentB)}: {segmentB.Id}, " +
             $"{nameof(frameA)}: {(framesA == null ? "?" : frameA)}, " +
             $"{nameof(frameB)}: {(framesB == null ? "?" : frameB)}, " +
             $"{nameof(position)}: {position}";
@@ -665,7 +681,7 @@ public class PathTracer
 
         var initialFrame = new TraceFrame(task.baseFrame, task.segment, GridMargin, -task.marginTail);
 
-        DebugOutput($"Trace start with initial frame [{initialFrame}] and length {length}");
+        DebugOutput($"Segment {task.segment.Id} started with initial frame [{initialFrame}] and length {length}");
 
         if (length <= 0) return new TraceResult(initialFrame);
 
@@ -789,7 +805,7 @@ public class PathTracer
 
             if (extendA < 1 && a.dist >= 0)
             {
-                DebugOutput($"Extend is less than 1 at {a.pos}");
+                DebugOutput($"Extend is less than 1 at {a.pos} for segment {task.segment.Id}");
                 length = Math.Min(length, b.dist);
             }
 
@@ -853,7 +869,7 @@ public class PathTracer
                             if (nowDist < preDist)
                             {
                                 _distanceGrid[x, z] = nowDist;
-                                _debugGrid[x, z] = a.factors.scalar;
+                                _debugGrid[x, z] = task.segment.Id;
                             }
 
                             if (shiftAbs <= extend + TraceInnerMargin)
@@ -916,7 +932,7 @@ public class PathTracer
             }
         }
 
-        DebugOutput($"Trace finished with final frame [{a}]");
+        DebugOutput($"Segment {task.segment.Id} finished with final frame [{a}]");
 
         return new TraceResult(a);
     }
@@ -924,7 +940,14 @@ public class PathTracer
     private bool CanCollide(Segment active, Segment passive, double dist)
     {
         if (active.TraceParams.ArcRetraceRange <= 0) return false;
-        if (active.IsSiblingOf(passive, false) && dist < active.TraceParams.ArcRetraceRange) return false;
+
+        if (dist < active.TraceParams.ArcRetraceRange)
+        {
+            if (active.IsDirectParentOf(passive, false)) return false;
+            if (active.IsDirectBranchOf(passive, false)) return false;
+            if (active.IsDirectSiblingOf(passive, false)) return false;
+        }
+
         return true;
     }
 
@@ -973,10 +996,59 @@ public class PathTracer
     /// </summary>
     private void Stub(PathCollision c)
     {
-        c.segmentA.Length = Math.Max(0, c.frameA.dist - c.retraceRangeA);
-        c.segmentA.TraceParams.WidthLoss = c.framesA[0].width / c.segmentA.Length;
-        c.segmentA.TraceParams.DensityLoss = -1 * c.framesA[0].density / c.segmentA.Length;
-        c.segmentA.DetachAll();
+        Segment stub;
+        List<TraceFrame> frames;
+
+        if (c.frameA.width <= c.frameB.width)
+        {
+            stub = c.segmentA;
+            frames = c.framesA;
+        }
+        else
+        {
+            stub = c.segmentB;
+            frames = c.framesB;
+        }
+
+        stub.Length = frames[frames.Count - 1].dist;
+
+        var lengthDiff = -1 * stub.TraceParams.ArcRetraceRange.WithMin(1);
+
+        var widthAtTail = frames[0].width;
+        var densityAtTail = frames[0].density;
+        var speedAtTail = frames[0].speed;
+
+        while (stub.Length + lengthDiff < 2.5 * widthAtTail)
+        {
+            if (stub.ParentIds.Count == 0 || stub.RelWidth <= 0 || stub.RelDensity <= 0 || stub.RelSpeed <= 0)
+            {
+                stub.Discard();
+                return;
+            }
+
+            if (stub.ParentIds.Count == 1)
+            {
+                var parent = stub.Parents.First();
+                if (parent.AnyBranchesMatch(b => b.ParentIds.Count > 1, false)) break;
+
+                widthAtTail = widthAtTail / stub.RelWidth + parent.TraceParams.WidthLoss * parent.Length;
+                densityAtTail = densityAtTail / stub.RelDensity + parent.TraceParams.DensityLoss * parent.Length;
+                speedAtTail = speedAtTail / stub.RelSpeed + parent.TraceParams.SpeedLoss * parent.Length;
+
+                lengthDiff += stub.Length;
+                stub = parent;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        stub.Length += lengthDiff;
+        stub.TraceParams.WidthLoss = widthAtTail / stub.Length;
+        stub.TraceParams.DensityLoss = -3 * densityAtTail / stub.Length;
+        stub.TraceParams.SpeedLoss = -3 * speedAtTail / stub.Length;
+        stub.DetachAll(true);
     }
 
     /// <summary>
@@ -998,6 +1070,7 @@ public class PathTracer
             midpoint = c.position;
         }
 
+        if (c.segmentA.TraceParams.AvoidOverlap > 0) return false;
         if (c.segmentA.IsBranchOf(c.segmentB, true)) return false;
 
         if (c.segmentA.AnyBranchesMatch(s => s.ParentIds.Count > 1, false)) return false;
@@ -1013,7 +1086,9 @@ public class PathTracer
             var orgLengthA = c.segmentA.Length;
             var orgLengthB = c.segmentB.Length;
 
-            DebugOutput($"range: {range} target: {target} normal: {normal} perpDot: {Vector2d.PerpDot(c.frameA.normal, c.frameB.normal)}");
+            var perpDot = Vector2d.PerpDot(c.frameA.normal, c.frameB.normal);
+
+            DebugOutput($"Attempting with range {range} target {target} normal {normal} perpDot {perpDot}");
 
             var frameIdxA = CalcArcWithDuct(
                 c.segmentA, c.framesA, target, normal.PerpCW * shift,
@@ -1043,7 +1118,8 @@ public class PathTracer
             var offsetAtMergeA = frameA.offset + frameA.width * targetDensity * 0.5 * -shift;
             var offsetAtMergeB = frameB.offset + frameB.width * targetDensity * 0.5 * shift;
 
-            var followingBranches = c.segmentA.Branches.ToList();
+            var discardedBranches = c.segmentA.Branches.ToList();
+            var followingBranches = c.segmentB.Branches.ToList();
 
             var connectedA = c.segmentA.ConnectedSegments();
             var connectedB = c.segmentB.ConnectedSegments();
@@ -1148,7 +1224,14 @@ public class PathTracer
 
             foreach (var branch in followingBranches)
             {
+                DebugOutput($"Re-attaching branch {branch.Id}");
                 merged.Attach(branch);
+            }
+
+            foreach (var branch in discardedBranches)
+            {
+                DebugOutput($"Discarding branch {branch.Id}");
+                branch.Discard();
             }
 
             return true;
@@ -1182,7 +1265,7 @@ public class PathTracer
             List<TraceFrame> frames,
             Vector2d target,
             Vector2d shiftDir,
-            double maxRange,
+            double minRange,
             out double arcLength,
             out double ductLength)
         {
@@ -1193,17 +1276,31 @@ public class PathTracer
                 var pointB = frame.pos;
                 var pointC = target + shiftDir * 0.5 * frame.width;
 
-                if (Vector2d.Distance(pointB, c.position) < maxRange && frameIdx > 0) continue;
+                var distBX = Vector2d.Distance(pointB, c.position);
+
+                if (distBX < minRange && frameIdx > 0)
+                {
+                    DebugOutput($"For segment {segment.Id} frame {frameIdx} the range {distBX} is below min {minRange}");
+                    continue;
+                }
 
                 var arcAngle = -Vector2d.SignedAngle(frame.normal, normal);
 
                 if (Vector2d.TryIntersect(pointB, pointC, frame.normal, normal, out var pointF, out var scalarB, 0.05))
                 {
-                    if (scalarB < 0) continue;
+                    if (scalarB < 0)
+                    {
+                        DebugOutput($"For segment {segment.Id} frame {frameIdx} the scalar B {scalarB} is below 0");
+                        continue;
+                    }
 
                     var scalarF = Vector2d.PerpDot(frame.normal, pointB - pointC) / Vector2d.PerpDot(frame.normal, normal);
 
-                    if (scalarF > 0) continue;
+                    if (scalarF > 0)
+                    {
+                        DebugOutput($"For segment {segment.Id} frame {frameIdx} the scalar F {scalarB} is below 0");
+                        continue;
+                    }
 
                     // https://math.stackexchange.com/a/1572508
                     var distBF = Vector2d.Distance(pointB, pointF);
@@ -1223,18 +1320,28 @@ public class PathTracer
                             // https://www.omnicalculator.com/math/arc-length
                             arcLength = 2 * radius * Math.Asin(0.5 * chordLength / radius);
 
-                            DebugOutput($"pointB: {pointB} pointC: {pointC} pointF: {pointF} pointG: {pointG} pointK: {pointK}");
-                            DebugOutput($"dist: {frame.dist} radius: {radius} chordLength: {chordLength} arcLength: {arcLength} ductLength: {ductLength}");
+                            // DebugOutput($"pointB: {pointB} pointC: {pointC} pointF: {pointF} pointG: {pointG} pointK: {pointK}");
+                            // DebugOutput($"dist: {frame.dist} radius: {radius} chordLength: {chordLength} arcLength: {arcLength} ductLength: {ductLength}");
 
                             if (double.IsNaN(arcLength)) continue;
 
                             var arcAngleMax = (1 - segment.TraceParams.AngleTenacity) * 180 * arcLength / (frame.width * Math.PI);
 
-                            DebugOutput($"arcAngle: {arcAngle} arcAngleMax: {arcAngleMax}");
+                            // DebugOutput($"arcAngle: {arcAngle} arcAngleMax: {arcAngleMax}");
 
                             return arcAngle.Abs() <= arcAngleMax ? frameIdx : -1;
                         }
+
+                        DebugOutput($"For segment {segment.Id} frame {frameIdx} the point K could not be constructed");
                     }
+                    else
+                    {
+                        DebugOutput($"For segment {segment.Id} frame {frameIdx} the distBF {distBF} is lower than distCF {distCF}");
+                    }
+                }
+                else
+                {
+                    DebugOutput($"For segment {segment.Id} frame {frameIdx} the point F could not be constructed");
                 }
             }
 
