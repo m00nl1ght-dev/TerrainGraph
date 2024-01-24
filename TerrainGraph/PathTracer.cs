@@ -9,6 +9,8 @@ namespace TerrainGraph;
 
 public class HotSwappableAttribute : Attribute;
 
+// TODO check all divisions and trig functions for div-by-0 potential
+
 [HotSwappable]
 public class PathTracer
 {
@@ -50,6 +52,31 @@ public class PathTracer
     public static readonly Action<string> DebugOff = _ => {};
 
     public static Action<string> DebugOutput = DebugOff;
+
+    public List<DebugLine> DebugLines;
+
+    public class DebugLine
+    {
+        public Vector2d Pos1;
+        public Vector2d Pos2;
+        public PathTracer Tracer;
+        public string Label;
+        public int Group;
+        public int Color;
+
+        public bool IsPointAt(Vector2d p) => p - Tracer.GridMargin == Pos1 && Pos1 == Pos2;
+
+        public DebugLine(PathTracer tracer, Vector2d pos1, int color = 0, string label = "") : this(tracer, pos1, pos1, color, label) {}
+
+        public DebugLine(PathTracer tracer, Vector2d pos1, Vector2d pos2, int color = 0, string label = "")
+        {
+            Pos1 = pos1 - tracer.GridMargin;
+            Pos2 = pos2 - tracer.GridMargin;
+            Tracer = tracer;
+            Color = color;
+            Label = label;
+        }
+    }
 
     public PathTracer(
         int innerSizeX, int innerSizeZ, int gridMargin,
@@ -105,6 +132,8 @@ public class PathTracer
         Preprocess(path);
 
         _totalFramesCalculated = 0;
+
+        DebugLines?.Clear();
 
         var simulatedCollisions = new List<PathCollision>();
         var occuredCollisions = new List<PathCollision>();
@@ -999,7 +1028,7 @@ public class PathTracer
         Segment stub;
         List<TraceFrame> frames;
 
-        if (c.frameA.width <= c.frameB.width)
+        if (c.frameA.width <= c.frameB.width || c.segmentB.AnyBranchesMatch(s => s.ParentIds.Count > 1, false))
         {
             stub = c.segmentA;
             frames = c.framesA;
@@ -1057,18 +1086,16 @@ public class PathTracer
     /// <returns>true if the segments were merged successfully, otherwise false</returns>
     private bool TryMerge(PathCollision c)
     {
-        Vector2d normal;
+        var dot = Vector2d.Dot(c.frameA.normal, c.frameB.normal);
+        var perpDot = Vector2d.PerpDot(c.frameA.normal, c.frameB.normal);
 
-        if (Vector2d.TryIntersect(c.frameA.pos, c.frameB.pos, c.frameA.normal, c.frameB.normal, out var midpoint, 0.05))
-        {
-            normal = (c.frameA.normal * c.frameA.width + c.frameB.normal * c.frameB.width).Normalized;
-        }
-        else
-        {
-            var perpDot = Vector2d.PerpDot(c.frameA.normal, c.frameB.normal);
-            normal = perpDot >= 0 ? c.frameA.normal.PerpCCW : c.frameA.normal.PerpCW;
-            midpoint = c.position;
-        }
+        var normal = dot > 0 || perpDot.Abs() > 0.05
+            ? (c.frameA.normal * c.frameA.width + c.frameB.normal * c.frameB.width).Normalized
+            : perpDot >= 0 ? c.frameA.normal.PerpCCW : c.frameA.normal.PerpCW;
+
+        var shift = Math.Sign(Vector2d.PerpDot(normal, c.frameA.normal));
+
+        DebugOutput($"Target direction for merge is {normal} with dot {dot} perpDot {perpDot}");
 
         if (c.segmentA.TraceParams.AvoidOverlap > 0) return false;
         if (c.segmentA.IsBranchOf(c.segmentB, true)) return false;
@@ -1076,168 +1103,128 @@ public class PathTracer
         if (c.segmentA.AnyBranchesMatch(s => s.ParentIds.Count > 1, false)) return false;
         if (c.segmentB.AnyBranchesMatch(s => s.ParentIds.Count > 1, false)) return false;
 
-        var shift = Math.Sign(Vector2d.PerpDot(normal, c.frameA.normal));
+        double arcA, arcB, ductA, ductB;
 
-        for (int i = 0; i < 7; i++)
+        TraceFrame frameA, frameB;
+
+        int fA = 0, fB = 0;
+
+        while (true)
         {
-            var range = Math.Max(c.retraceRangeA, c.retraceRangeB) * (1 + i * i * 0.25);
-            var target = midpoint + normal * range;
+            if (fA >= c.framesA.Count) return false;
 
-            var orgLengthA = c.segmentA.Length;
-            var orgLengthB = c.segmentB.Length;
+            frameA = c.framesA[c.framesA.Count - fA - 1];
+            frameB = c.framesB[c.framesB.Count - fB - 1];
 
-            var perpDot = Vector2d.PerpDot(c.frameA.normal, c.frameB.normal);
+            DebugOutput($"--> Attempting merge with {fA} | {fB} frames backtracked with A at {frameA.pos} and B at {frameB.pos}");
 
-            DebugOutput($"Attempting with range {range} target {target} normal {normal} perpDot {perpDot}");
+            DebugLine debugPoint1 = null;
+            DebugLine debugPoint2 = null;
 
-            var frameIdxA = CalcArcWithDuct(
-                c.segmentA, c.framesA, target, normal.PerpCW * shift,
-                c.retraceRangeA, out var arcLengthA, out var ductLengthA
-            );
-
-            if (frameIdxA < 0) continue;
-
-            var frameIdxB = CalcArcWithDuct(
-                c.segmentB, c.framesB, target, normal.PerpCCW * shift,
-                c.retraceRangeB, out var arcLengthB, out var ductLengthB
-            );
-
-            if (frameIdxB < 0) continue;
-
-            var frameA = c.framesA[frameIdxA];
-            var frameB = c.framesB[frameIdxB];
-
-            var stabilityRangeA = c.segmentA.TraceParams.ArcStableRange.WithMin(1);
-            var stabilityRangeB = c.segmentB.TraceParams.ArcStableRange.WithMin(1);
-
-            var valueAtMergeA = frameA.value + frameA.speed * (arcLengthA + ductLengthA);
-            var valueAtMergeB = frameB.value + frameB.speed * (arcLengthB + ductLengthB);
-
-            var targetDensity = 0.5.Lerp(frameA.density, frameB.density);
-
-            var offsetAtMergeA = frameA.offset + frameA.width * targetDensity * 0.5 * -shift;
-            var offsetAtMergeB = frameB.offset + frameB.width * targetDensity * 0.5 * shift;
-
-            var discardedBranches = c.segmentA.Branches.ToList();
-            var followingBranches = c.segmentB.Branches.ToList();
-
-            var connectedA = c.segmentA.ConnectedSegments();
-            var connectedB = c.segmentB.ConnectedSegments();
-
-            c.segmentA.DetachAll();
-            c.segmentB.DetachAll();
-
-            var interconnected = connectedA.Any(e => connectedB.Contains(e));
-
-            if (interconnected)
+            if (DebugLines != null)
             {
-                var mutableDist = arcLengthA + ductLengthA + arcLengthB + ductLengthB;
+                debugPoint1 = DebugLines.FirstOrDefault(dl => dl.IsPointAt(frameA.pos));
+                debugPoint2 = DebugLines.FirstOrDefault(dl => dl.IsPointAt(frameB.pos));
 
-                mutableDist += GetLinearParents(c.segmentA).Sum(s => s.Length);
-                mutableDist += GetLinearParents(c.segmentB).Sum(s => s.Length);
-
-                var valueDelta = Math.Abs(valueAtMergeA - valueAtMergeB);
-                var offsetDelta = Math.Abs(offsetAtMergeA - offsetAtMergeB);
-
-                DebugOutput($"Merge spans value {valueDelta} and offset {offsetDelta} over mutable distance of {mutableDist}");
-
-                if (valueDelta / mutableDist > MergeValueDeltaLimit) return false;
-                if (offsetDelta / mutableDist > MergeOffsetDeltaLimit) return false;
+                if (debugPoint1 == null) DebugLines.Add(debugPoint1 = new DebugLine(this, frameA.pos, 0, fA.ToString()));
+                if (debugPoint2 == null) DebugLines.Add(debugPoint2 = new DebugLine(this, frameB.pos, 0, fB.ToString()));
             }
 
-            var arcA = InsertArcWithDuct(c.segmentA, ref frameA, arcLengthA, ductLengthA);
-            var arcB = InsertArcWithDuct(c.segmentB, ref frameB, arcLengthB, ductLengthB);
+            var debugLines1 = DebugLines == null ? null : new List<DebugLine>();
 
-            var remainingLength = Math.Max(orgLengthA - c.segmentA.Length, orgLengthB - c.segmentB.Length);
+            var result1 = TryCalcArcs(
+                c.segmentA, c.segmentB, normal, shift, ref frameA, ref frameB,
+                out arcA, out arcB, out ductA, out ductB, debugLines1
+            );
 
-            arcA.ApplyLocalStabilityAtHead(stabilityRangeA / 2, stabilityRangeA / 2);
-            arcB.ApplyLocalStabilityAtHead(stabilityRangeB / 2, stabilityRangeB / 2);
-
-            if (interconnected)
+            if (debugPoint1 != null)
             {
-                ModifyParents(arcA, valueAtMergeB - valueAtMergeA, offsetAtMergeB - offsetAtMergeA);
-                ModifyParents(arcB, valueAtMergeA - valueAtMergeB, offsetAtMergeA - offsetAtMergeB);
+                debugPoint1.Label += "\n" + fB + " -> " + result1;
+            }
+
+            if (debugLines1 != null)
+            {
+                foreach (var line in debugLines1) line.Group = 1;
+                DebugLines.AddRange(debugLines1);
+            }
+
+            if (result1 == ArcCalcResult.Success) break;
+
+            var debugLines2 = DebugLines == null ? null : new List<DebugLine>();
+
+            var result2 = TryCalcArcs(
+                c.segmentB, c.segmentA, normal, -shift, ref frameB, ref frameA,
+                out arcB, out arcA, out ductB, out ductA, debugLines2
+            );
+
+            if (debugPoint2 != null)
+            {
+                debugPoint2.Label += "\n" + fA + " -> " + result2;
+            }
+
+            if (debugLines2 != null)
+            {
+                foreach (var line in debugLines2) line.Group = 2;
+                DebugLines.AddRange(debugLines2);
+            }
+
+            if (result2 == ArcCalcResult.Success) break;
+
+            // TODO balanced traversal
+            if (fB + 1 < c.framesB.Count)
+            {
+                fB++;
             }
             else
             {
-                ModifyRoots(connectedA, valueAtMergeB - valueAtMergeA, offsetAtMergeB - offsetAtMergeA);
-                ModifyRoots(connectedB, valueAtMergeA - valueAtMergeB, offsetAtMergeA - offsetAtMergeB);
+                fB = 0;
+                fA++;
             }
-
-            List<Segment> GetLinearParents(Segment segment)
-            {
-                return segment.ConnectedSegments(false, true,
-                    s => s.BranchIds.Count == 1 || s == segment,
-                    s => s.ParentIds.Count == 1
-                );
-            }
-
-            void ModifyParents(Segment segment, double valueDiff, double offsetDiff)
-            {
-                var linearParents = GetLinearParents(segment);
-
-                var totalSteps = linearParents.Sum(s => s.FullStepsCount(valueDiff > 0));
-
-                linearParents.Reverse();
-
-                var padding = totalSteps / 8;
-
-                var currentSteps = 0;
-
-                foreach (var parent in linearParents)
-                {
-                    var fullSteps = parent.FullStepsCount(valueDiff > 0);
-
-                    if (fullSteps > 0)
-                    {
-                        parent.SmoothDelta = new SmoothDelta(0.5 * valueDiff, 0.5 * offsetDiff, totalSteps, currentSteps, padding);
-                        currentSteps += fullSteps;
-                    }
-                }
-            }
-
-            void ModifyRoots(List<Segment> segments, double valueDiff, double offsetDiff)
-            {
-                foreach (var segment in segments.Where(segment => segment.IsRoot))
-                {
-                    segment.RelValue += 0.5 * valueDiff;
-                    segment.RelOffset += 0.5 * offsetDiff;
-                }
-            }
-
-            if (frameA.density != frameB.density)
-            {
-                arcA.TraceParams.DensityLoss = (frameA.density - targetDensity) / arcA.Length;
-                arcB.TraceParams.DensityLoss = (frameB.density - targetDensity) / arcB.Length;
-            }
-
-            var merged = new Segment(arcA.Path)
-            {
-                TraceParams = TraceParams.Merge(c.segmentA.TraceParams, c.segmentB.TraceParams),
-                Length = remainingLength
-            };
-
-            merged.ApplyLocalStabilityAtTail(0, 0.5.Lerp(stabilityRangeA, stabilityRangeB) / 2);
-
-            arcA.Attach(merged);
-            arcB.Attach(merged);
-
-            foreach (var branch in followingBranches)
-            {
-                DebugOutput($"Re-attaching branch {branch.Id}");
-                merged.Attach(branch);
-            }
-
-            foreach (var branch in discardedBranches)
-            {
-                DebugOutput($"Discarding branch {branch.Id}");
-                branch.Discard();
-            }
-
-            return true;
         }
 
-        return false;
+        var stabilityRangeA = c.segmentA.TraceParams.ArcStableRange.WithMin(1);
+        var stabilityRangeB = c.segmentB.TraceParams.ArcStableRange.WithMin(1);
+
+        var valueAtMergeA = frameA.value + frameA.speed * (arcA + ductA);
+        var valueAtMergeB = frameB.value + frameB.speed * (arcB + ductB);
+
+        var targetDensity = 0.5.Lerp(frameA.density, frameB.density);
+
+        var offsetAtMergeA = frameA.offset + frameA.width * targetDensity * 0.5 * -shift;
+        var offsetAtMergeB = frameB.offset + frameB.width * targetDensity * 0.5 * shift;
+
+        var discardedBranches = c.segmentA.Branches.ToList();
+        var followingBranches = c.segmentB.Branches.ToList();
+
+        var connectedA = c.segmentA.ConnectedSegments();
+        var connectedB = c.segmentB.ConnectedSegments();
+
+        c.segmentA.DetachAll();
+        c.segmentB.DetachAll();
+
+        var orgLengthA = c.segmentA.Length;
+        var orgLengthB = c.segmentB.Length;
+
+        var interconnected = connectedA.Any(e => connectedB.Contains(e));
+
+        if (interconnected)
+        {
+            var mutableDist = arcA + ductA + arcB + ductB;
+
+            mutableDist += GetLinearParents(c.segmentA).Sum(s => s.Length);
+            mutableDist += GetLinearParents(c.segmentB).Sum(s => s.Length);
+
+            var valueDelta = Math.Abs(valueAtMergeA - valueAtMergeB);
+            var offsetDelta = Math.Abs(offsetAtMergeA - offsetAtMergeB);
+
+            DebugOutput($"Merge spans value {valueDelta} and offset {offsetDelta} over mutable distance of {mutableDist}");
+
+            if (valueDelta / mutableDist > MergeValueDeltaLimit) return false;
+            if (offsetDelta / mutableDist > MergeOffsetDeltaLimit) return false;
+        }
+
+        var endA = InsertArcWithDuct(c.segmentA, ref frameA, arcA, ductA);
+        var endB = InsertArcWithDuct(c.segmentB, ref frameB, arcB, ductB);
 
         Segment InsertArcWithDuct(
             Segment segment,
@@ -1249,107 +1236,268 @@ public class PathTracer
 
             var arcAngle = -Vector2d.SignedAngle(frame.normal, normal);
 
-            var ductSegment = segment.InsertNew();
-            ductSegment.TraceParams.ApplyFixedAngle(0, true);
-            ductSegment.Length = ductLength;
-
-            var arcSegment = ductSegment.InsertNew();
-            arcSegment.TraceParams.ApplyFixedAngle(arcAngle / arcLength, true);
-            arcSegment.Length = arcLength;
-
-            return arcSegment;
-        }
-
-        int CalcArcWithDuct(
-            Segment segment,
-            List<TraceFrame> frames,
-            Vector2d target,
-            Vector2d shiftDir,
-            double minRange,
-            out double arcLength,
-            out double ductLength)
-        {
-            for (var frameIdx = frames.Count - 1; frameIdx >= 0; frameIdx--)
+            if (ductLength > 0)
             {
-                var frame = frames[frameIdx];
-
-                var pointB = frame.pos;
-                var pointC = target + shiftDir * 0.5 * frame.width;
-
-                var distBX = Vector2d.Distance(pointB, c.position);
-
-                if (distBX < minRange && frameIdx > 0)
-                {
-                    DebugOutput($"For segment {segment.Id} frame {frameIdx} the range {distBX} is below min {minRange}");
-                    continue;
-                }
-
-                var arcAngle = -Vector2d.SignedAngle(frame.normal, normal);
-
-                if (Vector2d.TryIntersect(pointB, pointC, frame.normal, normal, out var pointF, out var scalarB, 0.05))
-                {
-                    if (scalarB < 0)
-                    {
-                        DebugOutput($"For segment {segment.Id} frame {frameIdx} the scalar B {scalarB} is below 0");
-                        continue;
-                    }
-
-                    var scalarF = Vector2d.PerpDot(frame.normal, pointB - pointC) / Vector2d.PerpDot(frame.normal, normal);
-
-                    if (scalarF > 0)
-                    {
-                        DebugOutput($"For segment {segment.Id} frame {frameIdx} the scalar F {scalarB} is below 0");
-                        continue;
-                    }
-
-                    // https://math.stackexchange.com/a/1572508
-                    var distBF = Vector2d.Distance(pointB, pointF);
-                    var distCF = Vector2d.Distance(pointC, pointF);
-
-                    if (distBF >= distCF)
-                    {
-                        ductLength = distBF - distCF;
-
-                        var pointG = pointB + frame.normal * ductLength;
-
-                        if (Vector2d.TryIntersect(pointG, pointC, frame.perpCW, normal.PerpCW, out var pointK, 0.05))
-                        {
-                            var radius = Vector2d.Distance(pointG, pointK);
-                            var chordLength = Vector2d.Distance(pointG, pointC);
-
-                            // https://www.omnicalculator.com/math/arc-length
-                            arcLength = 2 * radius * Math.Asin(0.5 * chordLength / radius);
-
-                            // DebugOutput($"pointB: {pointB} pointC: {pointC} pointF: {pointF} pointG: {pointG} pointK: {pointK}");
-                            // DebugOutput($"dist: {frame.dist} radius: {radius} chordLength: {chordLength} arcLength: {arcLength} ductLength: {ductLength}");
-
-                            if (double.IsNaN(arcLength)) continue;
-
-                            var arcAngleMax = (1 - segment.TraceParams.AngleTenacity) * 180 * arcLength / (frame.width * Math.PI);
-
-                            // DebugOutput($"arcAngle: {arcAngle} arcAngleMax: {arcAngleMax}");
-
-                            return arcAngle.Abs() <= arcAngleMax ? frameIdx : -1;
-                        }
-
-                        DebugOutput($"For segment {segment.Id} frame {frameIdx} the point K could not be constructed");
-                    }
-                    else
-                    {
-                        DebugOutput($"For segment {segment.Id} frame {frameIdx} the distBF {distBF} is lower than distCF {distCF}");
-                    }
-                }
-                else
-                {
-                    DebugOutput($"For segment {segment.Id} frame {frameIdx} the point F could not be constructed");
-                }
+                segment = segment.InsertNew();
+                segment.TraceParams.ApplyFixedAngle(0, true);
+                segment.Length = ductLength;
             }
 
-            arcLength = 0;
-            ductLength = 0;
+            segment = segment.InsertNew();
+            segment.TraceParams.ApplyFixedAngle(arcAngle / arcLength, true);
+            segment.Length = arcLength;
 
-            return -1;
+            return segment;
         }
+
+        var remainingLength = Math.Max(orgLengthA - c.segmentA.Length, orgLengthB - c.segmentB.Length);
+
+        endA.ApplyLocalStabilityAtHead(stabilityRangeA / 2, stabilityRangeA / 2);
+        endB.ApplyLocalStabilityAtHead(stabilityRangeB / 2, stabilityRangeB / 2);
+
+        if (interconnected)
+        {
+            ModifyParents(endA, valueAtMergeB - valueAtMergeA, offsetAtMergeB - offsetAtMergeA);
+            ModifyParents(endB, valueAtMergeA - valueAtMergeB, offsetAtMergeA - offsetAtMergeB);
+        }
+        else
+        {
+            ModifyRoots(connectedA, valueAtMergeB - valueAtMergeA, offsetAtMergeB - offsetAtMergeA);
+            ModifyRoots(connectedB, valueAtMergeA - valueAtMergeB, offsetAtMergeA - offsetAtMergeB);
+        }
+
+        List<Segment> GetLinearParents(Segment segment)
+        {
+            return segment.ConnectedSegments(false, true,
+                s => s.BranchIds.Count == 1 || s == segment,
+                s => s.ParentIds.Count == 1
+            );
+        }
+
+        void ModifyParents(Segment segment, double valueDiff, double offsetDiff)
+        {
+            var linearParents = GetLinearParents(segment);
+
+            var totalSteps = linearParents.Sum(s => s.FullStepsCount(valueDiff > 0));
+
+            linearParents.Reverse();
+
+            var padding = totalSteps / 8;
+
+            var currentSteps = 0;
+
+            foreach (var parent in linearParents)
+            {
+                var fullSteps = parent.FullStepsCount(valueDiff > 0);
+
+                if (fullSteps > 0)
+                {
+                    // TODO rather than each getting 0.5, instead distribute between endA and endB based on their length
+                    parent.SmoothDelta = new SmoothDelta(0.5 * valueDiff, 0.5 * offsetDiff, totalSteps, currentSteps, padding);
+                    currentSteps += fullSteps;
+                }
+            }
+        }
+
+        void ModifyRoots(List<Segment> segments, double valueDiff, double offsetDiff)
+        {
+            foreach (var segment in segments.Where(segment => segment.IsRoot))
+            {
+                segment.RelValue += 0.5 * valueDiff;
+                segment.RelOffset += 0.5 * offsetDiff;
+            }
+        }
+
+        if (frameA.density != frameB.density)
+        {
+            endA.TraceParams.DensityLoss = (frameA.density - targetDensity) / endA.Length;
+            endB.TraceParams.DensityLoss = (frameB.density - targetDensity) / endB.Length;
+        }
+
+        var merged = new Segment(endA.Path)
+        {
+            TraceParams = TraceParams.Merge(c.segmentA.TraceParams, c.segmentB.TraceParams),
+            Length = remainingLength
+        };
+
+        merged.ApplyLocalStabilityAtTail(0, 0.5.Lerp(stabilityRangeA, stabilityRangeB) / 2);
+
+        endA.Attach(merged);
+        endB.Attach(merged);
+
+        foreach (var branch in followingBranches)
+        {
+            DebugOutput($"Re-attaching branch {branch.Id}");
+            merged.Attach(branch);
+        }
+
+        foreach (var branch in discardedBranches)
+        {
+            DebugOutput($"Discarding branch {branch.Id}");
+            branch.Discard();
+        }
+
+        return true;
+    }
+
+    private ArcCalcResult TryCalcArcs(
+        Segment a, Segment b,
+        Vector2d normal, double shift,
+        ref TraceFrame frameA, ref TraceFrame frameB,
+        out double arcLengthA, out double arcLengthB,
+        out double ductLengthA, out double ductLengthB,
+        List<DebugLine> debugLines)
+    {
+        var arcAngleA = -Vector2d.SignedAngle(frameA.normal, normal);
+        var arcAngleB = -Vector2d.SignedAngle(frameB.normal, normal);
+
+        // calculate the vector between the end points of the arcs
+
+        var shiftDir = shift <= 0 ? normal.PerpCW : normal.PerpCCW;
+        var shiftSpan = (0.5 * frameA.width + 0.5 * frameB.width) * shiftDir;
+
+        // calculate min arc lengths based on width and tenacity
+
+        arcLengthA = arcAngleA.Abs() / 180 * frameA.width * Math.PI / (1 - a.TraceParams.AngleTenacity.WithMax(0.9));
+        arcLengthB = arcAngleB.Abs() / 180 * frameB.width * Math.PI / (1 - b.TraceParams.AngleTenacity.WithMax(0.9));
+
+        ductLengthA = 0;
+        ductLengthB = 0;
+
+        // calculate chord vector that spans arc B at its minimum length
+
+        var minPivotOffsetB = 180 * arcLengthB / (Math.PI * -arcAngleB);
+        var minArcChordVecB = frameB.perpCCW * minPivotOffsetB - normal.PerpCCW * minPivotOffsetB;
+
+        // try to find the min length for arc A needed to avoid ExcBoundF and ExcMaxAngle results
+
+        var arcChordDirA = (frameA.normal + normal).Normalized;
+        var targetAnchorA = frameB.pos + minArcChordVecB - shiftSpan;
+
+        if (Vector2d.TryIntersect(frameA.pos, targetAnchorA, arcChordDirA, frameB.normal, out _, out var minChordLengthA, 0.001))
+        {
+            var arcAngleRadAbsA = arcAngleA.Abs().ToRad();
+            var minArcLengthA = arcAngleRadAbsA * 0.5 * minChordLengthA / Math.Sin(0.5 * arcAngleRadAbsA);
+
+            if (minArcLengthA > arcLengthA)
+            {
+                arcLengthA = minArcLengthA + 0.01;
+            }
+        }
+
+        // calculate fixed end position of arc A
+
+        var pivotOffsetA = 180 * arcLengthA / (Math.PI * -arcAngleA);
+        var pivotPointA = frameA.pos + frameA.perpCCW * pivotOffsetA;
+        var arcEndPosA = pivotPointA - normal.PerpCCW * pivotOffsetA;
+
+        // find arc and duct lengths for side B based on https://math.stackexchange.com/a/1572508
+
+        var pointB = frameB.pos;
+        var pointC = arcEndPosA + shiftSpan;
+
+        if (debugLines != null)
+        {
+            debugLines.Add(new DebugLine(this, arcEndPosA, pointC));
+
+            debugLines.Add(new DebugLine(this, frameA.pos, pivotPointA, 2));
+            debugLines.Add(new DebugLine(this, arcEndPosA, pivotPointA, 3));
+
+            if (Vector2d.TryIntersect(frameA.pos, arcEndPosA, frameA.normal, normal, out var pointJ, 0.001))
+            {
+                debugLines.Add(new DebugLine(this, frameA.pos, pointJ, 5));
+                debugLines.Add(new DebugLine(this, arcEndPosA, pointJ, 1));
+            }
+        }
+
+        if (!Vector2d.TryIntersect(pointB, pointC, frameB.normal, normal, out var pointF, out var scalarB, 0.001))
+        {
+            DebugOutput($"Point F could not be constructed");
+            return ArcCalcResult.NoPointF;
+        }
+
+        if (debugLines != null)
+        {
+            debugLines.Add(new DebugLine(this, pointB, pointF, 5));
+            debugLines.Add(new DebugLine(this, pointC, pointF, 1));
+        }
+
+        if (scalarB < 0)
+        {
+            DebugOutput($"Scalar B {scalarB} is below 0");
+            return ArcCalcResult.ExcBoundB;
+        }
+
+        var scalarF = Vector2d.PerpDot(frameB.normal, pointB - pointC) / Vector2d.PerpDot(frameB.normal, normal);
+
+        if (scalarF > 0)
+        {
+            DebugOutput($"Scalar F {scalarF} is above 0");
+            return ArcCalcResult.ExcBoundF;
+        }
+
+        var distBF = Vector2d.Distance(pointB, pointF);
+        var distCF = Vector2d.Distance(pointC, pointF);
+
+        if (distBF < distCF)
+        {
+            DebugOutput($"Distance from B to F {distBF} is lower than distance from C to F {distCF}");
+            return ArcCalcResult.DuctBelowZero;
+        }
+
+        ductLengthB = distBF - distCF;
+
+        var pointG = pointB + frameB.normal * ductLengthB;
+
+        if (!Vector2d.TryIntersect(pointG, pointC, frameB.perpCW, normal.PerpCW, out var pointK, 0.001))
+        {
+            DebugOutput($"The point K could not be constructed");
+            return ArcCalcResult.NoPointK;
+        }
+
+        var radiusB = Vector2d.Distance(pointG, pointK);
+        var chordLengthB = Vector2d.Distance(pointG, pointC);
+
+        if (debugLines != null)
+        {
+            debugLines.Add(new DebugLine(this, pointG, pointK, 2));
+            debugLines.Add(new DebugLine(this, pointC, pointK, 3));
+        }
+
+        // calculate length of arc B based on https://www.omnicalculator.com/math/arc-length
+
+        arcLengthB = 2 * radiusB * Math.Asin(0.5 * chordLengthB / radiusB);
+
+        if (double.IsNaN(arcLengthB))
+        {
+            DebugOutput($"The arc length is NaN for chord length {chordLengthB} and radius {radiusB}");
+            return ArcCalcResult.ArcLengthNaN;
+        }
+
+        // calculate max angle for arc B and make sure it is not exceeded
+
+        var arcAngleMaxB = (1 - b.TraceParams.AngleTenacity) * 180 * arcLengthB / (frameB.width * Math.PI);
+
+        if (Math.Round(arcAngleB.Abs()) > arcAngleMaxB)
+        {
+            DebugOutput($"The arc angle {arcAngleB} is larger than the limit {arcAngleMaxB}");
+            return ArcCalcResult.ExcMaxAngle;
+        }
+
+        DebugOutput($"Success with arcA {arcLengthA} ductA {ductLengthB} arcB {arcLengthB} ductB {ductLengthB}");
+        return ArcCalcResult.Success;
+    }
+
+    private enum ArcCalcResult
+    {
+        Success,
+        NoPointF, // angle between the arm and target direction is extremely small -> go back in frames, hoping it increases
+        ExcBoundB, // arc can not reach target because it is too far out -> go back in frames, hoping to get more space between the arms
+        ExcBoundF, // arc can not reach target because it is too far in -> increase radius on fixed side to move the target further out
+        DuctBelowZero, // frame is too close to the target -> go back in frames, ideally specifically on the dynamic side
+        NoPointK, // same angle and same problem as NoPointF -> go back in frames, hoping it increases
+        ArcLengthNaN, // something went very wrong, likely some angle was 0 -> go back in frames, hoping that fixes it
+        ExcMaxAngle // arc radius is too small for this segment width -> go back in frames, hoping to get more space between the arms
     }
 
     /// <summary>

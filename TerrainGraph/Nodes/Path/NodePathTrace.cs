@@ -20,6 +20,7 @@ public class NodePathTrace : NodeBase
     public override string Title => "Path: Trace";
 
     public static IGridFunction<double> DebugGrid;
+    public static List<PathTracer.DebugLine> DebugLines;
 
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
@@ -122,6 +123,8 @@ public class NodePathTrace : NodeBase
 
             if (_debug)
             {
+                tracer.DebugLines = DebugLines;
+
                 if (Input.GetKey(KeyCode.Alpha1)) maxAttempts = 1;
                 if (Input.GetKey(KeyCode.Alpha2)) maxAttempts = 2;
                 if (Input.GetKey(KeyCode.Alpha3)) maxAttempts = 3;
