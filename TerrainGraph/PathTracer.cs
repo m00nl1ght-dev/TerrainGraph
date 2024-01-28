@@ -11,6 +11,8 @@ public class HotSwappableAttribute : Attribute;
 
 // TODO check all divisions and trig functions for div-by-0 potential
 // TODO stop-when-trace-frame-fully-leaves-outer-grid feature
+// TODO value/offset at merge is off in many test savefiles
+// TODO instead of stubbing, first make an attempt at diverting the branch-to-be-stubbed away from the collision point
 
 [HotSwappable]
 public class PathTracer
@@ -19,7 +21,7 @@ public class PathTracer
 
     public double RadialThreshold = 0.5;
     public double CollisionAdjMinDist = 5;
-    public double MergeValueDeltaLimit = 0.3;
+    public double MergeValueDeltaLimit = 0.9;
     public double MergeOffsetDeltaLimit = 0.2;
 
     public readonly Vector2d GridInnerSize;
@@ -670,16 +672,6 @@ public class PathTracer
         public TraceFrame frameB => framesB[framesB.Count - 1];
 
         /// <summary>
-        /// The length of first segment to adjust and retrace to avoid this collision.
-        /// </summary>
-        public double retraceRangeA => segmentA.TraceParams.ArcRetraceRange.WithMin(1);
-
-        /// <summary>
-        /// The length of second segment to adjust and retrace to avoid this collision.
-        /// </summary>
-        public double retraceRangeB => segmentB.TraceParams.ArcRetraceRange.WithMin(1);
-
-        /// <summary>
         /// Whether the trace frames of both involved segments are available.
         /// </summary>
         public bool complete => framesA != null && framesB != null;
@@ -903,7 +895,6 @@ public class PathTracer
                             if (nowDist < preDist)
                             {
                                 _distanceGrid[x, z] = nowDist;
-                                _debugGrid[x, z] = task.segment.Id;
                             }
 
                             if (shiftAbs <= extend + TraceInnerMargin)
@@ -950,6 +941,7 @@ public class PathTracer
                                     }
 
                                     _segmentGrid[x, z] = task.segment;
+                                    _debugGrid[x, z] = task.segment.Id;
                                     _mainGrid[x, z] = extend;
                                 }
                             }
@@ -1032,7 +1024,10 @@ public class PathTracer
         Segment stub;
         List<TraceFrame> frames;
 
-        if (c.frameA.width <= c.frameB.width || c.segmentB.AnyBranchesMatch(s => s.ParentIds.Count > 1, false))
+        var hasAnyMergeA = c.segmentA.AnyBranchesMatch(s => s.ParentIds.Count > 1, false);
+        var hasAnyMergeB = c.segmentB.AnyBranchesMatch(s => s.ParentIds.Count > 1, false);
+
+        if (hasAnyMergeA == hasAnyMergeB ? c.frameA.width <= c.frameB.width : hasAnyMergeB)
         {
             stub = c.segmentA;
             frames = c.framesA;
@@ -1172,25 +1167,36 @@ public class PathTracer
         c.segmentA.DetachAll();
         c.segmentB.DetachAll();
 
+        var diffSplitRatio = 0.5;
+
         var orgLengthA = c.segmentA.Length;
         var orgLengthB = c.segmentB.Length;
+
+        var valueDelta = valueAtMergeB - valueAtMergeA;
+        var offsetDelta = offsetAtMergeB - offsetAtMergeA;
 
         var interconnected = connectedA.Any(e => connectedB.Contains(e));
 
         if (interconnected)
         {
-            var mutableDist = arcA + ductA + arcB + ductB;
+            var mutableDistA = arcA + ductA + GetLinearParents(c.segmentA).Sum(s => s == c.segmentA ? frameA.dist : s.Length);
+            var mutableDistB = arcB + ductB + GetLinearParents(c.segmentB).Sum(s => s == c.segmentB ? frameB.dist : s.Length);
 
-            mutableDist += GetLinearParents(c.segmentA).Sum(s => s.Length);
-            mutableDist += GetLinearParents(c.segmentB).Sum(s => s.Length);
+            var mutableDist = mutableDistA + mutableDistB;
 
-            var valueDelta = Math.Abs(valueAtMergeA - valueAtMergeB);
-            var offsetDelta = Math.Abs(offsetAtMergeA - offsetAtMergeB);
+            diffSplitRatio = mutableDistB / mutableDist;
 
-            DebugOutput($"Merge spans value {valueDelta} and offset {offsetDelta} over mutable distance of {mutableDist}");
+            var valueLimitExc = valueDelta.Abs() / mutableDist > MergeValueDeltaLimit;
+            var offsetLimitExc = offsetDelta.Abs() / mutableDist > MergeOffsetDeltaLimit;
 
-            if (valueDelta / mutableDist > MergeValueDeltaLimit) return false;
-            if (offsetDelta / mutableDist > MergeOffsetDeltaLimit) return false;
+            DebugOutput($"Merge spans {valueDelta:F2} / {offsetDelta:F2} over {mutableDistA:F2} + {mutableDistB:F2}");
+
+            DebugLines?.Add(new DebugLine(
+                this, c.position, valueLimitExc ? 1 : offsetLimitExc ? 7 : 2, 0,
+                $"V {valueDelta:F2} O {offsetDelta:F2}\nD {mutableDist:F2} R {diffSplitRatio:F2}")
+            );
+
+            if (valueLimitExc || offsetLimitExc) return false;
         }
 
         var endA = InsertArcWithDuct(c.segmentA, ref frameA, arcA, ductA);
@@ -1227,15 +1233,16 @@ public class PathTracer
 
         if (interconnected)
         {
-            ModifyParents(endA, valueAtMergeB - valueAtMergeA, offsetAtMergeB - offsetAtMergeA);
-            ModifyParents(endB, valueAtMergeA - valueAtMergeB, offsetAtMergeA - offsetAtMergeB);
+            ModifyParents(endA, valueDelta * (1 - diffSplitRatio), offsetDelta * (1 - diffSplitRatio));
+            ModifyParents(endB, -1 * valueDelta * diffSplitRatio, -1 * offsetDelta * diffSplitRatio);
         }
         else
         {
-            ModifyRoots(connectedA, valueAtMergeB - valueAtMergeA, offsetAtMergeB - offsetAtMergeA);
-            ModifyRoots(connectedB, valueAtMergeA - valueAtMergeB, offsetAtMergeA - offsetAtMergeB);
+            ModifyRoots(connectedA, valueDelta * (1 - diffSplitRatio), offsetDelta * (1 - diffSplitRatio));
+            ModifyRoots(connectedB, -1 * valueDelta * diffSplitRatio, -1 * offsetDelta * diffSplitRatio);
         }
 
+        // TODO improve so this tolerates self-contained split-and-re-merge parts?
         List<Segment> GetLinearParents(Segment segment)
         {
             return segment.ConnectedSegments(false, true,
@@ -1262,8 +1269,7 @@ public class PathTracer
 
                 if (fullSteps > 0)
                 {
-                    // TODO rather than each getting 0.5, instead distribute between endA and endB based on their length
-                    parent.SmoothDelta = new SmoothDelta(0.5 * valueDiff, 0.5 * offsetDiff, totalSteps, currentSteps, padding);
+                    parent.SmoothDelta = new SmoothDelta(valueDiff, offsetDiff, totalSteps, currentSteps, padding);
                     currentSteps += fullSteps;
                 }
             }
@@ -1273,8 +1279,8 @@ public class PathTracer
         {
             foreach (var segment in segments.Where(segment => segment.IsRoot))
             {
-                segment.RelValue += 0.5 * valueDiff;
-                segment.RelOffset += 0.5 * offsetDiff;
+                segment.RelValue += valueDiff;
+                segment.RelOffset += offsetDiff;
             }
         }
 
