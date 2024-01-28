@@ -10,6 +10,7 @@ namespace TerrainGraph;
 public class HotSwappableAttribute : Attribute;
 
 // TODO check all divisions and trig functions for div-by-0 potential
+// TODO stop-when-trace-frame-fully-leaves-outer-grid feature
 
 [HotSwappable]
 public class PathTracer
@@ -17,6 +18,7 @@ public class PathTracer
     private const int MaxTraceFrames = 1_000_000;
 
     public double RadialThreshold = 0.5;
+    public double CollisionAdjMinDist = 5;
     public double MergeValueDeltaLimit = 0.3;
     public double MergeOffsetDeltaLimit = 0.2;
 
@@ -57,24 +59,27 @@ public class PathTracer
 
     public class DebugLine
     {
-        public Vector2d Pos1;
-        public Vector2d Pos2;
-        public PathTracer Tracer;
+        public readonly Vector2d Pos1;
+        public readonly Vector2d Pos2;
+        public readonly PathTracer Tracer;
+
         public string Label;
         public int Group;
         public int Color;
 
         public bool IsPointAt(Vector2d p) => p - Tracer.GridMargin == Pos1 && Pos1 == Pos2;
 
-        public DebugLine(PathTracer tracer, Vector2d pos1, int color = 0, string label = "") : this(tracer, pos1, pos1, color, label) {}
+        public DebugLine(PathTracer tracer, Vector2d pos1, int color = 0, int group = 0, string label = "") :
+            this(tracer, pos1, pos1, color, group, label) {}
 
-        public DebugLine(PathTracer tracer, Vector2d pos1, Vector2d pos2, int color = 0, string label = "")
+        public DebugLine(PathTracer tracer, Vector2d pos1, Vector2d pos2, int color = 0, int group = 0, string label = "")
         {
             Pos1 = pos1 - tracer.GridMargin;
             Pos2 = pos2 - tracer.GridMargin;
             Tracer = tracer;
-            Color = color;
             Label = label;
+            Group = group;
+            Color = color;
         }
     }
 
@@ -970,10 +975,9 @@ public class PathTracer
     {
         if (active.TraceParams.ArcRetraceRange <= 0) return false;
 
-        if (dist < active.TraceParams.ArcRetraceRange)
+        if (dist < CollisionAdjMinDist)
         {
-            if (active.IsDirectParentOf(passive, false)) return false;
-            if (active.IsDirectBranchOf(passive, false)) return false;
+            if (active.IsBranchOf(passive, false)) return false;
             if (active.IsDirectSiblingOf(passive, false)) return false;
         }
 
@@ -1104,15 +1108,13 @@ public class PathTracer
         if (c.segmentB.AnyBranchesMatch(s => s.ParentIds.Count > 1, false)) return false;
 
         double arcA, arcB, ductA, ductB;
-
         TraceFrame frameA, frameB;
+        ArcCalcResult result;
 
-        int fA = 0, fB = 0;
+        int ptr = 0, fA = 0, fB = 0;
 
-        while (true)
+        do
         {
-            if (fA >= c.framesA.Count) return false;
-
             frameA = c.framesA[c.framesA.Count - fA - 1];
             frameB = c.framesB[c.framesB.Count - fB - 1];
 
@@ -1126,61 +1128,29 @@ public class PathTracer
                 debugPoint1 = DebugLines.FirstOrDefault(dl => dl.IsPointAt(frameA.pos));
                 debugPoint2 = DebugLines.FirstOrDefault(dl => dl.IsPointAt(frameB.pos));
 
-                if (debugPoint1 == null) DebugLines.Add(debugPoint1 = new DebugLine(this, frameA.pos, 0, fA.ToString()));
-                if (debugPoint2 == null) DebugLines.Add(debugPoint2 = new DebugLine(this, frameB.pos, 0, fB.ToString()));
+                if (debugPoint1 == null) DebugLines.Add(debugPoint1 = new DebugLine(this, frameA.pos, 0, 0, fA.ToString()));
+                if (debugPoint2 == null) DebugLines.Add(debugPoint2 = new DebugLine(this, frameB.pos, 0, 0, fB.ToString()));
             }
 
-            var debugLines1 = DebugLines == null ? null : new List<DebugLine>();
-
-            var result1 = TryCalcArcs(
+            result = TryCalcArcs(
                 c.segmentA, c.segmentB, normal, shift, ref frameA, ref frameB,
-                out arcA, out arcB, out ductA, out ductB, debugLines1
+                out arcA, out arcB, out ductA, out ductB, DebugLines, 1
             );
 
-            if (debugPoint1 != null)
-            {
-                debugPoint1.Label += "\n" + fB + " -> " + result1;
-            }
+            if (debugPoint1 != null) debugPoint1.Label += "\n" + fB + " -> " + result;
+            if (result == ArcCalcResult.Success) break;
 
-            if (debugLines1 != null)
-            {
-                foreach (var line in debugLines1) line.Group = 1;
-                DebugLines.AddRange(debugLines1);
-            }
-
-            if (result1 == ArcCalcResult.Success) break;
-
-            var debugLines2 = DebugLines == null ? null : new List<DebugLine>();
-
-            var result2 = TryCalcArcs(
+            result = TryCalcArcs(
                 c.segmentB, c.segmentA, normal, -shift, ref frameB, ref frameA,
-                out arcB, out arcA, out ductB, out ductA, debugLines2
+                out arcB, out arcA, out ductB, out ductA, DebugLines, 2
             );
 
-            if (debugPoint2 != null)
-            {
-                debugPoint2.Label += "\n" + fA + " -> " + result2;
-            }
-
-            if (debugLines2 != null)
-            {
-                foreach (var line in debugLines2) line.Group = 2;
-                DebugLines.AddRange(debugLines2);
-            }
-
-            if (result2 == ArcCalcResult.Success) break;
-
-            // TODO balanced traversal
-            if (fB + 1 < c.framesB.Count)
-            {
-                fB++;
-            }
-            else
-            {
-                fB = 0;
-                fA++;
-            }
+            if (debugPoint2 != null) debugPoint2.Label += "\n" + fA + " -> " + result;
+            if (result == ArcCalcResult.Success) break;
         }
+        while (MathUtil.BalancedTraversal(ref fA, ref fB, ref ptr, c.framesA.Count - 1, c.framesB.Count - 1));
+
+        if (result != ArcCalcResult.Success) return false;
 
         var stabilityRangeA = c.segmentA.TraceParams.ArcStableRange.WithMin(1);
         var stabilityRangeB = c.segmentB.TraceParams.ArcStableRange.WithMin(1);
@@ -1346,7 +1316,7 @@ public class PathTracer
         ref TraceFrame frameA, ref TraceFrame frameB,
         out double arcLengthA, out double arcLengthB,
         out double ductLengthA, out double ductLengthB,
-        List<DebugLine> debugLines)
+        List<DebugLine> debugLines, int debugGroup)
     {
         var arcAngleA = -Vector2d.SignedAngle(frameA.normal, normal);
         var arcAngleB = -Vector2d.SignedAngle(frameB.normal, normal);
@@ -1398,15 +1368,15 @@ public class PathTracer
 
         if (debugLines != null)
         {
-            debugLines.Add(new DebugLine(this, arcEndPosA, pointC));
+            debugLines.Add(new DebugLine(this, arcEndPosA, pointC, 0, debugGroup));
 
-            debugLines.Add(new DebugLine(this, frameA.pos, pivotPointA, 2));
-            debugLines.Add(new DebugLine(this, arcEndPosA, pivotPointA, 3));
+            debugLines.Add(new DebugLine(this, frameA.pos, pivotPointA, 2, debugGroup));
+            debugLines.Add(new DebugLine(this, arcEndPosA, pivotPointA, 3, debugGroup));
 
             if (Vector2d.TryIntersect(frameA.pos, arcEndPosA, frameA.normal, normal, out var pointJ, 0.001))
             {
-                debugLines.Add(new DebugLine(this, frameA.pos, pointJ, 5));
-                debugLines.Add(new DebugLine(this, arcEndPosA, pointJ, 1));
+                debugLines.Add(new DebugLine(this, frameA.pos, pointJ, 5, debugGroup));
+                debugLines.Add(new DebugLine(this, arcEndPosA, pointJ, 1, debugGroup));
             }
         }
 
@@ -1418,8 +1388,8 @@ public class PathTracer
 
         if (debugLines != null)
         {
-            debugLines.Add(new DebugLine(this, pointB, pointF, 5));
-            debugLines.Add(new DebugLine(this, pointC, pointF, 1));
+            debugLines.Add(new DebugLine(this, pointB, pointF, 5, debugGroup));
+            debugLines.Add(new DebugLine(this, pointC, pointF, 1, debugGroup));
         }
 
         if (scalarB < 0)
@@ -1460,8 +1430,8 @@ public class PathTracer
 
         if (debugLines != null)
         {
-            debugLines.Add(new DebugLine(this, pointG, pointK, 2));
-            debugLines.Add(new DebugLine(this, pointC, pointK, 3));
+            debugLines.Add(new DebugLine(this, pointG, pointK, 2, debugGroup));
+            debugLines.Add(new DebugLine(this, pointC, pointK, 3, debugGroup));
         }
 
         // calculate length of arc B based on https://www.omnicalculator.com/math/arc-length

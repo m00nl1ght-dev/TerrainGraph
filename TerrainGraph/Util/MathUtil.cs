@@ -78,4 +78,57 @@ public static class MathUtil
         list.Add(item);
         return true;
     }
+
+    public static bool BalancedTraversal(ref int a, ref int b, ref int ptr, int limitA, int limitB)
+    {
+        if (a == ptr.WithMax(limitA) && b == ptr.WithMax(limitB))
+        {
+            ptr++;
+
+            if (ptr <= limitA)
+            {
+                a = ptr;
+                b = 0;
+            }
+            else if (ptr <= limitB)
+            {
+                b = ptr;
+                a = 0;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else if (a == ptr)
+        {
+            if (ptr <= limitB)
+            {
+                a = b;
+                b = ptr;
+            }
+            else
+            {
+                b += 1;
+            }
+        }
+        else if (b == ptr)
+        {
+            if (ptr <= limitA)
+            {
+                b = a + 1;
+                a = ptr;
+            }
+            else
+            {
+                a += 1;
+            }
+        }
+        else
+        {
+            return false;
+        }
+
+        return true;
+    }
 }
