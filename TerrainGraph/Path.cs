@@ -463,7 +463,7 @@ public class Path
         public int FullStepsCount(bool allowSingle)
         {
             var stepSize = TraceParams.StepSize.WithMin(1);
-            if (Length < stepSize && allowSingle) return 1;
+            if (Length < stepSize && Length >= 1 && allowSingle) return 1;
             return (int) Math.Floor(Length / stepSize);
         }
 
@@ -505,6 +505,13 @@ public class Path
             StepsTotal.Equals(other.StepsTotal) &&
             StepsStart.Equals(other.StepsStart) &&
             StepsPadding.Equals(other.StepsPadding);
+
+        public override string ToString() =>
+            $"{nameof(ValueDelta)}: {ValueDelta}, " +
+            $"{nameof(OffsetDelta)}: {OffsetDelta}, " +
+            $"{nameof(StepsTotal)}: {StepsTotal}, " +
+            $"{nameof(StepsStart)}: {StepsStart}, " +
+            $"{nameof(StepsPadding)}: {StepsPadding}";
     }
 
     [HotSwappable]

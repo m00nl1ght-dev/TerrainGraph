@@ -9,10 +9,9 @@ namespace TerrainGraph;
 
 public class HotSwappableAttribute : Attribute;
 
+// TODO instead of stubbing, first make an attempt at diverting the branch-to-be-stubbed away from the collision point
 // TODO check all divisions and trig functions for div-by-0 potential
 // TODO stop-when-trace-frame-fully-leaves-outer-grid feature
-// TODO value/offset at merge is off in many test savefiles
-// TODO instead of stubbing, first make an attempt at diverting the branch-to-be-stubbed away from the collision point
 
 [HotSwappable]
 public class PathTracer
@@ -21,7 +20,7 @@ public class PathTracer
 
     public double RadialThreshold = 0.5;
     public double CollisionAdjMinDist = 5;
-    public double MergeValueDeltaLimit = 0.9;
+    public double MergeValueDeltaLimit = 0.9; // TODO adjust
     public double MergeOffsetDeltaLimit = 0.2;
 
     public readonly Vector2d GridInnerSize;
@@ -276,7 +275,7 @@ public class PathTracer
                         var parentResults = branch.Parents.Select(p => taskResults[p]).ToList();
                         var mergedFrame = new TraceFrame(parentResults);
 
-                        DebugOutput($"Merged frame result: {mergedFrame}");
+                        DebugOutput($"Merged frames {string.Join(" + ", branch.Parents.Select(b => b.Id))} into {branch.Id}");
 
                         Enqueue(branch, mergedFrame);
                     }
@@ -1182,19 +1181,19 @@ public class PathTracer
             var mutableDistA = arcA + ductA + GetLinearParents(c.segmentA).Sum(s => s == c.segmentA ? frameA.dist : s.Length);
             var mutableDistB = arcB + ductB + GetLinearParents(c.segmentB).Sum(s => s == c.segmentB ? frameB.dist : s.Length);
 
+            DebugOutput($"Merge probably spans {valueDelta:F2} / {offsetDelta:F2} over {mutableDistA:F2} + {mutableDistB:F2}");
+
             var mutableDist = mutableDistA + mutableDistB;
 
-            diffSplitRatio = mutableDistB / mutableDist;
+            if (mutableDist <= 0) return false;
 
             var valueLimitExc = valueDelta.Abs() / mutableDist > MergeValueDeltaLimit;
             var offsetLimitExc = offsetDelta.Abs() / mutableDist > MergeOffsetDeltaLimit;
 
-            DebugOutput($"Merge spans {valueDelta:F2} / {offsetDelta:F2} over {mutableDistA:F2} + {mutableDistB:F2}");
-
             DebugLines?.Add(new DebugLine(
                 this, c.position, valueLimitExc ? 1 : offsetLimitExc ? 7 : 2, 0,
-                $"V {valueDelta:F2} O {offsetDelta:F2}\nD {mutableDist:F2} R {diffSplitRatio:F2}")
-            );
+                $"V {valueDelta:F2} O {offsetDelta:F2}\nD {mutableDist:F2} R {diffSplitRatio:F2}"
+            ));
 
             if (valueLimitExc || offsetLimitExc) return false;
         }
@@ -1231,18 +1230,38 @@ public class PathTracer
         endA.ApplyLocalStabilityAtHead(stabilityRangeA / 2, stabilityRangeA / 2);
         endB.ApplyLocalStabilityAtHead(stabilityRangeB / 2, stabilityRangeB / 2);
 
-        if (interconnected)
+        if (valueDelta != 0 || offsetDelta != 0)
         {
-            ModifyParents(endA, valueDelta * (1 - diffSplitRatio), offsetDelta * (1 - diffSplitRatio));
-            ModifyParents(endB, -1 * valueDelta * diffSplitRatio, -1 * offsetDelta * diffSplitRatio);
-        }
-        else
-        {
-            ModifyRoots(connectedA, valueDelta * (1 - diffSplitRatio), offsetDelta * (1 - diffSplitRatio));
-            ModifyRoots(connectedB, -1 * valueDelta * diffSplitRatio, -1 * offsetDelta * diffSplitRatio);
+            if (interconnected)
+            {
+                var linearParentsA = GetLinearParents(endA);
+                var linearParentsB = GetLinearParents(endB);
+
+                var mutableDistA = linearParentsA.Sum(s => s.FullStepsCount(valueDelta > 0) == 0 ? 0 : s.Length);
+                var mutableDistB = linearParentsB.Sum(s => s.FullStepsCount(valueDelta < 0) == 0 ? 0 : s.Length);
+
+                DebugOutput($"Merge actually spans {valueDelta:F2} / {offsetDelta:F2} over {mutableDistA:F2} + {mutableDistB:F2}");
+
+                var mutableDist = mutableDistA + mutableDistB;
+
+                if (mutableDist > 0)
+                {
+                    diffSplitRatio = mutableDistB / mutableDist;
+                }
+
+                linearParentsA.Reverse();
+                linearParentsB.Reverse();
+
+                ModifySegments(linearParentsA, valueDelta * (1 - diffSplitRatio), offsetDelta * (1 - diffSplitRatio));
+                ModifySegments(linearParentsB, -1 * valueDelta * diffSplitRatio, -1 * offsetDelta * diffSplitRatio);
+            }
+            else
+            {
+                ModifyRoots(connectedA, valueDelta * (1 - diffSplitRatio), offsetDelta * (1 - diffSplitRatio));
+                ModifyRoots(connectedB, -1 * valueDelta * diffSplitRatio, -1 * offsetDelta * diffSplitRatio);
+            }
         }
 
-        // TODO improve so this tolerates self-contained split-and-re-merge parts?
         List<Segment> GetLinearParents(Segment segment)
         {
             return segment.ConnectedSegments(false, true,
@@ -1251,25 +1270,22 @@ public class PathTracer
             );
         }
 
-        void ModifyParents(Segment segment, double valueDiff, double offsetDiff)
+        void ModifySegments(List<Segment> segments, double valueDiff, double offsetDiff)
         {
-            var linearParents = GetLinearParents(segment);
-
-            var totalSteps = linearParents.Sum(s => s.FullStepsCount(valueDiff > 0));
-
-            linearParents.Reverse();
+            var totalSteps = segments.Sum(s => s.FullStepsCount(valueDiff > 0));
 
             var padding = totalSteps / 8;
 
             var currentSteps = 0;
 
-            foreach (var parent in linearParents)
+            foreach (var segment in segments)
             {
-                var fullSteps = parent.FullStepsCount(valueDiff > 0);
+                var fullSteps = segment.FullStepsCount(valueDiff > 0);
 
                 if (fullSteps > 0)
                 {
-                    parent.SmoothDelta = new SmoothDelta(valueDiff, offsetDiff, totalSteps, currentSteps, padding);
+                    segment.SmoothDelta = new SmoothDelta(valueDiff, offsetDiff, totalSteps, currentSteps, padding);
+                    DebugOutput($"Smooth delta for segment {segment.Id} => {segment.SmoothDelta}");
                     currentSteps += fullSteps;
                 }
             }
