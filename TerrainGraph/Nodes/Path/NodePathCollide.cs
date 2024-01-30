@@ -20,6 +20,9 @@ public class NodePathCollide : NodeBase
     [ValueConnectionKnob("Arc Range", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob ArcRangeKnob;
 
+    [ValueConnectionKnob("Arc Intensity", Direction.In, ValueFunctionConnection.Id)]
+    public ValueConnectionKnob ArcIntensityKnob;
+
     [ValueConnectionKnob("Stable Range", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob StableRangeKnob;
 
@@ -27,6 +30,7 @@ public class NodePathCollide : NodeBase
     public ValueConnectionKnob OutputKnob;
 
     public double ArcRange;
+    public double ArcIntensity;
     public double StableRange;
 
     public override void NodeGUI()
@@ -41,6 +45,7 @@ public class NodePathCollide : NodeBase
         GUILayout.EndHorizontal();
 
         KnobValueField(ArcRangeKnob, ref ArcRange);
+        KnobValueField(ArcIntensityKnob, ref ArcIntensity);
         KnobValueField(StableRangeKnob, ref StableRange);
 
         GUILayout.EndVertical();
@@ -52,12 +57,15 @@ public class NodePathCollide : NodeBase
     public override void RefreshPreview()
     {
         var arcRange = GetIfConnected<double>(ArcRangeKnob);
+        var arcIntensity = GetIfConnected<double>(ArcIntensityKnob);
         var stableRange = GetIfConnected<double>(StableRangeKnob);
 
         arcRange?.ResetState();
+        arcIntensity?.ResetState();
         stableRange?.ResetState();
 
         if (arcRange != null) ArcRange = arcRange.Get();
+        if (arcIntensity != null) ArcIntensity = arcIntensity.Get();
         if (stableRange != null) StableRange = stableRange.Get();
     }
 
@@ -66,6 +74,7 @@ public class NodePathCollide : NodeBase
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
             SupplierOrFallback(ArcRangeKnob, ArcRange),
+            SupplierOrFallback(ArcIntensityKnob, ArcIntensity),
             SupplierOrFallback(StableRangeKnob, StableRange)
         ));
         return true;
@@ -75,12 +84,18 @@ public class NodePathCollide : NodeBase
     {
         private readonly ISupplier<Path> _input;
         private readonly ISupplier<double> _arcRange;
+        private readonly ISupplier<double> _arcIntensity;
         private readonly ISupplier<double> _stableRange;
 
-        public Output(ISupplier<Path> input, ISupplier<double> arcRange, ISupplier<double> stableRange)
+        public Output(
+            ISupplier<Path> input,
+            ISupplier<double> arcRange,
+            ISupplier<double> arcIntensity,
+            ISupplier<double> stableRange)
         {
             _input = input;
             _arcRange = arcRange;
+            _arcIntensity = arcIntensity;
             _stableRange = stableRange;
         }
 
@@ -93,6 +108,7 @@ public class NodePathCollide : NodeBase
                 var extParams = segment.TraceParams;
 
                 extParams.ArcRetraceRange = _arcRange.Get();
+                extParams.ArcRetraceFactor = _arcIntensity.Get();
                 extParams.ArcStableRange = _stableRange.Get();
 
                 segment.ExtendWithParams(extParams);
@@ -105,6 +121,7 @@ public class NodePathCollide : NodeBase
         {
             _input.ResetState();
             _arcRange.ResetState();
+            _arcIntensity.ResetState();
             _stableRange.ResetState();
         }
     }

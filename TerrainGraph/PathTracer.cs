@@ -17,11 +17,13 @@ public class HotSwappableAttribute : Attribute;
 public class PathTracer
 {
     private const int MaxTraceFrames = 1_000_000;
+    private const int MaxDiversionPoints = 10;
 
     public double RadialThreshold = 0.5;
     public double CollisionAdjMinDist = 5;
-    public double MergeValueDeltaLimit = 0.5;
-    public double MergeOffsetDeltaLimit = 0.5;
+    public double StubBacktrackLength = 10;
+    public double MergeValueDeltaLimit = 0.45;
+    public double MergeOffsetDeltaLimit = 0.45;
 
     public readonly Vector2d GridInnerSize;
     public readonly Vector2d GridOuterSize;
@@ -168,6 +170,11 @@ public class PathTracer
 
             HandleFirstCollision(simulatedCollisions);
 
+            DebugLines?.Add(new DebugLine(
+                this, new Vector2d(7, 5 + attempt), 3, 0,
+                $"Attempt {attempt} had {simulatedCollisions.Count} collisions")
+            );
+
             simulatedCollisions.Clear();
             occuredCollisions.Clear();
         }
@@ -175,6 +182,12 @@ public class PathTracer
         DebugOutput($"### FINAL ATTEMPT ###");
 
         TryTrace(path, occuredCollisions);
+
+        DebugLines?.Add(new DebugLine(
+            this, new Vector2d(7, 4 + maxAttempts), 1, 0,
+            $"Final attempt had {occuredCollisions.Count} collisions")
+        );
+
         return occuredCollisions.Count == 0;
     }
 
@@ -201,7 +214,7 @@ public class PathTracer
     {
         foreach (var segment in path.Segments.ToList())
         {
-            if (segment.BranchIds.Count > 1)
+            if (segment.BranchCount > 1)
             {
                 foreach (var branch in segment.Branches)
                 {
@@ -213,7 +226,7 @@ public class PathTracer
                 segment.ApplyLocalStabilityAtHead(0, rangeMain);
             }
 
-            if (segment.ParentIds.Count > 1)
+            if (segment.ParentCount > 1)
             {
                 foreach (var parent in segment.Parents)
                 {
@@ -264,7 +277,7 @@ public class PathTracer
             {
                 foreach (var branch in task.segment.Branches)
                 {
-                    if (branch.ParentIds.Count <= 1)
+                    if (branch.ParentCount <= 1)
                     {
                         Enqueue(branch, result.finalFrame);
                     }
@@ -750,6 +763,19 @@ public class PathTracer
                     );
                 }
 
+                if (extParams.DiversionPoints != null)
+                {
+                    foreach (var avoidPoint in extParams.DiversionPoints)
+                    {
+                        var distance = Vector2d.Distance(avoidPoint.Position, a.pos);
+
+                        if (distance < avoidPoint.Range)
+                        {
+                            followVec += avoidPoint.Diversion * (1 - distance / avoidPoint.Range);
+                        }
+                    }
+                }
+
                 if (followVec != Vector2d.Zero)
                 {
                     angleDelta -= Vector2d.SignedAngle(a.normal, a.normal + followVec);
@@ -964,7 +990,7 @@ public class PathTracer
 
     private bool CanCollide(Segment active, Segment passive, double dist)
     {
-        if (active.TraceParams.ArcRetraceRange <= 0) return false;
+        if (active.TraceParams.ArcRetraceRange <= 0 || active.TraceParams.ArcRetraceFactor <= 0) return false;
 
         if (dist < CollisionAdjMinDist)
         {
@@ -1000,12 +1026,27 @@ public class PathTracer
                 if (TryMerge(first))
                 {
                     DebugOutput($"Path merge was successful");
+                    return;
                 }
-                else
+
+                DebugOutput($"Path merge not possible, attempting diversion of active branch");
+
+                if (TryDivert(first, false))
                 {
-                    DebugOutput($"Path merge not possible, stubbing instead");
-                    Stub(first);
+                    DebugOutput($"Path diversion of active branch was successful");
+                    return;
                 }
+
+                DebugOutput($"Path diversion of active branch not possible, attempting passive branch");
+
+                if (TryDivert(first, true))
+                {
+                    DebugOutput($"Path diversion of passive branch was successful");
+                    return;
+                }
+
+                DebugOutput($"Path diversion of passive branch not possible, stubbing instead");
+                Stub(first);
             }
             else
             {
@@ -1016,15 +1057,15 @@ public class PathTracer
     }
 
     /// <summary>
-    /// Stub the active path segment in order to avoid the given collision.
+    /// Stub one of the involved path segments in order to avoid the given collision.
     /// </summary>
     private void Stub(PathCollision c)
     {
         Segment stub;
         List<TraceFrame> frames;
 
-        var hasAnyMergeA = c.segmentA.AnyBranchesMatch(s => s.ParentIds.Count > 1, false);
-        var hasAnyMergeB = c.segmentB.AnyBranchesMatch(s => s.ParentIds.Count > 1, false);
+        var hasAnyMergeA = c.segmentA.AnyBranchesMatch(s => s.ParentCount > 1, false);
+        var hasAnyMergeB = c.segmentB.AnyBranchesMatch(s => s.ParentCount > 1, false);
 
         if (hasAnyMergeA == hasAnyMergeB ? c.frameA.width <= c.frameB.width : hasAnyMergeB)
         {
@@ -1039,7 +1080,7 @@ public class PathTracer
 
         stub.Length = frames[frames.Count - 1].dist;
 
-        var lengthDiff = -1 * stub.TraceParams.ArcRetraceRange.WithMin(1);
+        var lengthDiff = -1 * StubBacktrackLength;
 
         var widthAtTail = frames[0].width;
         var densityAtTail = frames[0].density;
@@ -1047,16 +1088,16 @@ public class PathTracer
 
         while (stub.Length + lengthDiff < 2.5 * widthAtTail)
         {
-            if (stub.ParentIds.Count == 0 || stub.RelWidth <= 0 || stub.RelDensity <= 0 || stub.RelSpeed <= 0)
+            if (stub.ParentCount == 0 || stub.RelWidth <= 0 || stub.RelDensity <= 0 || stub.RelSpeed <= 0)
             {
                 stub.Discard();
                 return;
             }
 
-            if (stub.ParentIds.Count == 1)
+            if (stub.ParentCount == 1)
             {
                 var parent = stub.Parents.First();
-                if (parent.AnyBranchesMatch(b => b.ParentIds.Count > 1, false)) break;
+                if (parent.AnyBranchesMatch(b => b.ParentCount > 1, false)) break;
 
                 widthAtTail = widthAtTail / stub.RelWidth + parent.TraceParams.WidthLoss * parent.Length;
                 densityAtTail = densityAtTail / stub.RelDensity + parent.TraceParams.DensityLoss * parent.Length;
@@ -1079,6 +1120,70 @@ public class PathTracer
     }
 
     /// <summary>
+    /// Attempt to divert one of the involved path segments in order to avoid the given collision.
+    /// </summary>
+    /// <returns>true if one of the segments was diverted successfully, otherwise false</returns>
+    private bool TryDivert(PathCollision c, bool passiveBranch)
+    {
+        Segment segmentD, segmentP;
+        TraceFrame frameD, frameP;
+
+        if (passiveBranch)
+        {
+            segmentP = c.segmentA;
+            segmentD = c.segmentB;
+            frameP = c.frameA;
+            frameD = c.frameB;
+        }
+        else
+        {
+            segmentP = c.segmentB;
+            segmentD = c.segmentA;
+            frameP = c.frameB;
+            frameD = c.frameA;
+        }
+
+        if (segmentD.TraceParams.ArcRetraceRange <= 0) return false;
+        if (segmentD.TraceParams.ArcRetraceFactor <= 0) return false;
+
+        if (segmentD.AnyBranchesMatch(s => s.ParentCount > 1, false)) return false;
+
+        if (segmentD.TraceParams.DiversionPoints is { Count: >= MaxDiversionPoints }) return false;
+
+        var normal = frameP.perpCW * Vector2d.PointToLineOrientation(frameD.pos, frameD.pos + frameD.normal, frameP.pos);
+        var reflected = Vector2d.Reflect(frameD.normal, normal) * segmentD.TraceParams.ArcRetraceFactor;
+
+        var point = new DiversionPoint(frameD.pos, reflected, segmentD.TraceParams.ArcRetraceRange);
+
+        var segments = segmentD.ConnectedSegments(false, true,
+            s => s.BranchCount == 1 || !s.AnyBranchesMatch(b => b == segmentP || b.ParentCount > 1, false),
+            s => s.ParentCount == 1
+        );
+
+        var distanceCovered = 0d;
+
+        foreach (var segment in segments)
+        {
+            distanceCovered += segment == segmentD ? frameD.dist : segment.Length;
+
+            segment.TraceParams.AddDiversionPoint(point);
+
+            if (distanceCovered >= point.Range) break;
+        }
+
+        if (distanceCovered < segmentD.TraceParams.StepSize) return false;
+
+        if (DebugLines != null)
+        {
+            DebugLines.Add(new DebugLine(this, frameD.pos, 4));
+            DebugLines.Add(new DebugLine(this, frameD.pos, frameD.pos + reflected, 4));
+            DebugLines.Add(new DebugLine(this, frameP.pos, frameP.pos + normal, 4));
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// Attempt to merge the involved path segments in order to avoid the given collision.
     /// </summary>
     /// <returns>true if the segments were merged successfully, otherwise false</returns>
@@ -1098,8 +1203,8 @@ public class PathTracer
         if (c.segmentA.TraceParams.AvoidOverlap > 0) return false;
         if (c.segmentA.IsBranchOf(c.segmentB, true)) return false;
 
-        if (c.segmentA.AnyBranchesMatch(s => s.ParentIds.Count > 1, false)) return false;
-        if (c.segmentB.AnyBranchesMatch(s => s.ParentIds.Count > 1, false)) return false;
+        if (c.segmentA.AnyBranchesMatch(s => s.ParentCount > 1, false)) return false;
+        if (c.segmentB.AnyBranchesMatch(s => s.ParentCount > 1, false)) return false;
 
         double arcA, arcB, ductA, ductB;
         TraceFrame frameA, frameB;
@@ -1176,8 +1281,8 @@ public class PathTracer
 
         if (interconnected)
         {
-            var mutableDistA = arcA + ductA + GetLinearParents(c.segmentA).Sum(s => s == c.segmentA ? frameA.dist : s.Length);
-            var mutableDistB = arcB + ductB + GetLinearParents(c.segmentB).Sum(s => s == c.segmentB ? frameB.dist : s.Length);
+            var mutableDistA = arcA + ductA + c.segmentA.LinearParents().Sum(s => s == c.segmentA ? frameA.dist : s.Length);
+            var mutableDistB = arcB + ductB + c.segmentB.LinearParents().Sum(s => s == c.segmentB ? frameB.dist : s.Length);
 
             DebugOutput($"Merge probably spans {valueDelta:F2} / {offsetDelta:F2} over {mutableDistA:F2} + {mutableDistB:F2}");
 
@@ -1236,8 +1341,8 @@ public class PathTracer
         {
             if (interconnected)
             {
-                var linearParentsA = GetLinearParents(endA);
-                var linearParentsB = GetLinearParents(endB);
+                var linearParentsA = endA.LinearParents();
+                var linearParentsB = endB.LinearParents();
 
                 var allowSingleFramesA = valueDelta > 0 || linearParentsA.All(s => s.Length < s.TraceParams.StepSize);
                 var allowSingleFramesB = valueDelta < 0 || linearParentsB.All(s => s.Length < s.TraceParams.StepSize);
@@ -1276,14 +1381,6 @@ public class PathTracer
                 ModifyRoots(connectedA, 0.5 * valueDelta, 0.5 * offsetDelta);
                 ModifyRoots(connectedB, -0.5 * valueDelta, -0.5 * offsetDelta);
             }
-        }
-
-        List<Segment> GetLinearParents(Segment segment)
-        {
-            return segment.ConnectedSegments(false, true,
-                s => s.BranchIds.Count == 1 || s == segment,
-                s => s.ParentIds.Count == 1
-            );
         }
 
         void ModifySegments(List<Segment> segments, double valueDiff, double offsetDiff, bool allowSingleFrames)

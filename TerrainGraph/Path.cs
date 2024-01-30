@@ -144,6 +144,9 @@ public class Path
         public IReadOnlyList<int> ParentIds => _parents;
         public IReadOnlyList<int> BranchIds => _branches;
 
+        public int ParentCount => _parents.Count;
+        public int BranchCount => _branches.Count;
+
         public bool IsRoot => _parents.Count == 0;
         public bool IsLeaf => _branches.Count == 0;
 
@@ -460,6 +463,14 @@ public class Path
             return connected;
         }
 
+        public List<Segment> LinearParents()
+        {
+            return ConnectedSegments(false, true,
+                s => s.BranchCount == 1 || s == this,
+                s => s.ParentCount == 1
+            );
+        }
+
         public int FullStepsCount(bool allowSingle)
         {
             var stepSize = TraceParams.StepSize.WithMin(1);
@@ -514,6 +525,25 @@ public class Path
             $"{nameof(StepsPadding)}: {StepsPadding}";
     }
 
+    public readonly struct DiversionPoint
+    {
+        public readonly Vector2d Position;
+        public readonly Vector2d Diversion;
+        public readonly double Range;
+
+        public DiversionPoint(Vector2d position, Vector2d diversion, double range)
+        {
+            Position = position;
+            Diversion = diversion;
+            Range = range;
+        }
+
+        public override string ToString() =>
+            $"{nameof(Position)}: {Position}, " +
+            $"{nameof(Diversion)}: {Diversion}, " +
+            $"{nameof(Range)}: {Range}";
+    }
+
     [HotSwappable]
     public struct TraceParams
     {
@@ -523,6 +553,7 @@ public class Path
         public double DensityLoss;
         public double AngleTenacity;
         public double AvoidOverlap;
+        public double ArcRetraceFactor;
         public double ArcRetraceRange;
         public double ArcStableRange;
 
@@ -533,9 +564,12 @@ public class Path
         public IGridFunction<double> SpeedGrid;
         public IGridFunction<double> DensityGrid;
 
+        public IReadOnlyCollection<DiversionPoint> DiversionPoints;
+
         public void ApplyFixedAngle(double angleDelta, bool stable)
         {
             AvoidOverlap = 0;
+            ArcRetraceFactor = 0;
             ArcRetraceRange = 0;
             ArcStableRange = 0;
             AngleTenacity = 0;
@@ -545,6 +579,8 @@ public class Path
 
             SwerveGrid = Of(angleDelta);
 
+            DiversionPoints = null;
+
             if (stable)
             {
                 WidthLoss = 0;
@@ -552,6 +588,11 @@ public class Path
                 DensityLoss = 0;
                 SpeedGrid = null;
             }
+        }
+
+        public void AddDiversionPoint(DiversionPoint point)
+        {
+            DiversionPoints = DiversionPoints != null ? [..DiversionPoints, point] : [point];
         }
 
         public static TraceParams Merge(TraceParams a, TraceParams b, double t = 0.5)
@@ -564,6 +605,7 @@ public class Path
                 DensityLoss = t.Lerp(a.DensityLoss, b.DensityLoss),
                 AngleTenacity = t.Lerp(a.AngleTenacity, b.AngleTenacity),
                 AvoidOverlap = t.Lerp(a.AvoidOverlap, b.AvoidOverlap),
+                ArcRetraceFactor = t.Lerp(a.ArcRetraceFactor, b.ArcRetraceFactor),
                 ArcRetraceRange = t.Lerp(a.ArcRetraceRange, b.ArcRetraceRange),
                 ArcStableRange = t.Lerp(a.ArcStableRange, b.ArcStableRange),
                 AbsFollowGrid = Lerp.Of(a.AbsFollowGrid, b.AbsFollowGrid, t),
@@ -582,6 +624,7 @@ public class Path
             DensityLoss.Equals(other.DensityLoss) &&
             AngleTenacity.Equals(other.AngleTenacity) &&
             AvoidOverlap.Equals(other.AvoidOverlap) &&
+            ArcRetraceFactor.Equals(other.ArcRetraceFactor) &&
             ArcRetraceRange.Equals(other.ArcRetraceRange) &&
             ArcStableRange.Equals(other.ArcStableRange) &&
             Equals(AbsFollowGrid, other.AbsFollowGrid) &&
@@ -589,6 +632,7 @@ public class Path
             Equals(SwerveGrid, other.SwerveGrid) &&
             Equals(WidthGrid, other.WidthGrid) &&
             Equals(SpeedGrid, other.SpeedGrid) &&
-            Equals(DensityGrid, other.DensityGrid);
+            Equals(DensityGrid, other.DensityGrid) &&
+            Equals(DiversionPoints, other.DiversionPoints);
     }
 }

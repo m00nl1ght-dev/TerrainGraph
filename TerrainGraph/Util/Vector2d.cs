@@ -124,6 +124,22 @@ public struct Vector2d
         return Math.Sqrt(dx * dx + dz * dz);
     }
 
+    /// <summary>
+    /// Returns 1 if the point C is on the left of the line from A to B, and -1 if it is on the right.
+    /// </summary>
+    public static double PointToLineOrientation(Vector2d a, Vector2d b, Vector2d c)
+    {
+        return Math.Sign((b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x));
+    }
+
+    /// <summary>
+    /// Returns the reflection of vector A against a surface with normal N.
+    /// </summary>
+    public static Vector2d Reflect(Vector2d a, Vector2d n)
+    {
+        return a - 2 * Dot(a, n) * n;
+    }
+
     public static bool TryIntersect(
         Vector2d originA,
         Vector2d originB,
