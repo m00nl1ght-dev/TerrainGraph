@@ -20,8 +20,8 @@ public class PathTracer
 
     public double RadialThreshold = 0.5;
     public double CollisionAdjMinDist = 5;
-    public double MergeValueDeltaLimit = 0.9; // TODO adjust
-    public double MergeOffsetDeltaLimit = 0.2;
+    public double MergeValueDeltaLimit = 0.5;
+    public double MergeOffsetDeltaLimit = 0.5;
 
     public readonly Vector2d GridInnerSize;
     public readonly Vector2d GridOuterSize;
@@ -1166,8 +1166,6 @@ public class PathTracer
         c.segmentA.DetachAll();
         c.segmentB.DetachAll();
 
-        var diffSplitRatio = 0.5;
-
         var orgLengthA = c.segmentA.Length;
         var orgLengthB = c.segmentB.Length;
 
@@ -1190,12 +1188,16 @@ public class PathTracer
             var valueLimitExc = valueDelta.Abs() / mutableDist > MergeValueDeltaLimit;
             var offsetLimitExc = offsetDelta.Abs() / mutableDist > MergeOffsetDeltaLimit;
 
-            DebugLines?.Add(new DebugLine(
-                this, c.position, valueLimitExc ? 1 : offsetLimitExc ? 7 : 2, 0,
-                $"V {valueDelta:F2} O {offsetDelta:F2}\nD {mutableDist:F2} R {diffSplitRatio:F2}"
-            ));
+            if (valueLimitExc || offsetLimitExc)
+            {
+                DebugLines?.Add(new DebugLine(
+                    this, c.position, valueLimitExc ? 1 : 7, 0,
+                    $"V {valueDelta:F2} O {offsetDelta:F2}\n" +
+                    $"D {mutableDistA:F2} + {mutableDistB:F2}"
+                ));
 
-            if (valueLimitExc || offsetLimitExc) return false;
+                return false;
+            }
         }
 
         var endA = InsertArcWithDuct(c.segmentA, ref frameA, arcA, ductA);
@@ -1237,28 +1239,42 @@ public class PathTracer
                 var linearParentsA = GetLinearParents(endA);
                 var linearParentsB = GetLinearParents(endB);
 
-                var mutableDistA = linearParentsA.Sum(s => s.FullStepsCount(valueDelta > 0) == 0 ? 0 : s.Length);
-                var mutableDistB = linearParentsB.Sum(s => s.FullStepsCount(valueDelta < 0) == 0 ? 0 : s.Length);
+                var allowSingleFramesA = valueDelta > 0 || linearParentsA.All(s => s.Length < s.TraceParams.StepSize);
+                var allowSingleFramesB = valueDelta < 0 || linearParentsB.All(s => s.Length < s.TraceParams.StepSize);
+
+                var mutableDistA = linearParentsA.Sum(s => s.FullStepsCount(allowSingleFramesA) == 0 ? 0 : s.Length);
+                var mutableDistB = linearParentsB.Sum(s => s.FullStepsCount(allowSingleFramesB) == 0 ? 0 : s.Length);
 
                 DebugOutput($"Merge actually spans {valueDelta:F2} / {offsetDelta:F2} over {mutableDistA:F2} + {mutableDistB:F2}");
 
                 var mutableDist = mutableDistA + mutableDistB;
 
-                if (mutableDist > 0)
-                {
-                    diffSplitRatio = mutableDistB / mutableDist;
-                }
+                var diffSplitRatio = mutableDist > 0 ? mutableDistB / mutableDist : 0.5;
+
+                var valueDeltaA = valueDelta * (1 - diffSplitRatio);
+                var valueDeltaB = -1 * valueDelta * diffSplitRatio;
+
+                var offsetDeltaA = offsetDelta * (1 - diffSplitRatio);
+                var offsetDeltaB = -1 * offsetDelta * diffSplitRatio;
+
+                DebugLines?.Add(new DebugLine(
+                    this, c.position, 2, 0,
+                    $"V {valueDelta:F2} O {offsetDelta:F2}\n" +
+                    $"D {mutableDist:F2} R {diffSplitRatio:F2}\n" +
+                    $"D1 {mutableDistA:F2} D2 {mutableDistB:F2}\n" +
+                    $"V1 {valueDeltaA:F2} V2 {valueDeltaB:F2}"
+                ));
 
                 linearParentsA.Reverse();
                 linearParentsB.Reverse();
 
-                ModifySegments(linearParentsA, valueDelta * (1 - diffSplitRatio), offsetDelta * (1 - diffSplitRatio));
-                ModifySegments(linearParentsB, -1 * valueDelta * diffSplitRatio, -1 * offsetDelta * diffSplitRatio);
+                ModifySegments(linearParentsA, valueDeltaA, offsetDeltaA, allowSingleFramesA);
+                ModifySegments(linearParentsB, valueDeltaB, offsetDeltaB, allowSingleFramesB);
             }
             else
             {
-                ModifyRoots(connectedA, valueDelta * (1 - diffSplitRatio), offsetDelta * (1 - diffSplitRatio));
-                ModifyRoots(connectedB, -1 * valueDelta * diffSplitRatio, -1 * offsetDelta * diffSplitRatio);
+                ModifyRoots(connectedA, 0.5 * valueDelta, 0.5 * offsetDelta);
+                ModifyRoots(connectedB, -0.5 * valueDelta, -0.5 * offsetDelta);
             }
         }
 
@@ -1270,9 +1286,9 @@ public class PathTracer
             );
         }
 
-        void ModifySegments(List<Segment> segments, double valueDiff, double offsetDiff)
+        void ModifySegments(List<Segment> segments, double valueDiff, double offsetDiff, bool allowSingleFrames)
         {
-            var totalSteps = segments.Sum(s => s.FullStepsCount(valueDiff > 0));
+            var totalSteps = segments.Sum(s => s.FullStepsCount(allowSingleFrames));
 
             var padding = totalSteps / 8;
 
@@ -1280,7 +1296,7 @@ public class PathTracer
 
             foreach (var segment in segments)
             {
-                var fullSteps = segment.FullStepsCount(valueDiff > 0);
+                var fullSteps = segment.FullStepsCount(allowSingleFrames);
 
                 if (fullSteps > 0)
                 {
