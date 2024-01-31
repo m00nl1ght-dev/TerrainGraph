@@ -44,6 +44,8 @@ public struct Vector2d
 
     public Vector2d PerpCCW => new(-z, x);
 
+    public readonly bool InBounds(Vector2d minI, Vector2d maxE) => x >= minI.x && x < maxE.x && z >= minI.z && z < maxE.z;
+
     public static double Dot(Vector2d a, Vector2d b) => a.x * b.x + a.z * b.z;
 
     public static double PerpDot(Vector2d a, Vector2d b) => a.x * b.z - a.z * b.x;

@@ -9,10 +9,6 @@ namespace TerrainGraph;
 
 public class HotSwappableAttribute : Attribute;
 
-// TODO instead of stubbing, first make an attempt at diverting the branch-to-be-stubbed away from the collision point
-// TODO check all divisions and trig functions for div-by-0 potential
-// TODO stop-when-trace-frame-fully-leaves-outer-grid feature
-
 [HotSwappable]
 public class PathTracer
 {
@@ -24,6 +20,8 @@ public class PathTracer
     public double StubBacktrackLength = 10;
     public double MergeValueDeltaLimit = 0.45;
     public double MergeOffsetDeltaLimit = 0.45;
+
+    public bool StopWhenOutOfBounds = true;
 
     public readonly Vector2d GridInnerSize;
     public readonly Vector2d GridOuterSize;
@@ -275,23 +273,30 @@ public class PathTracer
             }
             else if (result.finalFrame.width > 0)
             {
-                foreach (var branch in task.segment.Branches)
+                if (!StopWhenOutOfBounds || result.finalFrame.InBounds(Vector2d.Zero, GridOuterSize))
                 {
-                    if (branch.ParentCount <= 1)
+                    foreach (var branch in task.segment.Branches)
                     {
-                        Enqueue(branch, result.finalFrame);
+                        if (branch.ParentCount <= 1)
+                        {
+                            Enqueue(branch, result.finalFrame);
+                        }
+                        else
+                        {
+                            if (branch.Parents.Any(p => !taskResults.ContainsKey(p))) continue;
+
+                            var parentResults = branch.Parents.Select(p => taskResults[p]).ToList();
+                            var mergedFrame = new TraceFrame(parentResults);
+
+                            DebugOutput($"Merged frames {string.Join(" + ", branch.Parents.Select(b => b.Id))} into {branch.Id}");
+
+                            Enqueue(branch, mergedFrame);
+                        }
                     }
-                    else
-                    {
-                        if (branch.Parents.Any(p => !taskResults.ContainsKey(p))) continue;
-
-                        var parentResults = branch.Parents.Select(p => taskResults[p]).ToList();
-                        var mergedFrame = new TraceFrame(parentResults);
-
-                        DebugOutput($"Merged frames {string.Join(" + ", branch.Parents.Select(b => b.Id))} into {branch.Id}");
-
-                        Enqueue(branch, mergedFrame);
-                    }
+                }
+                else
+                {
+                    DebugOutput($"End of segment {task.segment.Id} is out of bounds, no need to trace further");
                 }
             }
         }
@@ -487,6 +492,8 @@ public class PathTracer
 
         public TraceFrame(List<TraceResult> mergingSegments)
         {
+            if (mergingSegments.Count == 0) return;
+
             foreach (var result in mergingSegments)
             {
                 this.normal += result.finalFrame.normal;
@@ -557,7 +564,7 @@ public class PathTracer
 
             Vector2d newPos;
 
-            if (radial)
+            if (radial && angleDelta != 0)
             {
                 pivotOffset = 180 * distDelta / (Math.PI * -angleDelta);
                 pivotPoint = pos + perpCCW * pivotOffset;
@@ -586,6 +593,10 @@ public class PathTracer
                 new LocalFactors(segment, pos - gridOffset, newDist)
             );
         }
+
+        public bool InBounds(Vector2d minI, Vector2d maxE) =>
+            (pos + perpCW * 0.5 * widthMul).InBounds(minI, maxE) ||
+            (pos + perpCCW * 0.5 * widthMul).InBounds(minI, maxE);
 
         public override string ToString() =>
             $"{nameof(pos)}: {pos}, " +
@@ -634,8 +645,6 @@ public class PathTracer
             var progress = segment.Length <= 0 ? 0 : (dist / segment.Length).InRange01();
 
             scalar = 1 - progress.Lerp(segment.LocalStabilityAtTail, segment.LocalStabilityAtHead).InRange01();
-
-            // if (scalar != 1) DebugOutput($"scalar at {pos + new Vector2d(3, 3)} is {scalar} and width is {width.ScaleAround(1, scalar)}");
         }
 
         public override string ToString() =>
@@ -726,6 +735,8 @@ public class PathTracer
         var a = initialFrame;
 
         _frameBuffer.Clear();
+
+        var everInBounds = false;
 
         while (a.dist < length + task.marginHead)
         {
@@ -827,8 +838,6 @@ public class PathTracer
 
                         var value = x < 0 || x >= n ? 0 : MathUtil.LinearDist(n, x);
 
-                        // DebugOutput($"step {x} of {n} v {value} f {factor}");
-
                         extraValue += smoothDelta.ValueDelta * value * factor;
                         extraOffset += smoothDelta.OffsetDelta * value * factor;
                     }
@@ -857,6 +866,16 @@ public class PathTracer
             if (extendA < 1 && a.dist >= 0)
             {
                 DebugOutput($"Extend is less than 1 at {a.pos} for segment {task.segment.Id}");
+                length = Math.Min(length, b.dist);
+            }
+
+            if (b.InBounds(Vector2d.Zero, GridOuterSize))
+            {
+                everInBounds = true;
+            }
+            else if (StopWhenOutOfBounds && everInBounds)
+            {
+                DebugOutput($"Trace frame at {b.pos} for segment {task.segment.Id} is now out of bounds");
                 length = Math.Min(length, b.dist);
             }
 
@@ -952,6 +971,8 @@ public class PathTracer
                                                 position = pos
                                             });
                                         }
+
+                                        DebugOutput($"Ignoring collision {task.segment.Id} vs {collided.Id} at {pos}");
                                     }
 
                                     if (task.simulated != null)
@@ -1113,9 +1134,14 @@ public class PathTracer
         }
 
         stub.Length += lengthDiff;
-        stub.TraceParams.WidthLoss = widthAtTail / stub.Length;
-        stub.TraceParams.DensityLoss = -3 * densityAtTail / stub.Length;
-        stub.TraceParams.SpeedLoss = -3 * speedAtTail / stub.Length;
+
+        if (stub.Length > 0)
+        {
+            stub.TraceParams.WidthLoss = widthAtTail / stub.Length;
+            stub.TraceParams.DensityLoss = -3 * densityAtTail / stub.Length;
+            stub.TraceParams.SpeedLoss = -3 * speedAtTail / stub.Length;
+        }
+
         stub.DetachAll(true);
     }
 
@@ -1196,7 +1222,7 @@ public class PathTracer
             ? (c.frameA.normal * c.frameA.width + c.frameB.normal * c.frameB.width).Normalized
             : perpDot >= 0 ? c.frameA.normal.PerpCCW : c.frameA.normal.PerpCW;
 
-        var shift = Math.Sign(Vector2d.PerpDot(normal, c.frameA.normal));
+        var shift = Vector2d.PointToLineOrientation(c.frameB.pos, c.frameB.pos + c.frameB.normal, c.frameA.pos);
 
         DebugOutput($"Target direction for merge is {normal} with dot {dot} perpDot {perpDot}");
 
@@ -1259,8 +1285,8 @@ public class PathTracer
 
         var targetDensity = 0.5.Lerp(frameA.density, frameB.density);
 
-        var offsetAtMergeA = frameA.offset + frameA.width * targetDensity * 0.5 * -shift;
-        var offsetAtMergeB = frameB.offset + frameB.width * targetDensity * 0.5 * shift;
+        var offsetAtMergeA = frameA.offset + frameA.width * targetDensity * 0.5 * shift;
+        var offsetAtMergeB = frameB.offset + frameB.width * targetDensity * 0.5 * -shift;
 
         var discardedBranches = c.segmentA.Branches.ToList();
         var followingBranches = c.segmentB.Branches.ToList();
@@ -1325,9 +1351,12 @@ public class PathTracer
                 segment.Length = ductLength;
             }
 
-            segment = segment.InsertNew();
-            segment.TraceParams.ApplyFixedAngle(arcAngle / arcLength, true);
-            segment.Length = arcLength;
+            if (arcLength > 0)
+            {
+                segment = segment.InsertNew();
+                segment.TraceParams.ApplyFixedAngle(arcAngle / arcLength, true);
+                segment.Length = arcLength;
+            }
 
             return segment;
         }
@@ -1415,8 +1444,8 @@ public class PathTracer
 
         if (frameA.density != frameB.density)
         {
-            endA.TraceParams.DensityLoss = (frameA.density - targetDensity) / endA.Length;
-            endB.TraceParams.DensityLoss = (frameB.density - targetDensity) / endB.Length;
+            if (endA.Length > 0) endA.TraceParams.DensityLoss = (frameA.density - targetDensity) / endA.Length;
+            if (endB.Length > 0) endB.TraceParams.DensityLoss = (frameB.density - targetDensity) / endB.Length;
         }
 
         var merged = new Segment(endA.Path)
@@ -1458,7 +1487,7 @@ public class PathTracer
 
         // calculate the vector between the end points of the arcs
 
-        var shiftDir = shift <= 0 ? normal.PerpCW : normal.PerpCCW;
+        var shiftDir = shift > 0 ? normal.PerpCW : normal.PerpCCW;
         var shiftSpan = (0.5 * frameA.width + 0.5 * frameB.width) * shiftDir;
 
         // calculate min arc lengths based on width and tenacity
@@ -1471,6 +1500,8 @@ public class PathTracer
 
         // calculate chord vector that spans arc B at its minimum length
 
+        if (arcAngleA == 0 || arcAngleB == 0) return ArcCalcResult.NoPointF;
+
         var minPivotOffsetB = 180 * arcLengthB / (Math.PI * -arcAngleB);
         var minArcChordVecB = frameB.perpCCW * minPivotOffsetB - normal.PerpCCW * minPivotOffsetB;
 
@@ -1479,7 +1510,7 @@ public class PathTracer
         var arcChordDirA = (frameA.normal + normal).Normalized;
         var targetAnchorA = frameB.pos + minArcChordVecB - shiftSpan;
 
-        if (Vector2d.TryIntersect(frameA.pos, targetAnchorA, arcChordDirA, frameB.normal, out _, out var minChordLengthA, 0.001))
+        if (Vector2d.TryIntersect(frameA.pos, targetAnchorA, arcChordDirA, frameB.normal, out _, out var minChordLengthA, 0.01))
         {
             var arcAngleRadAbsA = arcAngleA.Abs().ToRad();
             var minArcLengthA = arcAngleRadAbsA * 0.5 * minChordLengthA / Math.Sin(0.5 * arcAngleRadAbsA);
@@ -1620,7 +1651,7 @@ public class PathTracer
     private List<TraceFrame> ExchangeFrameBuffer(bool copy = false)
     {
         var buffer = _frameBuffer;
-        _frameBuffer = copy ? new(buffer) : new(50);
+        _frameBuffer = copy ? [..buffer] : new(50);
         return buffer;
     }
 }
