@@ -254,7 +254,7 @@ public class PathTracer
         {
             if (rootSegment.RelWidth > 0)
             {
-                Enqueue(rootSegment, originFrame);
+                Enqueue(rootSegment, originFrame, false);
             }
         }
 
@@ -273,13 +273,15 @@ public class PathTracer
             }
             else if (result.finalFrame.width > 0)
             {
-                if (!StopWhenOutOfBounds || result.finalFrame.InBounds(Vector2d.Zero, GridOuterSize))
+                var endInBounds = result.finalFrame.PossiblyInBounds(Vector2d.Zero, GridOuterSize);
+
+                if (endInBounds || !result.everInBounds || !StopWhenOutOfBounds)
                 {
                     foreach (var branch in task.segment.Branches)
                     {
                         if (branch.ParentCount <= 1)
                         {
-                            Enqueue(branch, result.finalFrame);
+                            Enqueue(branch, result.finalFrame, result.everInBounds);
                         }
                         else
                         {
@@ -290,7 +292,7 @@ public class PathTracer
 
                             DebugOutput($"Merged frames {string.Join(" + ", branch.Parents.Select(b => b.Id))} into {branch.Id}");
 
-                            Enqueue(branch, mergedFrame);
+                            Enqueue(branch, mergedFrame, parentResults.Any(r => r.everInBounds));
                         }
                     }
                 }
@@ -303,7 +305,7 @@ public class PathTracer
 
         return;
 
-        void Enqueue(Segment branch, TraceFrame baseFrame)
+        void Enqueue(Segment branch, TraceFrame baseFrame, bool everInBounds)
         {
             if (taskResults.ContainsKey(branch) || taskQueue.Any(t => t.segment == branch)) return;
 
@@ -314,7 +316,7 @@ public class PathTracer
             var marginHead = branch.IsLeaf ? TraceInnerMargin : 0;
             var marginTail = branch.IsRoot ? TraceInnerMargin : 0;
 
-            taskQueue.Enqueue(new TraceTask(branch, baseFrame, collisionList, marginHead, marginTail));
+            taskQueue.Enqueue(new TraceTask(branch, baseFrame, collisionList, marginHead, marginTail, everInBounds));
         }
     }
 
@@ -345,16 +347,21 @@ public class PathTracer
         /// </summary>
         public readonly double marginTail;
 
+        /// <summary>
+        /// Whether any previous segment has any frames fully within the bounds of the outer grid.
+        /// </summary>
+        public readonly bool everInBounds;
+
         public TraceTask(
-            Segment segment, TraceFrame baseFrame,
-            IEnumerable<PathCollision> simulated,
-            double marginHead, double marginTail)
+            Segment segment, TraceFrame baseFrame, IEnumerable<PathCollision> simulated,
+            double marginHead, double marginTail, bool everInBounds)
         {
             this.segment = segment;
             this.baseFrame = baseFrame;
             this.simulated = simulated;
             this.marginHead = marginHead;
             this.marginTail = marginTail;
+            this.everInBounds = everInBounds;
         }
     }
 
@@ -370,9 +377,15 @@ public class PathTracer
         /// </summary>
         public readonly PathCollision collision;
 
-        public TraceResult(TraceFrame finalFrame, PathCollision collision = null)
+        /// <summary>
+        /// Whether this or any previous segment has any frames fully within the bounds of the outer grid.
+        /// </summary>
+        public readonly bool everInBounds;
+
+        public TraceResult(TraceFrame finalFrame, bool everInBounds, PathCollision collision = null)
         {
             this.finalFrame = finalFrame;
+            this.everInBounds = everInBounds;
             this.collision = collision;
         }
     }
@@ -520,6 +533,16 @@ public class PathTracer
             this.offset /= mergingSegments.Count;
             this.density /= mergingSegments.Count;
 
+            var minDot = 0d;
+
+            foreach (var result in mergingSegments)
+            {
+                minDot = Math.Min(minDot, Vector2d.Dot(result.finalFrame.pos - pos, normal));
+            }
+
+            // move result frame backwards up to the farthest import
+            this.pos += this.normal * minDot;
+
             this.angle = -Vector2d.SignedAngle(new Vector2d(1, 0), this.normal);
             this.factors = new LocalFactors();
         }
@@ -594,9 +617,26 @@ public class PathTracer
             );
         }
 
-        public bool InBounds(Vector2d minI, Vector2d maxE) =>
-            (pos + perpCW * 0.5 * widthMul).InBounds(minI, maxE) ||
-            (pos + perpCCW * 0.5 * widthMul).InBounds(minI, maxE);
+        public bool PossiblyInBounds(Vector2d minI, Vector2d maxE)
+        {
+            var p1 = pos + perpCW * 0.5 * widthMul;
+            var p2 = pos + perpCCW * 0.5 * widthMul;
+
+            if (p1.x < minI.x && p2.x < minI.x) return false;
+            if (p1.z < minI.z && p2.z < minI.z) return false;
+            if (p1.x >= maxE.x && p2.x >= maxE.x) return false;
+            if (p1.z >= maxE.z && p2.z >= maxE.z) return false;
+
+            return true;
+        }
+
+        public bool PossiblyOutOfBounds(Vector2d minI, Vector2d maxE)
+        {
+            var p1 = pos + perpCW * 0.5 * widthMul;
+            var p2 = pos + perpCCW * 0.5 * widthMul;
+
+            return !p1.InBounds(minI, maxE) || !p2.InBounds(minI, maxE);
+        }
 
         public override string ToString() =>
             $"{nameof(pos)}: {pos}, " +
@@ -730,13 +770,13 @@ public class PathTracer
 
         DebugOutput($"Segment {task.segment.Id} started with initial frame [{initialFrame}] and length {length}");
 
-        if (length <= 0) return new TraceResult(initialFrame);
+        var everFullyInBounds = task.everInBounds || !initialFrame.PossiblyOutOfBounds(Vector2d.Zero, GridOuterSize);
+
+        if (length <= 0) return new TraceResult(initialFrame, everFullyInBounds);
 
         var a = initialFrame;
 
         _frameBuffer.Clear();
-
-        var everInBounds = false;
 
         while (a.dist < length + task.marginHead)
         {
@@ -869,14 +909,17 @@ public class PathTracer
                 length = Math.Min(length, b.dist);
             }
 
-            if (b.InBounds(Vector2d.Zero, GridOuterSize))
+            if (everFullyInBounds)
             {
-                everInBounds = true;
+                if (StopWhenOutOfBounds && !b.PossiblyInBounds(Vector2d.Zero, GridOuterSize))
+                {
+                    DebugOutput($"Trace frame at {b.pos} for segment {task.segment.Id} is now out of bounds");
+                    length = Math.Min(length, b.dist);
+                }
             }
-            else if (StopWhenOutOfBounds && everInBounds)
+            else if (!b.PossiblyOutOfBounds(Vector2d.Zero, GridOuterSize))
             {
-                DebugOutput($"Trace frame at {b.pos} for segment {task.segment.Id} is now out of bounds");
-                length = Math.Min(length, b.dist);
+                everFullyInBounds = true;
             }
 
             var boundP1 = a.pos + a.perpCCW * boundOa;
@@ -963,7 +1006,7 @@ public class PathTracer
 
                                         if (CanCollide(task.segment, collided, dist))
                                         {
-                                            return new TraceResult(a, new PathCollision
+                                            return new TraceResult(a, everFullyInBounds, new PathCollision
                                             {
                                                 segmentA = task.segment,
                                                 segmentB = collided,
@@ -1006,7 +1049,7 @@ public class PathTracer
 
         DebugOutput($"Segment {task.segment.Id} finished with final frame [{a}]");
 
-        return new TraceResult(a);
+        return new TraceResult(a, everFullyInBounds);
     }
 
     private bool CanCollide(Segment active, Segment passive, double dist)
@@ -1050,23 +1093,26 @@ public class PathTracer
                     return;
                 }
 
-                DebugOutput($"Path merge not possible, attempting diversion of active branch");
+                DebugOutput($"Path merge not possible, moving on to first diversion attempt");
 
-                if (TryDivert(first, false))
+                var divCountA = first.segmentA.TraceParams.DiversionPoints?.Count ?? 0;
+                var divCountB = first.segmentB.TraceParams.DiversionPoints?.Count ?? 0;
+
+                if (TryDivert(first, divCountA > divCountB))
                 {
-                    DebugOutput($"Path diversion of active branch was successful");
+                    DebugOutput($"Path diversion was successful");
                     return;
                 }
 
-                DebugOutput($"Path diversion of active branch not possible, attempting passive branch");
+                DebugOutput($"Path diversion not possible, moving on to second diversion attempt");
 
-                if (TryDivert(first, true))
+                if (TryDivert(first, divCountA <= divCountB))
                 {
-                    DebugOutput($"Path diversion of passive branch was successful");
+                    DebugOutput($"Path diversion was successful");
                     return;
                 }
 
-                DebugOutput($"Path diversion of passive branch not possible, stubbing instead");
+                DebugOutput($"Path diversion not possible, stubbing instead");
                 Stub(first);
             }
             else
@@ -1288,17 +1334,8 @@ public class PathTracer
         var offsetAtMergeA = frameA.offset + frameA.width * targetDensity * 0.5 * shift;
         var offsetAtMergeB = frameB.offset + frameB.width * targetDensity * 0.5 * -shift;
 
-        var discardedBranches = c.segmentA.Branches.ToList();
-        var followingBranches = c.segmentB.Branches.ToList();
-
         var connectedA = c.segmentA.ConnectedSegments();
         var connectedB = c.segmentB.ConnectedSegments();
-
-        c.segmentA.DetachAll();
-        c.segmentB.DetachAll();
-
-        var orgLengthA = c.segmentA.Length;
-        var orgLengthB = c.segmentB.Length;
 
         var valueDelta = valueAtMergeB - valueAtMergeA;
         var offsetDelta = offsetAtMergeB - offsetAtMergeA;
@@ -1330,6 +1367,15 @@ public class PathTracer
                 return false;
             }
         }
+
+        var discardedBranches = c.segmentA.Branches.ToList();
+        var followingBranches = c.segmentB.Branches.ToList();
+
+        var orgLengthA = c.segmentA.Length;
+        var orgLengthB = c.segmentB.Length;
+
+        c.segmentA.DetachAll();
+        c.segmentB.DetachAll();
 
         var endA = InsertArcWithDuct(c.segmentA, ref frameA, arcA, ductA);
         var endB = InsertArcWithDuct(c.segmentB, ref frameB, arcB, ductB);
