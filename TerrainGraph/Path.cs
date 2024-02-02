@@ -471,6 +471,11 @@ public class Path
             );
         }
 
+        public IEnumerable<Segment> CoParents()
+        {
+            return Branches.SelectMany(b => b.Parents).Where(b => b != this);
+        }
+
         public int FullStepsCount(bool allowSingle)
         {
             var stepSize = TraceParams.StepSize.WithMin(1);
@@ -569,9 +574,6 @@ public class Path
         public void ApplyFixedAngle(double angleDelta, bool stable)
         {
             AvoidOverlap = 0;
-            ArcRetraceFactor = 0;
-            ArcRetraceRange = 0;
-            ArcStableRange = 0;
             AngleTenacity = 0;
 
             AbsFollowGrid = null;

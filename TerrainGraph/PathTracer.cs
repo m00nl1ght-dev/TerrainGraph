@@ -13,7 +13,7 @@ public class HotSwappableAttribute : Attribute;
 public class PathTracer
 {
     private const int MaxTraceFrames = 1_000_000;
-    private const int MaxDiversionPoints = 10;
+    private const int MaxDiversionPoints = 5;
 
     public double RadialThreshold = 0.5;
     public double CollisionAdjMinDist = 5;
@@ -1054,12 +1054,15 @@ public class PathTracer
 
     private bool CanCollide(Segment active, Segment passive, double dist)
     {
-        if (active.TraceParams.ArcRetraceRange <= 0 || active.TraceParams.ArcRetraceFactor <= 0) return false;
-
         if (dist < CollisionAdjMinDist)
         {
             if (active.IsBranchOf(passive, false)) return false;
             if (active.IsDirectSiblingOf(passive, false)) return false;
+        }
+
+        if (active.Length - dist < CollisionAdjMinDist)
+        {
+            if (active.CoParents().Any(p => p.IsBranchOf(passive, true))) return false;
         }
 
         return true;

@@ -125,6 +125,7 @@ public class NodePathTrace : NodeBase
             {
                 tracer.DebugLines = DebugLines;
 
+                if (Input.GetKey(KeyCode.Alpha0)) maxAttempts = 0;
                 if (Input.GetKey(KeyCode.Alpha1)) maxAttempts = 1;
                 if (Input.GetKey(KeyCode.Alpha2)) maxAttempts = 2;
                 if (Input.GetKey(KeyCode.Alpha3)) maxAttempts = 3;
@@ -134,9 +135,12 @@ public class NodePathTrace : NodeBase
                 if (Input.GetKey(KeyCode.Alpha7)) maxAttempts = 7;
                 if (Input.GetKey(KeyCode.Alpha8)) maxAttempts = 8;
                 if (Input.GetKey(KeyCode.Alpha9)) maxAttempts = 9;
+
+                if (Input.GetKey(KeyCode.T)) maxAttempts += 10;
+                if (Input.GetKey(KeyCode.Z)) maxAttempts += 10;
             }
 
-            tracer.Trace(_input.Get(), maxAttempts);
+            tracer.Trace(_input.Get(), maxAttempts); // TODO error handling
 
             if (_debug)
             {
