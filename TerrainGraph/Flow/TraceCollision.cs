@@ -46,6 +46,28 @@ internal class TraceCollision
     /// </summary>
     public bool complete => framesA != null && framesB != null;
 
+    /// <summary>
+    /// Whether the passive segment is the same or any direct or indirect parent of the active segment.
+    /// </summary>
+    public bool cyclic;
+
+    /// <summary>
+    /// Whether any branches of the active segment have multiple parent segments.
+    /// </summary>
+    public bool hasMergeA;
+
+    /// <summary>
+    /// Whether any branches of the passive segment have multiple parent segments.
+    /// </summary>
+    public bool hasMergeB;
+
+    public void Analyze()
+    {
+        this.cyclic = segmentA.IsBranchOf(segmentB, true);
+        this.hasMergeA = segmentA.AnyBranchesMatch(s => s.ParentCount > 1, false);
+        this.hasMergeB = segmentB.AnyBranchesMatch(s => s.ParentCount > 1, false);
+    }
+
     public bool Precedes(TraceCollision other)
     {
         if (segmentA.IsBranchOf(other.segmentB, true)) return false;

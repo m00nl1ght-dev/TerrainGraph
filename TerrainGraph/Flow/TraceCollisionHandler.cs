@@ -38,45 +38,62 @@ public class TraceCollisionHandler
 
         if (first != null)
         {
-            if (first.complete)
-            {
-                PathTracer.DebugOutput($"Attempting merge: {first}");
+            HandleCollision(first);
+        }
+    }
 
-                if (TryMerge(first))
-                {
-                    PathTracer.DebugOutput($"Path merge was successful");
-                    return;
-                }
+    /// <summary>
+    /// Rewrite path segments such that the given collision is avoided.
+    /// </summary>
+    internal void HandleCollision(TraceCollision c)
+    {
+        c.Analyze();
 
-                PathTracer.DebugOutput($"Path merge not possible, moving on to first diversion attempt");
+        if (!c.complete)
+        {
+            PathTracer.DebugOutput($"Collision missing data: {c}");
+            Stub(c.segmentA, c.framesA);
+            return;
+        }
 
-                var divCountA = first.segmentA.TraceParams.DiversionPoints?.Count ?? 0;
-                var divCountB = first.segmentB.TraceParams.DiversionPoints?.Count ?? 0;
+        PathTracer.DebugOutput($"Attempting merge: {c}");
 
-                var passiveFirst = divCountA == divCountB ? first.frameA.width > first.frameB.width : divCountA > divCountB;
+        if (TryMerge(c))
+        {
+            PathTracer.DebugOutput($"Path merge was successful");
+            return;
+        }
 
-                if (TryDivert(first, passiveFirst))
-                {
-                    PathTracer.DebugOutput($"Path diversion was successful");
-                    return;
-                }
+        PathTracer.DebugOutput($"Path merge not possible, moving on to first diversion attempt");
 
-                PathTracer.DebugOutput($"Path diversion not possible, moving on to second diversion attempt");
+        var divCountA = c.segmentA.TraceParams.DiversionPoints?.Count ?? 0;
+        var divCountB = c.segmentB.TraceParams.DiversionPoints?.Count ?? 0;
 
-                if (TryDivert(first, !passiveFirst))
-                {
-                    PathTracer.DebugOutput($"Path diversion was successful");
-                    return;
-                }
+        var passiveFirst = divCountA == divCountB ? c.frameA.width > c.frameB.width : divCountA > divCountB;
 
-                PathTracer.DebugOutput($"Path diversion not possible, stubbing instead");
-                Stub(first);
-            }
-            else
-            {
-                PathTracer.DebugOutput($"!!! Collision missing data: {first}");
-                Stub(first);
-            }
+        if (TryDivert(c, passiveFirst))
+        {
+            PathTracer.DebugOutput($"Path diversion was successful");
+            return;
+        }
+
+        PathTracer.DebugOutput($"Path diversion not possible, moving on to second diversion attempt");
+
+        if (TryDivert(c, !passiveFirst))
+        {
+            PathTracer.DebugOutput($"Path diversion was successful");
+            return;
+        }
+
+        PathTracer.DebugOutput($"Path diversion not possible, stubbing instead");
+
+        if (c.hasMergeA == c.hasMergeB ? c.frameA.width <= c.frameB.width : c.hasMergeB)
+        {
+            Stub(c.segmentA, c.framesA);
+        }
+        else
+        {
+            Stub(c.segmentB, c.framesB);
         }
     }
 
@@ -86,6 +103,9 @@ public class TraceCollisionHandler
     /// <returns>true if the segments were merged successfully, otherwise false</returns>
     private bool TryMerge(TraceCollision c)
     {
+        if (c.cyclic || c.hasMergeA || c.hasMergeB) return false;
+        if (c.segmentA.TraceParams.AvoidOverlap > 0) return false;
+
         var dot = Vector2d.Dot(c.frameA.normal, c.frameB.normal);
         var perpDot = Vector2d.PerpDot(c.frameA.normal, c.frameB.normal);
 
@@ -96,12 +116,6 @@ public class TraceCollisionHandler
         var shift = Vector2d.PointToLineOrientation(c.frameB.pos, c.frameB.pos + c.frameB.normal, c.frameA.pos);
 
         PathTracer.DebugOutput($"Target direction for merge is {normal} with dot {dot} perpDot {perpDot}");
-
-        if (c.segmentA.TraceParams.AvoidOverlap > 0) return false;
-        if (c.segmentA.IsBranchOf(c.segmentB, true)) return false;
-
-        if (c.segmentA.AnyBranchesMatch(s => s.ParentCount > 1, false)) return false;
-        if (c.segmentB.AnyBranchesMatch(s => s.ParentCount > 1, false)) return false;
 
         double arcA, arcB, ductA, ductB;
         TraceFrame frameA, frameB;
@@ -521,23 +535,27 @@ public class TraceCollisionHandler
 
         if (passiveBranch)
         {
+            if (c.hasMergeB) return false;
+
             segmentP = c.segmentA;
             segmentD = c.segmentB;
+
             frameP = c.frameA;
             frameD = c.frameB;
         }
         else
         {
+            if (c.hasMergeA) return false;
+
             segmentP = c.segmentB;
             segmentD = c.segmentA;
+
             frameP = c.frameB;
             frameD = c.frameA;
         }
 
         if (segmentD.TraceParams.ArcRetraceRange <= 0) return false;
         if (segmentD.TraceParams.ArcRetraceFactor <= 0) return false;
-
-        if (segmentD.AnyBranchesMatch(s => s.ParentCount > 1, false)) return false;
 
         if ((segmentD.TraceParams.DiversionPoints?.Count ?? 0) >= MaxDiversionPoints) return false;
 
@@ -577,28 +595,11 @@ public class TraceCollisionHandler
     }
 
     /// <summary>
-    /// Stub one of the involved path segments in order to avoid the given collision.
+    /// Stub the given path segment in order to avoid a collision.
     /// </summary>
-    private void Stub(TraceCollision c)
+    private void Stub(Path.Segment segment, List<TraceFrame> frames)
     {
-        Path.Segment stub;
-        List<TraceFrame> frames;
-
-        var hasAnyMergeA = c.segmentA.AnyBranchesMatch(s => s.ParentCount > 1, false);
-        var hasAnyMergeB = c.segmentB.AnyBranchesMatch(s => s.ParentCount > 1, false);
-
-        if (hasAnyMergeA == hasAnyMergeB ? c.frameA.width <= c.frameB.width : hasAnyMergeB)
-        {
-            stub = c.segmentA;
-            frames = c.framesA;
-        }
-        else
-        {
-            stub = c.segmentB;
-            frames = c.framesB;
-        }
-
-        stub.Length = frames[frames.Count - 1].dist;
+        segment.Length = frames[frames.Count - 1].dist;
 
         var lengthDiff = -1 * StubBacktrackLength;
 
@@ -606,25 +607,25 @@ public class TraceCollisionHandler
         var densityAtTail = frames[0].density;
         var speedAtTail = frames[0].speed;
 
-        while (stub.Length + lengthDiff < 2.5 * widthAtTail)
+        while (segment.Length + lengthDiff < 2.5 * widthAtTail)
         {
-            if (stub.ParentCount == 0 || stub.RelWidth <= 0 || stub.RelDensity <= 0 || stub.RelSpeed <= 0)
+            if (segment.ParentCount == 0 || segment.RelWidth <= 0 || segment.RelDensity <= 0 || segment.RelSpeed <= 0)
             {
-                stub.Discard();
+                segment.Discard();
                 return;
             }
 
-            if (stub.ParentCount == 1)
+            if (segment.ParentCount == 1)
             {
-                var parent = stub.Parents.First();
+                var parent = segment.Parents.First();
                 if (parent.AnyBranchesMatch(b => b.ParentCount > 1, false)) break;
 
-                widthAtTail = widthAtTail / stub.RelWidth + parent.TraceParams.WidthLoss * parent.Length;
-                densityAtTail = densityAtTail / stub.RelDensity + parent.TraceParams.DensityLoss * parent.Length;
-                speedAtTail = speedAtTail / stub.RelSpeed + parent.TraceParams.SpeedLoss * parent.Length;
+                widthAtTail = widthAtTail / segment.RelWidth + parent.TraceParams.WidthLoss * parent.Length;
+                densityAtTail = densityAtTail / segment.RelDensity + parent.TraceParams.DensityLoss * parent.Length;
+                speedAtTail = speedAtTail / segment.RelSpeed + parent.TraceParams.SpeedLoss * parent.Length;
 
-                lengthDiff += stub.Length;
-                stub = parent;
+                lengthDiff += segment.Length;
+                segment = parent;
             }
             else
             {
@@ -632,17 +633,17 @@ public class TraceCollisionHandler
             }
         }
 
-        PathTracer.DebugOutput($"Stubbing segment {stub.Id}");
+        PathTracer.DebugOutput($"Stubbing segment {segment.Id}");
 
-        stub.Length += lengthDiff;
+        segment.Length += lengthDiff;
 
-        if (stub.Length > 0)
+        if (segment.Length > 0)
         {
-            stub.TraceParams.WidthLoss = widthAtTail / stub.Length;
-            stub.TraceParams.DensityLoss = -3 * densityAtTail / stub.Length;
-            stub.TraceParams.SpeedLoss = -3 * speedAtTail / stub.Length;
+            segment.TraceParams.WidthLoss = widthAtTail / segment.Length;
+            segment.TraceParams.DensityLoss = -3 * densityAtTail / segment.Length;
+            segment.TraceParams.SpeedLoss = -3 * speedAtTail / segment.Length;
         }
 
-        stub.DetachAll(true);
+        segment.DetachAll(true);
     }
 }
