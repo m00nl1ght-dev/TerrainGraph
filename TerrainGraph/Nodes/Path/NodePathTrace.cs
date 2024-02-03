@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using NodeEditorFramework;
+using TerrainGraph.Flow;
 using UnityEngine;
 
 namespace TerrainGraph;
@@ -20,7 +21,7 @@ public class NodePathTrace : NodeBase
     public override string Title => "Path: Trace";
 
     public static IGridFunction<double> DebugGrid;
-    public static List<PathTracer.DebugLine> DebugLines;
+    public static List<TraceDebugLine> DebugLines;
 
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;

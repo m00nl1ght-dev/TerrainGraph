@@ -4,7 +4,7 @@ using System.Linq;
 using TerrainGraph.Util;
 using static TerrainGraph.GridFunction;
 
-namespace TerrainGraph;
+namespace TerrainGraph.Flow;
 
 public class Path
 {
