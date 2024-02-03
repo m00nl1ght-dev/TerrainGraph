@@ -129,10 +129,10 @@ public class Path
         public double RelSpeed = 1;
         public double RelDensity = 1;
 
-        public double LocalStabilityAtTail = -9999;
-        public double LocalStabilityAtHead = -9999;
-
         public Vector2d RelPosition;
+
+        public LocalStability StabilityAtHead;
+        public LocalStability StabilityAtTail;
 
         public SmoothDelta SmoothDelta;
 
@@ -170,8 +170,8 @@ public class Path
             RelWidth = other.RelWidth;
             RelSpeed = other.RelSpeed;
             RelDensity = other.RelDensity;
-            LocalStabilityAtTail = other.LocalStabilityAtTail;
-            LocalStabilityAtHead = other.LocalStabilityAtHead;
+            StabilityAtTail = other.StabilityAtTail;
+            StabilityAtHead = other.StabilityAtHead;
             RelPosition = other.RelPosition;
             SmoothDelta = other.SmoothDelta;
             TraceParams = other.TraceParams;
@@ -298,37 +298,18 @@ public class Path
                             }
                         }
 
-                        var newTail = backwards ? b : a;
-                        var newHead = backwards ? a : b;
-
-                        var oldTail = segment.LocalStabilityAtTail;
-                        var oldHead = segment.LocalStabilityAtHead;
-
-                        if (newTail >= oldTail && newHead >= oldHead)
+                        if (backwards)
                         {
-                            segment.LocalStabilityAtTail = newTail;
-                            segment.LocalStabilityAtHead = newHead;
-                        }
-                        else if (newTail > oldTail || newHead > oldHead)
-                        {
-                            var maxTail = Math.Max(oldTail, newTail);
-                            var minTail = Math.Min(oldTail, newTail);
-                            var maxHead = Math.Max(oldHead, newHead);
-                            var minHead = Math.Min(oldHead, newHead);
-
-                            var p = (maxTail - minTail) / (maxTail - minHead - minTail + maxHead);
-
-                            if (p is >= 0 and <= 1)
+                            if (segment.StabilityAtHead == null || segment.StabilityAtHead.Value < a)
                             {
-                                var inserted = segment.InsertNew();
-
-                                inserted.Length = (1 - p) * segment.Length;
-                                segment.Length -= inserted.Length;
-
-                                segment.LocalStabilityAtTail = maxTail;
-                                segment.LocalStabilityAtHead = maxTail + (minHead - maxTail) * p;
-                                inserted.LocalStabilityAtTail = segment.LocalStabilityAtHead;
-                                inserted.LocalStabilityAtHead = maxHead;
+                                segment.StabilityAtHead = new LocalStability(a, a - b);
+                            }
+                        }
+                        else
+                        {
+                            if (segment.StabilityAtTail == null || segment.StabilityAtTail.Value < a)
+                            {
+                                segment.StabilityAtTail = new LocalStability(a, a - b);
                             }
                         }
                     }
@@ -340,6 +321,25 @@ public class Path
                 _ts_visited.Clear();
                 _ts_values.Clear();
             }
+        }
+
+        public double LocalStabilityAt(double progress)
+        {
+            var value = 0d;
+
+            if (StabilityAtTail != null)
+            {
+                var atTail = StabilityAtTail.Value - StabilityAtTail.Loss * progress;
+                if (atTail > value) value = atTail;
+            }
+
+            if (StabilityAtHead != null)
+            {
+                var atHead = StabilityAtHead.Value - StabilityAtHead.Loss * (1 - progress);
+                if (atHead > value) value = atHead;
+            }
+
+            return value.WithMax(1);
         }
 
         public bool IsParentOf(Segment other, bool includeSelf)
@@ -493,8 +493,30 @@ public class Path
             RelSpeed.Equals(other.RelSpeed) &&
             RelDensity.Equals(other.RelDensity) &&
             RelPosition.Equals(other.RelPosition) &&
+            Equals(StabilityAtHead, other.StabilityAtHead) &&
+            Equals(StabilityAtTail, other.StabilityAtTail) &&
             Equals(SmoothDelta, other.SmoothDelta) &&
             TraceParams.Equals(other.TraceParams);
+    }
+
+    public class LocalStability
+    {
+        public readonly double Value;
+        public readonly double Loss;
+
+        public LocalStability(double value, double loss)
+        {
+            Value = value;
+            Loss = loss;
+        }
+
+        protected bool Equals(LocalStability other) =>
+            Value.Equals(other.Value) &&
+            Loss.Equals(other.Loss);
+
+        public override string ToString() =>
+            $"{nameof(Value)}: {Value}, " +
+            $"{nameof(Loss)}: {Loss}";
     }
 
     public class SmoothDelta
@@ -636,5 +658,23 @@ public class Path
             Equals(SpeedGrid, other.SpeedGrid) &&
             Equals(DensityGrid, other.DensityGrid) &&
             Equals(DiversionPoints, other.DiversionPoints);
+
+        public override string ToString() =>
+            $"{nameof(StepSize)}: {StepSize}, " +
+            $"{nameof(WidthLoss)}: {WidthLoss:F2}, " +
+            $"{nameof(SpeedLoss)}: {SpeedLoss:F2}, " +
+            $"{nameof(DensityLoss)}: {DensityLoss:F2}, " +
+            $"{nameof(AngleTenacity)}: {AngleTenacity:F2}, " +
+            $"{nameof(AvoidOverlap)}: {AvoidOverlap:F2}, " +
+            $"{nameof(ArcRetraceFactor)}: {ArcRetraceFactor:F2}, " +
+            $"{nameof(ArcRetraceRange)}: {ArcRetraceRange:F2}, " +
+            $"{nameof(ArcStableRange)}: {ArcStableRange:F2}, " +
+            $"{nameof(AbsFollowGrid)}: {AbsFollowGrid}, " +
+            $"{nameof(RelFollowGrid)}: {RelFollowGrid}, " +
+            $"{nameof(SwerveGrid)}: {SwerveGrid}, " +
+            $"{nameof(WidthGrid)}: {WidthGrid}, " +
+            $"{nameof(SpeedGrid)}: {SpeedGrid}, " +
+            $"{nameof(DensityGrid)}: {DensityGrid}, " +
+            $"{nameof(DiversionPoints)}: {DiversionPoints?.Count ?? 0}";
     }
 }

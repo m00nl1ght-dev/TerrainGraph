@@ -40,6 +40,8 @@ public static class GridFunction
             if (obj.GetType() != this.GetType()) return false;
             return Equals((Const<T>) obj);
         }
+
+        public override string ToString() => $"{Value:F2}";
     }
 
     public class Select<T> : IGridFunction<T>
@@ -78,6 +80,14 @@ public static class GridFunction
             if (obj.GetType() != this.GetType()) return false;
             return Equals((Select<T>) obj);
         }
+
+        public override string ToString() =>
+            "SELECT { " +
+            $"{nameof(Input)}: {Input}, " +
+            $"{nameof(Options)}: {Options}, " +
+            $"{nameof(Thresholds)}: {Thresholds}, " +
+            $"{nameof(PostProcess)}: {(PostProcess == null ? "No" : "Yes")}" +
+            "}";
     }
 
     public class Add : IGridFunction<double>
@@ -106,6 +116,8 @@ public static class GridFunction
             if (obj.GetType() != this.GetType()) return false;
             return Equals((Add) obj);
         }
+
+        public override string ToString() => $"{A:F2} + {B:F2}";
     }
 
     public class Subtract : IGridFunction<double>
@@ -134,6 +146,8 @@ public static class GridFunction
             if (obj.GetType() != this.GetType()) return false;
             return Equals((Subtract) obj);
         }
+
+        public override string ToString() => $"{A:F2} - {B:F2}";
     }
 
     public class Multiply : IGridFunction<double>
@@ -162,6 +176,8 @@ public static class GridFunction
             if (obj.GetType() != this.GetType()) return false;
             return Equals((Multiply) obj);
         }
+
+        public override string ToString() => $"{A:F2} * {B:F2}";
     }
 
     public class Divide : IGridFunction<double>
@@ -190,6 +206,8 @@ public static class GridFunction
             if (obj.GetType() != this.GetType()) return false;
             return Equals((Divide) obj);
         }
+
+        public override string ToString() => $"{A:F2} / {B:F2}";
     }
 
     public class Lerp : IGridFunction<double>
@@ -232,6 +250,8 @@ public static class GridFunction
             if (a.Equals(b)) return a;
             return new Lerp(a, b, new Const<double>(t));
         }
+
+        public override string ToString() => $"LERP {{ {A:F2} to {B:F2} by {T:F2} }}";
     }
 
     public class ScaleWithBias : IGridFunction<double>
@@ -264,6 +284,8 @@ public static class GridFunction
             if (obj.GetType() != this.GetType()) return false;
             return Equals((ScaleWithBias) obj);
         }
+
+        public override string ToString() => $"{Input} * {Scale:F2} + {Bias:F2}";
     }
 
     public class Min : IGridFunction<double>
@@ -301,6 +323,10 @@ public static class GridFunction
             if (obj.GetType() != this.GetType()) return false;
             return Equals((Min) obj);
         }
+
+        public override string ToString() => Smoothness > 0f
+            ? $"MIN {{ {A:F2} and {B:F2} smooth {Smoothness:F2} }}"
+            : $"MIN {{ {A:F2} and {B:F2} }}";
     }
 
     public class Max : IGridFunction<double>
@@ -338,6 +364,10 @@ public static class GridFunction
             if (obj.GetType() != this.GetType()) return false;
             return Equals((Max) obj);
         }
+
+        public override string ToString() => Smoothness > 0f
+            ? $"MAX {{ {A:F2} and {B:F2} smooth {Smoothness:F2} }}"
+            : $"MAX {{ {A:F2} and {B:F2} }}";
     }
 
     public class Invert : IGridFunction<double>
@@ -374,6 +404,8 @@ public static class GridFunction
             if (obj.GetType() != this.GetType()) return false;
             return Equals((Invert) obj);
         }
+
+        public override string ToString() => $"INVERT {{ {Input} at {Pivot} below {ApplyBelow} above {ApplyAbove} }}";
     }
 
     public class Clamp : IGridFunction<double>
@@ -406,6 +438,8 @@ public static class GridFunction
             if (obj.GetType() != this.GetType()) return false;
             return Equals((Clamp) obj);
         }
+
+        public override string ToString() => $"CLAMP {{ {Input} between {ClampMin:F2} and {ClampMax:F2} }}";
     }
 
     public class SpanFunction : IGridFunction<double>
@@ -469,6 +503,18 @@ public static class GridFunction
             if (obj.GetType() != this.GetType()) return false;
             return Equals((SpanFunction) obj);
         }
+
+        public override string ToString() =>
+            "SPAN { " +
+            $"{nameof(Bias)}: {Bias:F2}, " +
+            $"{nameof(OriginX)}: {OriginX:F2}, " +
+            $"{nameof(OriginZ)}: {OriginZ:F2}, " +
+            $"{nameof(SpanPx)}: {SpanPx:F2}, " +
+            $"{nameof(SpanNx)}: {SpanNx:F2}, " +
+            $"{nameof(SpanPz)}: {SpanPz:F2}, " +
+            $"{nameof(SpanNz)}: {SpanNz:F2}, " +
+            $"{nameof(Circular)}: {Circular}" +
+            " }";
     }
 
     public class Rotate<T> : IGridFunction<T>
@@ -520,6 +566,8 @@ public static class GridFunction
             if (obj.GetType() != this.GetType()) return false;
             return Equals((Rotate<T>) obj);
         }
+
+        public override string ToString() => $"ROTATE {{ {Input} around {PivotX:F2} | {PivotZ:F2} by {Angle:F2} }}";
     }
 
     public class DeltaMap : IGridFunction<double>
@@ -555,6 +603,8 @@ public static class GridFunction
             if (obj.GetType() != this.GetType()) return false;
             return Equals((DeltaMap) obj);
         }
+
+        public override string ToString() => $"DELTA MAP {{ {Input} with step {Step:F2} }}";
     }
 
     public class Transform<T> : IGridFunction<T>
@@ -600,6 +650,8 @@ public static class GridFunction
             if (obj.GetType() != this.GetType()) return false;
             return Equals((Transform<T>) obj);
         }
+
+        public override string ToString() => $"TRANSFORM {{ {Input} by {TranslateX:F2} | {TranslateZ:F2} scaled {ScaleX:F2} | {ScaleZ:F2} }}";
     }
 
     public class Cache<T> : IGridFunction<T>
@@ -645,5 +697,7 @@ public static class GridFunction
             if (obj.GetType() != this.GetType()) return false;
             return Equals((Cache<T>) obj);
         }
+
+        public override string ToString() => $"CACHE {{ size {SizeX} | {SizeZ} with fallback {Fallback} }}";
     }
 }

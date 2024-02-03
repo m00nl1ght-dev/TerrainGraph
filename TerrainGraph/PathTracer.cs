@@ -10,7 +10,7 @@ namespace TerrainGraph;
 public class HotSwappableAttribute : Attribute;
 
 [HotSwappable]
-public class PathTracer
+public class PathTracer // TODO split into multiple files
 {
     private const int MaxTraceFrames = 1_000_000;
     private const int MaxDiversionPoints = 5;
@@ -52,6 +52,7 @@ public class PathTracer
 
     private int _totalFramesCalculated;
 
+    // TODO this is bad for performance, strings still get constructed
     public static readonly Action<string> DebugOff = _ => {};
 
     public static Action<string> DebugOutput = DebugOff;
@@ -684,7 +685,7 @@ public class PathTracer
 
             var progress = segment.Length <= 0 ? 0 : (dist / segment.Length).InRange01();
 
-            scalar = 1 - progress.Lerp(segment.LocalStabilityAtTail, segment.LocalStabilityAtHead).InRange01();
+            scalar = 1 - segment.LocalStabilityAt(progress);
         }
 
         public override string ToString() =>
@@ -768,7 +769,7 @@ public class PathTracer
 
         var initialFrame = new TraceFrame(task.baseFrame, task.segment, GridMargin, -task.marginTail);
 
-        DebugOutput($"Segment {task.segment.Id} started with initial frame [{initialFrame}] and length {length}");
+        DebugOutput($"Segment {task.segment.Id} with length {length:F2} started with initial frame [{initialFrame}] and params {task.segment.TraceParams}");
 
         var everFullyInBounds = task.everInBounds || !initialFrame.PossiblyOutOfBounds(Vector2d.Zero, GridOuterSize);
 
@@ -1101,7 +1102,9 @@ public class PathTracer
                 var divCountA = first.segmentA.TraceParams.DiversionPoints?.Count ?? 0;
                 var divCountB = first.segmentB.TraceParams.DiversionPoints?.Count ?? 0;
 
-                if (TryDivert(first, divCountA > divCountB))
+                var passiveFirst = divCountA == divCountB ? first.frameA.width > first.frameB.width : divCountA > divCountB;
+
+                if (TryDivert(first, passiveFirst))
                 {
                     DebugOutput($"Path diversion was successful");
                     return;
@@ -1109,7 +1112,7 @@ public class PathTracer
 
                 DebugOutput($"Path diversion not possible, moving on to second diversion attempt");
 
-                if (TryDivert(first, divCountA <= divCountB))
+                if (TryDivert(first, !passiveFirst))
                 {
                     DebugOutput($"Path diversion was successful");
                     return;
@@ -1182,6 +1185,8 @@ public class PathTracer
             }
         }
 
+        DebugOutput($"Stubbing segment {stub.Id}");
+
         stub.Length += lengthDiff;
 
         if (stub.Length > 0)
@@ -1235,6 +1240,8 @@ public class PathTracer
             s => s.ParentCount == 1
         );
 
+        if (segments.Sum(s => s == segmentD ? frameD.dist : s.Length) < segmentD.TraceParams.StepSize) return false;
+
         var distanceCovered = 0d;
 
         foreach (var segment in segments)
@@ -1243,14 +1250,14 @@ public class PathTracer
 
             segment.TraceParams.AddDiversionPoint(point);
 
+            DebugOutput($"Added diversion to {segment.Id} with data {point}");
+
             if (distanceCovered >= point.Range) break;
         }
 
-        if (distanceCovered < segmentD.TraceParams.StepSize) return false;
-
         if (DebugLines != null)
         {
-            DebugLines.Add(new DebugLine(this, frameD.pos, 4));
+            DebugLines.Add(new DebugLine(this, frameD.pos, 4, 0, $"D {distanceCovered}"));
             DebugLines.Add(new DebugLine(this, frameD.pos, frameD.pos + reflected, 4));
             DebugLines.Add(new DebugLine(this, frameP.pos, frameP.pos + normal, 4));
         }
@@ -1398,6 +1405,7 @@ public class PathTracer
                 segment = segment.InsertNew();
                 segment.TraceParams.ApplyFixedAngle(0, true);
                 segment.Length = ductLength;
+                DebugOutput($"Inserted duct {segment.Id} with length {ductLength}");
             }
 
             if (arcLength > 0)
@@ -1405,6 +1413,7 @@ public class PathTracer
                 segment = segment.InsertNew();
                 segment.TraceParams.ApplyFixedAngle(arcAngle / arcLength, true);
                 segment.Length = arcLength;
+                DebugOutput($"Inserted arc {segment.Id} with length {arcLength}");
             }
 
             return segment;
@@ -1670,6 +1679,7 @@ public class PathTracer
         }
 
         DebugOutput($"Success with arcA {arcLengthA} ductA {ductLengthB} arcB {arcLengthB} ductB {ductLengthB}");
+        DebugOutput($"Target for arcA is {arcEndPosA} and target for arcB is {pointC}");
         return ArcCalcResult.Success;
     }
 
