@@ -138,6 +138,8 @@ public class Path
 
         public TraceParams TraceParams;
 
+        public int AdjustmentCount = 0;
+
         public IEnumerable<Segment> Parents => _parents.Select(id => Path._segments[id]);
         public IEnumerable<Segment> Branches => _branches.Select(id => Path._segments[id]);
 
@@ -474,6 +476,11 @@ public class Path
         public IEnumerable<Segment> CoParents()
         {
             return Branches.SelectMany(b => b.Parents).Where(b => b != this);
+        }
+
+        public IEnumerable<Segment> Siblings()
+        {
+            return Parents.SelectMany(b => b.Branches).Where(b => b != this);
         }
 
         public int FullStepsCount(bool allowSingle)

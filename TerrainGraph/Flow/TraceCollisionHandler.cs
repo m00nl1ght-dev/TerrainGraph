@@ -2,14 +2,17 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using TerrainGraph.Util;
+using UnityEngine;
 
 namespace TerrainGraph.Flow;
 
+[HotSwappable]
 public class TraceCollisionHandler
 {
     public int MaxDiversionPoints = 5;
 
     public double StubBacktrackLength = 10;
+    public double SimplificationLength = 10;
     public double MergeValueDeltaLimit = 0.45;
     public double MergeOffsetDeltaLimit = 0.45;
 
@@ -64,12 +67,33 @@ public class TraceCollisionHandler
             return;
         }
 
-        PathTracer.DebugOutput($"Path merge not possible, moving on to first diversion attempt");
+        PathTracer.DebugOutput($"Path merge not possible, moving on to first simplification attempt");
+
+        var passiveFirst = c.segmentA.AdjustmentCount > c.segmentB.AdjustmentCount;
+
+        if (!Input.GetKey(KeyCode.X))
+        {
+            if (TrySimplify(c, passiveFirst))
+            {
+                PathTracer.DebugOutput($"Path simplification was successful");
+                return;
+            }
+
+            PathTracer.DebugOutput($"Path simplification not possible, moving on to second simplification attempt");
+
+            if (TrySimplify(c, !passiveFirst))
+            {
+                PathTracer.DebugOutput($"Path simplification was successful");
+                return;
+            }
+        }
+
+        PathTracer.DebugOutput($"Path simplification not possible, moving on to first diversion attempt");
 
         var divCountA = c.segmentA.TraceParams.DiversionPoints?.Count ?? 0;
         var divCountB = c.segmentB.TraceParams.DiversionPoints?.Count ?? 0;
 
-        var passiveFirst = divCountA == divCountB ? c.frameA.width > c.frameB.width : divCountA > divCountB;
+        passiveFirst = divCountA == divCountB ? c.frameA.width > c.frameB.width : divCountA > divCountB;
 
         if (TryDivert(c, passiveFirst))
         {
@@ -569,7 +593,7 @@ public class TraceCollisionHandler
             s => s.ParentCount == 1
         );
 
-        if (segments.Sum(s => s == segmentD ? frameD.dist : s.Length) < segmentD.TraceParams.StepSize) return false;
+        if (segments.Sum(s => s == segmentD ? frameD.dist : s.Length) < _tracer.CollisionAdjMinDist) return false;
 
         var distanceCovered = 0d;
 
@@ -590,6 +614,31 @@ public class TraceCollisionHandler
             _tracer.DebugLines.Add(new TraceDebugLine(_tracer, frameD.pos, frameD.pos + reflected, 4));
             _tracer.DebugLines.Add(new TraceDebugLine(_tracer, frameP.pos, frameP.pos + normal, 4));
         }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Attempt to simplify the preceding segment chains in order to avoid the given collision.
+    /// </summary>
+    /// <returns>true if one of the segment chains was adjusted successfully, otherwise false</returns>
+    private bool TrySimplify(TraceCollision c, bool passiveBranch)
+    {
+        if (passiveBranch ? c.hasMergeB : c.hasMergeA) return false;
+
+        var segment = passiveBranch ? c.segmentB : c.segmentA;
+        if (segment.Length >= _tracer.GridInnerSize.Magnitude) return false;
+
+        var postAnchor = segment.LinearParents().Last();
+        if (postAnchor.ParentCount != 1) return false;
+
+        var preAnchor = postAnchor.Parents.First();
+        if (preAnchor.BranchCount <= 1) return false;
+
+        if (preAnchor.Branches.Any(b => b != postAnchor && b.AnyBranchesMatch(s => s.ParentCount > 1, true))) return false;
+
+        preAnchor.Length += SimplificationLength * Math.Pow(2d, segment.AdjustmentCount);
+        preAnchor.AdjustmentCount++;
 
         return true;
     }
@@ -633,12 +682,16 @@ public class TraceCollisionHandler
             }
         }
 
-        PathTracer.DebugOutput($"Stubbing segment {segment.Id}");
-
         segment.Length += lengthDiff;
 
-        if (segment.Length > 0)
+        if (segment.IsRoot || segment.Length <= 0)
         {
+            PathTracer.DebugOutput($"Discarding stub segment {segment.Id}");
+            segment.Discard();
+        }
+        else
+        {
+            PathTracer.DebugOutput($"Stubbing segment {segment.Id}");
             segment.TraceParams.WidthLoss = widthAtTail / segment.Length;
             segment.TraceParams.DensityLoss = -3 * densityAtTail / segment.Length;
             segment.TraceParams.SpeedLoss = -3 * speedAtTail / segment.Length;

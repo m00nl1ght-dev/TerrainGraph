@@ -162,6 +162,9 @@ public class PathTracer
         return occuredCollisions.Count == 0;
     }
 
+    /// <summary>
+    /// Clear all internal grids.
+    /// </summary>
     public void Clear()
     {
         for (int x = 0; x < GridOuterSize.x; x++)
@@ -590,12 +593,15 @@ public class PathTracer
         return new TraceResult(a, everFullyInBounds);
     }
 
+    /// <summary>
+    /// Check whether collisions between the given segments should interrupt tracing.
+    /// </summary>
     private bool CanCollide(Segment active, Segment passive, double dist)
     {
         if (dist < CollisionAdjMinDist)
         {
             if (active.IsBranchOf(passive, false)) return false;
-            if (active.IsDirectSiblingOf(passive, false)) return false;
+            if (active.Siblings().Any(p => p.IsParentOf(passive, true))) return false;
         }
 
         if (active.Length - dist < CollisionAdjMinDist)
