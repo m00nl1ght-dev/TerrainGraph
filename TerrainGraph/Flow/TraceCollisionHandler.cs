@@ -67,9 +67,30 @@ public class TraceCollisionHandler
             return;
         }
 
-        PathTracer.DebugOutput($"Path merge not possible, moving on to first simplification attempt");
+        PathTracer.DebugOutput($"Path merge not possible, moving on to first diversion attempt");
 
-        var passiveFirst = c.segmentA.AdjustmentCount > c.segmentB.AdjustmentCount;
+        var divCountA = c.segmentA.TraceParams.DiversionPoints?.Count ?? 0;
+        var divCountB = c.segmentB.TraceParams.DiversionPoints?.Count ?? 0;
+
+        var passiveFirst = divCountA == divCountB ? c.frameA.width > c.frameB.width : divCountA > divCountB;
+
+        if (TryDivert(c, passiveFirst))
+        {
+            PathTracer.DebugOutput($"Path diversion was successful");
+            return;
+        }
+
+        PathTracer.DebugOutput($"Path diversion not possible, moving on to second diversion attempt");
+
+        if (TryDivert(c, !passiveFirst))
+        {
+            PathTracer.DebugOutput($"Path diversion was successful");
+            return;
+        }
+
+        PathTracer.DebugOutput($"Path diversion not possible, moving on to first simplification attempt");
+
+        passiveFirst = c.segmentA.AdjustmentCount > c.segmentB.AdjustmentCount;
 
         if (!Input.GetKey(KeyCode.X))
         {
@@ -88,28 +109,7 @@ public class TraceCollisionHandler
             }
         }
 
-        PathTracer.DebugOutput($"Path simplification not possible, moving on to first diversion attempt");
-
-        var divCountA = c.segmentA.TraceParams.DiversionPoints?.Count ?? 0;
-        var divCountB = c.segmentB.TraceParams.DiversionPoints?.Count ?? 0;
-
-        passiveFirst = divCountA == divCountB ? c.frameA.width > c.frameB.width : divCountA > divCountB;
-
-        if (TryDivert(c, passiveFirst))
-        {
-            PathTracer.DebugOutput($"Path diversion was successful");
-            return;
-        }
-
-        PathTracer.DebugOutput($"Path diversion not possible, moving on to second diversion attempt");
-
-        if (TryDivert(c, !passiveFirst))
-        {
-            PathTracer.DebugOutput($"Path diversion was successful");
-            return;
-        }
-
-        PathTracer.DebugOutput($"Path diversion not possible, stubbing instead");
+        PathTracer.DebugOutput($"Path simplification not possible, stubbing instead");
 
         if (c.hasMergeA == c.hasMergeB ? c.frameA.width <= c.frameB.width : c.hasMergeB)
         {
@@ -409,6 +409,13 @@ public class TraceCollisionHandler
         ductLengthA = 0;
         ductLengthB = 0;
 
+        // check angle locks of each segment
+
+        if (frameA.dist < a.AngleDeltaPosLockLength && arcAngleA > 0) return ArcCalcResult.ExcAngleLock;
+        if (frameA.dist < a.AngleDeltaNegLockLength && arcAngleA < 0) return ArcCalcResult.ExcAngleLock;
+        if (frameB.dist < b.AngleDeltaPosLockLength && arcAngleB > 0) return ArcCalcResult.ExcAngleLock;
+        if (frameB.dist < b.AngleDeltaNegLockLength && arcAngleB < 0) return ArcCalcResult.ExcAngleLock;
+
         // calculate chord vector that spans arc B at its minimum length
 
         if (arcAngleA == 0 || arcAngleB == 0) return ArcCalcResult.NoPointF;
@@ -545,7 +552,8 @@ public class TraceCollisionHandler
         DuctBelowZero, // frame is too close to the target -> go back in frames, ideally specifically on the dynamic side
         NoPointK, // same angle and same problem as NoPointF -> go back in frames, hoping it increases
         ArcLengthNaN, // something went very wrong, likely some angle was 0 -> go back in frames, hoping that fixes it
-        ExcMaxAngle // arc radius is too small for this segment width -> go back in frames, hoping to get more space between the arms
+        ExcMaxAngle, // arc radius is too small for this segment width -> go back in frames, hoping to get more space between the arms
+        ExcAngleLock // arc angle would violate angle delta lock of the segment -> go back in frames
     }
 
     /// <summary>

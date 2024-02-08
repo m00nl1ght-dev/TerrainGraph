@@ -190,10 +190,24 @@ public class PathTracer
         {
             if (segment.BranchCount > 1)
             {
-                foreach (var branch in segment.Branches)
+                var branches = segment.Branches.ToList();
+                var threshold = branches.Count / 2d - 0.5d;
+
+                for (var i = 0; i < branches.Count; i++)
                 {
+                    var branch = branches[i];
+
                     var rangeBranch = branch.TraceParams.ArcStableRange;
                     branch.ApplyLocalStabilityAtTail(rangeBranch / 2, rangeBranch / 2);
+
+                    if (i < threshold)
+                    {
+                        branch.AngleDeltaNegLockLength = CollisionAdjMinDist;
+                    }
+                    else if (i > threshold)
+                    {
+                        branch.AngleDeltaPosLockLength = CollisionAdjMinDist;
+                    }
                 }
 
                 var rangeMain = segment.TraceParams.ArcStableRange;
@@ -377,6 +391,9 @@ public class PathTracer
                 {
                     angleDelta += extParams.SwerveGrid.ValueAt(a.pos - GridMargin);
                 }
+
+                if (a.dist < task.segment.AngleDeltaPosLockLength && angleDelta > 0) angleDelta = 0;
+                if (a.dist < task.segment.AngleDeltaNegLockLength && angleDelta < 0) angleDelta = 0;
 
                 var maxAngleDelta = (1 - extParams.AngleTenacity) * 180 * distDelta / (a.width * Math.PI);
                 angleDelta = (distDelta * angleDelta).NormalizeDeg().InRange(-maxAngleDelta, maxAngleDelta);
