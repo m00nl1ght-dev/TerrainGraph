@@ -28,14 +28,20 @@ public class PathTracer
     private readonly double[,] _valueGrid;
     private readonly double[,] _offsetGrid;
     private readonly double[,] _distanceGrid;
-    private readonly double[,] _debugGrid;
     private readonly Segment[,] _segmentGrid;
+
+    #if DEBUG
+    private readonly double[,] _debugGrid;
+    #endif
 
     public IGridFunction<double> MainGrid => BuildGridFunction(_mainGrid);
     public IGridFunction<double> ValueGrid => BuildGridFunction(_valueGrid);
     public IGridFunction<double> OffsetGrid => BuildGridFunction(_offsetGrid);
     public IGridFunction<double> DistanceGrid => BuildGridFunction(_distanceGrid);
+
+    #if DEBUG
     public IGridFunction<double> DebugGrid => BuildGridFunction(_debugGrid);
+    #endif
 
     public readonly TraceCollisionHandler CollisionHandler;
 
@@ -47,13 +53,6 @@ public class PathTracer
     private List<TraceFrame> _frameBuffer = new(50);
 
     private int _totalFramesCalculated;
-
-    // TODO this is bad for performance, strings still get constructed
-    public static readonly Action<string> DebugOff = _ => {};
-
-    public static Action<string> DebugOutput = DebugOff;
-
-    public List<TraceDebugLine> DebugLines;
 
     public PathTracer(
         int innerSizeX, int innerSizeZ, int gridMargin,
@@ -79,8 +78,11 @@ public class PathTracer
         _valueGrid = new double[outerSizeX, outerSizeZ];
         _offsetGrid = new double[outerSizeX, outerSizeZ];
         _distanceGrid = new double[outerSizeX, outerSizeZ];
-        _debugGrid = new double[outerSizeX, outerSizeZ];
         _segmentGrid = new Segment[outerSizeX, outerSizeZ];
+
+        #if DEBUG
+        _debugGrid = new double[outerSizeX, outerSizeZ];
+        #endif
 
         CollisionHandler = new TraceCollisionHandler(this);
 
@@ -112,14 +114,19 @@ public class PathTracer
 
         _totalFramesCalculated = 0;
 
+        #if DEBUG
+        DebugLog?.Clear();
         DebugLines?.Clear();
+        #endif
 
         var simulatedCollisions = new List<TraceCollision>();
         var occuredCollisions = new List<TraceCollision>();
 
         for (int attempt = 0; attempt < maxAttempts - 1; attempt++)
         {
+            #if DEBUG
             DebugOutput($"### ATTEMPT {attempt} ###");
+            #endif
 
             TryTrace(path, occuredCollisions);
             if (occuredCollisions.Count == 0) return true;
@@ -128,36 +135,41 @@ public class PathTracer
             simulatedCollisions.AddRange(occuredCollisions);
             occuredCollisions.Clear();
 
-            var debugOutput = DebugOutput;
-            DebugOutput = DebugOff;
-
-            DebugOutput($"### SIM FOR ATTEMPT {attempt} ###");
+            #if DEBUG
+            var debugLog = DebugLog;
+            DebugLog = null;
+            #endif
 
             TryTrace(path, occuredCollisions, simulatedCollisions);
             if (occuredCollisions.Count == 0) return true;
             Clear();
 
-            DebugOutput = debugOutput;
-
-            CollisionHandler.HandleFirstCollision(simulatedCollisions);
-
-            DebugLines?.Add(new TraceDebugLine(
+            #if DEBUG
+            DebugLog = debugLog;
+            DebugLine(new TraceDebugLine(
                 this, new Vector2d(7, 5 + attempt), 3, 0,
                 $"Attempt {attempt} had {simulatedCollisions.Count} collisions")
             );
+            #endif
+
+            CollisionHandler.HandleFirstCollision(simulatedCollisions);
 
             simulatedCollisions.Clear();
             occuredCollisions.Clear();
         }
 
+        #if DEBUG
         DebugOutput($"### FINAL ATTEMPT ###");
+        #endif
 
         TryTrace(path, occuredCollisions);
 
-        DebugLines?.Add(new TraceDebugLine(
+        #if DEBUG
+        DebugLine(new TraceDebugLine(
             this, new Vector2d(7, 4 + maxAttempts), 1, 0,
             $"Final attempt had {occuredCollisions.Count} collisions")
         );
+        #endif
 
         return occuredCollisions.Count == 0;
     }
@@ -175,8 +187,11 @@ public class PathTracer
                 _valueGrid[x, z] = 0;
                 _offsetGrid[x, z] = 0;
                 _distanceGrid[x, z] = TraceOuterMargin;
-                _debugGrid[x, z] = 0;
                 _segmentGrid[x, z] = null;
+
+                #if DEBUG
+                _debugGrid[x, z] = 0;
+                #endif
             }
         }
     }
@@ -258,8 +273,11 @@ public class PathTracer
 
             if (result.collision != null)
             {
-                DebugOutput($"Collision happened: {result.collision}");
                 occuredCollisions.Add(result.collision);
+
+                #if DEBUG
+                DebugOutput($"Collision happened: {result.collision}");
+                #endif
             }
             else if (result.finalFrame.width > 0)
             {
@@ -280,7 +298,9 @@ public class PathTracer
                             var parentResults = branch.Parents.Select(p => taskResults[p]).ToList();
                             var mergedFrame = new TraceFrame(parentResults);
 
+                            #if DEBUG
                             DebugOutput($"Merged frames {string.Join(" + ", branch.Parents.Select(b => b.Id))} into {branch.Id}");
+                            #endif
 
                             Enqueue(branch, mergedFrame, parentResults.Any(r => r.everInBounds));
                         }
@@ -288,7 +308,9 @@ public class PathTracer
                 }
                 else
                 {
+                    #if DEBUG
                     DebugOutput($"End of segment {task.segment.Id} is out of bounds, no need to trace further");
+                    #endif
                 }
             }
         }
@@ -323,7 +345,9 @@ public class PathTracer
 
         var initialFrame = new TraceFrame(task.baseFrame, task.segment, GridMargin, -task.marginTail);
 
+        #if DEBUG
         DebugOutput($"Segment {task.segment.Id} with length {length:F2} started with initial frame [{initialFrame}] and params {task.segment.TraceParams}");
+        #endif
 
         var everFullyInBounds = task.everInBounds || !initialFrame.PossiblyOutOfBounds(Vector2d.Zero, GridOuterSize);
 
@@ -463,16 +487,22 @@ public class PathTracer
 
             if (extendA < 1 && a.dist >= 0)
             {
-                DebugOutput($"Extend is less than 1 at {a.pos} for segment {task.segment.Id}");
                 length = Math.Min(length, b.dist);
+
+                #if DEBUG
+                DebugOutput($"Extend is less than 1 at {a.pos} for segment {task.segment.Id}");
+                #endif
             }
 
             if (everFullyInBounds)
             {
                 if (StopWhenOutOfBounds && !b.PossiblyInBounds(Vector2d.Zero, GridOuterSize))
                 {
-                    DebugOutput($"Trace frame at {b.pos} for segment {task.segment.Id} is now out of bounds");
                     length = Math.Min(length, b.dist);
+
+                    #if DEBUG
+                    DebugOutput($"Trace frame at {b.pos} for segment {task.segment.Id} is now out of bounds");
+                    #endif
                 }
             }
             else if (!b.PossiblyOutOfBounds(Vector2d.Zero, GridOuterSize))
@@ -573,7 +603,9 @@ public class PathTracer
                                             });
                                         }
 
+                                        #if DEBUG
                                         DebugOutput($"Ignoring collision {task.segment.Id} vs {collided.Id} at {pos}");
+                                        #endif
                                     }
 
                                     if (task.simulated != null)
@@ -588,8 +620,11 @@ public class PathTracer
                                     }
 
                                     _segmentGrid[x, z] = task.segment;
-                                    _debugGrid[x, z] = task.segment.Id;
                                     _mainGrid[x, z] = extend;
+
+                                    #if DEBUG
+                                    _debugGrid[x, z] = task.segment.Id;
+                                    #endif
                                 }
                             }
                         }
@@ -605,7 +640,9 @@ public class PathTracer
             }
         }
 
+        #if DEBUG
         DebugOutput($"Segment {task.segment.Id} finished with final frame [{a}]");
+        #endif
 
         return new TraceResult(a, everFullyInBounds);
     }
@@ -647,4 +684,21 @@ public class PathTracer
         _frameBuffer = copy ? [..buffer] : new(50);
         return buffer;
     }
+
+    #if DEBUG
+
+    public static List<string> DebugLog = [];
+    public static List<TraceDebugLine> DebugLines = [];
+
+    internal static void DebugOutput(string debug)
+    {
+        DebugLog?.Add(debug);
+    }
+
+    internal static void DebugLine(TraceDebugLine debugLine)
+    {
+        DebugLines?.Add(debugLine);
+    }
+
+    #endif
 }

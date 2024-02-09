@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using TerrainGraph.Util;
-using UnityEngine;
 
 namespace TerrainGraph.Flow;
 
@@ -54,20 +53,26 @@ public class TraceCollisionHandler
 
         if (!c.complete)
         {
+            #if DEBUG
             PathTracer.DebugOutput($"Collision missing data: {c}");
+            #endif
+
             Stub(c.segmentA, c.framesA);
             return;
         }
 
-        PathTracer.DebugOutput($"Attempting merge: {c}");
+        #if DEBUG
+        PathTracer.DebugOutput($"Handling collision: {c}");
+        #endif
 
         if (TryMerge(c))
         {
-            PathTracer.DebugOutput($"Path merge was successful");
+            #if DEBUG
+            PathTracer.DebugOutput("Path merge was successful");
+            #endif
+
             return;
         }
-
-        PathTracer.DebugOutput($"Path merge not possible, moving on to first diversion attempt");
 
         var divCountA = c.segmentA.TraceParams.DiversionPoints?.Count ?? 0;
         var divCountB = c.segmentB.TraceParams.DiversionPoints?.Count ?? 0;
@@ -76,40 +81,45 @@ public class TraceCollisionHandler
 
         if (TryDivert(c, passiveFirst))
         {
-            PathTracer.DebugOutput($"Path diversion was successful");
+            #if DEBUG
+            PathTracer.DebugOutput("First path diversion attempt was successful");
+            #endif
+
             return;
         }
-
-        PathTracer.DebugOutput($"Path diversion not possible, moving on to second diversion attempt");
 
         if (TryDivert(c, !passiveFirst))
         {
-            PathTracer.DebugOutput($"Path diversion was successful");
+            #if DEBUG
+            PathTracer.DebugOutput("Second path diversion attempt was successful");
+            #endif
+
             return;
         }
 
-        PathTracer.DebugOutput($"Path diversion not possible, moving on to first simplification attempt");
-
         passiveFirst = c.segmentA.AdjustmentCount > c.segmentB.AdjustmentCount;
 
-        if (!Input.GetKey(KeyCode.X))
+        if (TrySimplify(c, passiveFirst))
         {
-            if (TrySimplify(c, passiveFirst))
-            {
-                PathTracer.DebugOutput($"Path simplification was successful");
-                return;
-            }
+            #if DEBUG
+            PathTracer.DebugOutput("First path simplification attempt was successful");
+            #endif
 
-            PathTracer.DebugOutput($"Path simplification not possible, moving on to second simplification attempt");
-
-            if (TrySimplify(c, !passiveFirst))
-            {
-                PathTracer.DebugOutput($"Path simplification was successful");
-                return;
-            }
+            return;
         }
 
-        PathTracer.DebugOutput($"Path simplification not possible, stubbing instead");
+        if (TrySimplify(c, !passiveFirst))
+        {
+            #if DEBUG
+            PathTracer.DebugOutput("Second path simplification attempt was successful");
+            #endif
+
+            return;
+        }
+
+        #if DEBUG
+        PathTracer.DebugOutput("Could not avert the collision, stubbing instead");
+        #endif
 
         if (c.hasMergeA == c.hasMergeB ? c.frameA.width <= c.frameB.width : c.hasMergeB)
         {
@@ -139,7 +149,9 @@ public class TraceCollisionHandler
 
         var shift = Vector2d.PointToLineOrientation(c.frameB.pos, c.frameB.pos + c.frameB.normal, c.frameA.pos);
 
+        #if DEBUG
         PathTracer.DebugOutput($"Target direction for merge is {normal} with dot {dot} perpDot {perpDot}");
+        #endif
 
         double arcA, arcB, ductA, ductB;
         TraceFrame frameA, frameB;
@@ -152,34 +164,34 @@ public class TraceCollisionHandler
             frameA = c.framesA[c.framesA.Count - fA - 1];
             frameB = c.framesB[c.framesB.Count - fB - 1];
 
+            #if DEBUG
+            var debugPoint1 = PathTracer.DebugLines.FirstOrDefault(dl => dl.IsPointAt(frameA.pos));
+            var debugPoint2 = PathTracer.DebugLines.FirstOrDefault(dl => dl.IsPointAt(frameB.pos));
+            if (debugPoint1 == null) PathTracer.DebugLine(debugPoint1 = new TraceDebugLine(_tracer, frameA.pos, 0, 0, fA.ToString()));
+            if (debugPoint2 == null) PathTracer.DebugLine(debugPoint2 = new TraceDebugLine(_tracer, frameB.pos, 0, 0, fB.ToString()));
             PathTracer.DebugOutput($"--> Attempting merge with {fA} | {fB} frames backtracked with A at {frameA.pos} and B at {frameB.pos}");
-
-            TraceDebugLine debugPoint1 = null;
-            TraceDebugLine debugPoint2 = null;
-
-            if (_tracer.DebugLines != null)
-            {
-                debugPoint1 = _tracer.DebugLines.FirstOrDefault(dl => dl.IsPointAt(frameA.pos));
-                debugPoint2 = _tracer.DebugLines.FirstOrDefault(dl => dl.IsPointAt(frameB.pos));
-
-                if (debugPoint1 == null) _tracer.DebugLines.Add(debugPoint1 = new TraceDebugLine(_tracer, frameA.pos, 0, 0, fA.ToString()));
-                if (debugPoint2 == null) _tracer.DebugLines.Add(debugPoint2 = new TraceDebugLine(_tracer, frameB.pos, 0, 0, fB.ToString()));
-            }
+            #endif
 
             result = TryCalcArcs(
                 c.segmentA, c.segmentB, normal, shift, ref frameA, ref frameB,
-                out arcA, out arcB, out ductA, out ductB, _tracer.DebugLines, 1
+                out arcA, out arcB, out ductA, out ductB, 1
             );
 
-            if (debugPoint1 != null) debugPoint1.Label += "\n" + fB + " -> " + result;
+            #if DEBUG
+            debugPoint1.Label += "\n" + fB + " -> " + result;
+            #endif
+
             if (result == ArcCalcResult.Success) break;
 
             result = TryCalcArcs(
                 c.segmentB, c.segmentA, normal, -shift, ref frameB, ref frameA,
-                out arcB, out arcA, out ductB, out ductA, _tracer.DebugLines, 2
+                out arcB, out arcA, out ductB, out ductA, 2
             );
 
-            if (debugPoint2 != null) debugPoint2.Label += "\n" + fA + " -> " + result;
+            #if DEBUG
+            debugPoint2.Label += "\n" + fA + " -> " + result;
+            #endif
+
             if (result == ArcCalcResult.Success) break;
         }
         while (MathUtil.BalancedTraversal(ref fA, ref fB, ref ptr, c.framesA.Count - 1, c.framesB.Count - 1));
@@ -210,7 +222,9 @@ public class TraceCollisionHandler
             var mutableDistA = arcA + ductA + c.segmentA.LinearParents().Sum(s => s == c.segmentA ? frameA.dist : s.Length);
             var mutableDistB = arcB + ductB + c.segmentB.LinearParents().Sum(s => s == c.segmentB ? frameB.dist : s.Length);
 
+            #if DEBUG
             PathTracer.DebugOutput($"Merge probably spans {valueDelta:F2} / {offsetDelta:F2} over {mutableDistA:F2} + {mutableDistB:F2}");
+            #endif
 
             var mutableDist = mutableDistA + mutableDistB;
 
@@ -221,11 +235,13 @@ public class TraceCollisionHandler
 
             if (valueLimitExc || offsetLimitExc)
             {
-                _tracer.DebugLines?.Add(new TraceDebugLine(
+                #if DEBUG
+                PathTracer.DebugLine(new TraceDebugLine(
                     _tracer, c.position, valueLimitExc ? 1 : 7, 0,
                     $"V {valueDelta:F2} O {offsetDelta:F2}\n" +
                     $"D {mutableDistA:F2} + {mutableDistB:F2}"
                 ));
+                #endif
 
                 return false;
             }
@@ -258,7 +274,10 @@ public class TraceCollisionHandler
                 segment = segment.InsertNew();
                 segment.TraceParams.ApplyFixedAngle(0, true);
                 segment.Length = ductLength;
+
+                #if DEBUG
                 PathTracer.DebugOutput($"Inserted duct {segment.Id} with length {ductLength}");
+                #endif
             }
 
             if (arcLength > 0)
@@ -266,7 +285,10 @@ public class TraceCollisionHandler
                 segment = segment.InsertNew();
                 segment.TraceParams.ApplyFixedAngle(arcAngle / arcLength, true);
                 segment.Length = arcLength;
+
+                #if DEBUG
                 PathTracer.DebugOutput($"Inserted arc {segment.Id} with length {arcLength}");
+                #endif
             }
 
             return segment;
@@ -290,7 +312,9 @@ public class TraceCollisionHandler
                 var mutableDistA = linearParentsA.Sum(s => s.FullStepsCount(allowSingleFramesA) == 0 ? 0 : s.Length);
                 var mutableDistB = linearParentsB.Sum(s => s.FullStepsCount(allowSingleFramesB) == 0 ? 0 : s.Length);
 
+                #if DEBUG
                 PathTracer.DebugOutput($"Merge actually spans {valueDelta:F2} / {offsetDelta:F2} over {mutableDistA:F2} + {mutableDistB:F2}");
+                #endif
 
                 var mutableDist = mutableDistA + mutableDistB;
 
@@ -302,13 +326,15 @@ public class TraceCollisionHandler
                 var offsetDeltaA = offsetDelta * (1 - diffSplitRatio);
                 var offsetDeltaB = -1 * offsetDelta * diffSplitRatio;
 
-                _tracer.DebugLines?.Add(new TraceDebugLine(
+                #if DEBUG
+                PathTracer.DebugLine(new TraceDebugLine(
                     _tracer, c.position, 2, 0,
                     $"V {valueDelta:F2} O {offsetDelta:F2}\n" +
                     $"D {mutableDist:F2} R {diffSplitRatio:F2}\n" +
                     $"D1 {mutableDistA:F2} D2 {mutableDistB:F2}\n" +
                     $"V1 {valueDeltaA:F2} V2 {valueDeltaB:F2}"
                 ));
+                #endif
 
                 linearParentsA.Reverse();
                 linearParentsB.Reverse();
@@ -338,7 +364,6 @@ public class TraceCollisionHandler
                 if (fullSteps > 0)
                 {
                     segment.SmoothDelta = new Path.SmoothDelta(valueDiff, offsetDiff, totalSteps, currentSteps, padding);
-                    PathTracer.DebugOutput($"Smooth delta for segment {segment.Id} => {segment.SmoothDelta}");
                     currentSteps += fullSteps;
                 }
             }
@@ -372,14 +397,20 @@ public class TraceCollisionHandler
 
         foreach (var branch in followingBranches)
         {
-            PathTracer.DebugOutput($"Re-attaching branch {branch.Id}");
             merged.Attach(branch);
+
+            #if DEBUG
+            PathTracer.DebugOutput($"Re-attaching branch {branch.Id}");
+            #endif
         }
 
         foreach (var branch in discardedBranches)
         {
-            PathTracer.DebugOutput($"Discarding branch {branch.Id}");
             branch.Discard();
+
+            #if DEBUG
+            PathTracer.DebugOutput($"Discarding branch {branch.Id}");
+            #endif
         }
 
         return true;
@@ -390,8 +421,7 @@ public class TraceCollisionHandler
         Vector2d normal, double shift,
         ref TraceFrame frameA, ref TraceFrame frameB,
         out double arcLengthA, out double arcLengthB,
-        out double ductLengthA, out double ductLengthB,
-        List<TraceDebugLine> debugLines, int debugGroup)
+        out double ductLengthA, out double ductLengthB, int debugGroup)
     {
         var arcAngleA = -Vector2d.SignedAngle(frameA.normal, normal);
         var arcAngleB = -Vector2d.SignedAngle(frameB.normal, normal);
@@ -450,35 +480,41 @@ public class TraceCollisionHandler
         var pointB = frameB.pos;
         var pointC = arcEndPosA + shiftSpan;
 
-        if (debugLines != null)
+        #if DEBUG
+
+        PathTracer.DebugLine(new TraceDebugLine(_tracer, arcEndPosA, pointC, 0, debugGroup));
+
+        PathTracer.DebugLine(new TraceDebugLine(_tracer, frameA.pos, pivotPointA, 2, debugGroup));
+        PathTracer.DebugLine(new TraceDebugLine(_tracer, arcEndPosA, pivotPointA, 3, debugGroup));
+
+        if (Vector2d.TryIntersect(frameA.pos, arcEndPosA, frameA.normal, normal, out var pointJ, 0.001))
         {
-            debugLines.Add(new TraceDebugLine(_tracer, arcEndPosA, pointC, 0, debugGroup));
-
-            debugLines.Add(new TraceDebugLine(_tracer, frameA.pos, pivotPointA, 2, debugGroup));
-            debugLines.Add(new TraceDebugLine(_tracer, arcEndPosA, pivotPointA, 3, debugGroup));
-
-            if (Vector2d.TryIntersect(frameA.pos, arcEndPosA, frameA.normal, normal, out var pointJ, 0.001))
-            {
-                debugLines.Add(new TraceDebugLine(_tracer, frameA.pos, pointJ, 5, debugGroup));
-                debugLines.Add(new TraceDebugLine(_tracer, arcEndPosA, pointJ, 1, debugGroup));
-            }
+            PathTracer.DebugLine(new TraceDebugLine(_tracer, frameA.pos, pointJ, 5, debugGroup));
+            PathTracer.DebugLine(new TraceDebugLine(_tracer, arcEndPosA, pointJ, 1, debugGroup));
         }
+
+        #endif
 
         if (!Vector2d.TryIntersect(pointB, pointC, frameB.normal, normal, out var pointF, out var scalarB, 0.001))
         {
-            PathTracer.DebugOutput($"Point F could not be constructed");
+            #if DEBUG
+            PathTracer.DebugOutput("Point F could not be constructed");
+            #endif
+
             return ArcCalcResult.NoPointF;
         }
 
-        if (debugLines != null)
-        {
-            debugLines.Add(new TraceDebugLine(_tracer, pointB, pointF, 5, debugGroup));
-            debugLines.Add(new TraceDebugLine(_tracer, pointC, pointF, 1, debugGroup));
-        }
+        #if DEBUG
+        PathTracer.DebugLine(new TraceDebugLine(_tracer, pointB, pointF, 5, debugGroup));
+        PathTracer.DebugLine(new TraceDebugLine(_tracer, pointC, pointF, 1, debugGroup));
+        #endif
 
         if (scalarB < 0)
         {
+            #if DEBUG
             PathTracer.DebugOutput($"Scalar B {scalarB} is below 0");
+            #endif
+
             return ArcCalcResult.ExcBoundB;
         }
 
@@ -486,7 +522,10 @@ public class TraceCollisionHandler
 
         if (scalarF > 0)
         {
+            #if DEBUG
             PathTracer.DebugOutput($"Scalar F {scalarF} is above 0");
+            #endif
+
             return ArcCalcResult.ExcBoundF;
         }
 
@@ -495,7 +534,10 @@ public class TraceCollisionHandler
 
         if (distBF < distCF)
         {
+            #if DEBUG
             PathTracer.DebugOutput($"Distance from B to F {distBF} is lower than distance from C to F {distCF}");
+            #endif
+
             return ArcCalcResult.DuctBelowZero;
         }
 
@@ -505,18 +547,20 @@ public class TraceCollisionHandler
 
         if (!Vector2d.TryIntersect(pointG, pointC, frameB.perpCW, normal.PerpCW, out var pointK, 0.001))
         {
-            PathTracer.DebugOutput($"The point K could not be constructed");
+            #if DEBUG
+            PathTracer.DebugOutput("The point K could not be constructed");
+            #endif
+
             return ArcCalcResult.NoPointK;
         }
 
         var radiusB = Vector2d.Distance(pointG, pointK);
         var chordLengthB = Vector2d.Distance(pointG, pointC);
 
-        if (debugLines != null)
-        {
-            debugLines.Add(new TraceDebugLine(_tracer, pointG, pointK, 2, debugGroup));
-            debugLines.Add(new TraceDebugLine(_tracer, pointC, pointK, 3, debugGroup));
-        }
+        #if DEBUG
+        PathTracer.DebugLine(new TraceDebugLine(_tracer, pointG, pointK, 2, debugGroup));
+        PathTracer.DebugLine(new TraceDebugLine(_tracer, pointC, pointK, 3, debugGroup));
+        #endif
 
         // calculate length of arc B based on https://www.omnicalculator.com/math/arc-length
 
@@ -524,7 +568,10 @@ public class TraceCollisionHandler
 
         if (double.IsNaN(arcLengthB))
         {
+            #if DEBUG
             PathTracer.DebugOutput($"The arc length is NaN for chord length {chordLengthB} and radius {radiusB}");
+            #endif
+
             return ArcCalcResult.ArcLengthNaN;
         }
 
@@ -534,12 +581,18 @@ public class TraceCollisionHandler
 
         if (Math.Round(arcAngleB.Abs()) > arcAngleMaxB)
         {
+            #if DEBUG
             PathTracer.DebugOutput($"The arc angle {arcAngleB} is larger than the limit {arcAngleMaxB}");
+            #endif
+
             return ArcCalcResult.ExcMaxAngle;
         }
 
+        #if DEBUG
         PathTracer.DebugOutput($"Success with arcA {arcLengthA} ductA {ductLengthB} arcB {arcLengthB} ductB {ductLengthB}");
         PathTracer.DebugOutput($"Target for arcA is {arcEndPosA} and target for arcB is {pointC}");
+        #endif
+
         return ArcCalcResult.Success;
     }
 
@@ -611,17 +664,18 @@ public class TraceCollisionHandler
 
             segment.TraceParams.AddDiversionPoint(point);
 
+            #if DEBUG
             PathTracer.DebugOutput($"Added diversion to {segment.Id} with data {point}");
+            #endif
 
             if (distanceCovered >= point.Range) break;
         }
 
-        if (_tracer.DebugLines != null)
-        {
-            _tracer.DebugLines.Add(new TraceDebugLine(_tracer, frameD.pos, 4, 0, $"D {distanceCovered}"));
-            _tracer.DebugLines.Add(new TraceDebugLine(_tracer, frameD.pos, frameD.pos + reflected, 4));
-            _tracer.DebugLines.Add(new TraceDebugLine(_tracer, frameP.pos, frameP.pos + normal, 4));
-        }
+        #if DEBUG
+        PathTracer.DebugLine(new TraceDebugLine(_tracer, frameD.pos, 4, 0, $"D {distanceCovered}"));
+        PathTracer.DebugLine(new TraceDebugLine(_tracer, frameD.pos, frameD.pos + reflected, 4));
+        PathTracer.DebugLine(new TraceDebugLine(_tracer, frameP.pos, frameP.pos + normal, 4));
+        #endif
 
         return true;
     }
@@ -694,15 +748,21 @@ public class TraceCollisionHandler
 
         if (segment.IsRoot || segment.Length <= 0)
         {
-            PathTracer.DebugOutput($"Discarding stub segment {segment.Id}");
             segment.Discard();
+
+            #if DEBUG
+            PathTracer.DebugOutput($"Discarding stub segment {segment.Id}");
+            #endif
         }
         else
         {
-            PathTracer.DebugOutput($"Stubbing segment {segment.Id}");
             segment.TraceParams.WidthLoss = widthAtTail / segment.Length;
             segment.TraceParams.DensityLoss = -3 * densityAtTail / segment.Length;
             segment.TraceParams.SpeedLoss = -3 * speedAtTail / segment.Length;
+
+            #if DEBUG
+            PathTracer.DebugOutput($"Stubbing segment {segment.Id}");
+            #endif
         }
 
         segment.DetachAll(true);

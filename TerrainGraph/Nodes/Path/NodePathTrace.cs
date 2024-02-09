@@ -3,6 +3,11 @@ using System.Collections.Generic;
 using NodeEditorFramework;
 using TerrainGraph.Flow;
 using UnityEngine;
+using Path = TerrainGraph.Flow.Path;
+
+#if DEBUG
+using System.IO;
+#endif
 
 namespace TerrainGraph;
 
@@ -20,8 +25,9 @@ public class NodePathTrace : NodeBase
 
     public override string Title => "Path: Trace";
 
+    #if DEBUG
     public static IGridFunction<double> DebugGrid;
-    public static List<TraceDebugLine> DebugLines;
+    #endif
 
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
@@ -76,7 +82,7 @@ public class NodePathTrace : NodeBase
         var output = new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
             TerrainCanvas.GridFullSize,
-            !TerrainCanvas.HasActiveGUI
+            TerrainCanvas.HasActiveGUI
         );
 
         MainOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
@@ -102,13 +108,13 @@ public class NodePathTrace : NodeBase
     {
         private readonly ISupplier<Path> _input;
         private readonly int _gridSize;
-        private readonly bool _debug;
+        private readonly bool _hasGUI;
 
-        public Output(ISupplier<Path> input, int gridSize, bool debug)
+        public Output(ISupplier<Path> input, int gridSize, bool hasGUI)
         {
             _input = input;
             _gridSize = gridSize;
-            _debug = debug;
+            _hasGUI = hasGUI;
         }
 
         public PathTracer Get()
@@ -122,10 +128,10 @@ public class NodePathTrace : NodeBase
 
             var maxAttempts = 50;
 
-            if (_debug)
-            {
-                tracer.DebugLines = DebugLines;
+            #if DEBUG
 
+            if (!_hasGUI)
+            {
                 if (Input.GetKey(KeyCode.Alpha0)) maxAttempts = 0;
                 if (Input.GetKey(KeyCode.Alpha1)) maxAttempts = 1;
                 if (Input.GetKey(KeyCode.Alpha2)) maxAttempts = 2;
@@ -141,12 +147,27 @@ public class NodePathTrace : NodeBase
                 if (Input.GetKey(KeyCode.Z)) maxAttempts += 10;
             }
 
+            #endif
+
             tracer.Trace(_input.Get(), maxAttempts); // TODO error handling
 
-            if (_debug)
+            #if DEBUG
+
+            if (!_hasGUI)
             {
                 DebugGrid = tracer.DebugGrid;
+
+                if (Input.GetKey(KeyCode.LeftShift))
+                {
+                    var folder = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+                    var file = System.IO.Path.Combine(folder, "TerrainGraph.log");
+
+                    if (File.Exists(file)) File.Delete(file);
+                    File.WriteAllLines(file, PathTracer.DebugLog);
+                }
             }
+
+            #endif
 
             return tracer;
         }
