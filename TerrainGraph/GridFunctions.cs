@@ -439,7 +439,11 @@ public static class GridFunction
             return Equals((Clamp) obj);
         }
 
-        public override string ToString() => $"CLAMP {{ {Input} between {ClampMin:F2} and {ClampMax:F2} }}";
+        public override string ToString() =>
+            ClampMin == double.MinValue && ClampMax == double.MaxValue ? $"CLAMP {{ {Input} }}" :
+            ClampMin == double.MinValue ? $"CLAMP {{ {Input} below {ClampMax:F2} }}" :
+            ClampMax == double.MaxValue ? $"CLAMP {{ {Input} above {ClampMin:F2} }}" :
+            $"CLAMP {{ {Input} between {ClampMin:F2} and {ClampMax:F2} }}";
     }
 
     public class SpanFunction : IGridFunction<double>

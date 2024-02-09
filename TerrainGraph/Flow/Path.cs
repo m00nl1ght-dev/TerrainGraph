@@ -252,6 +252,16 @@ public class Path
         {
             this.RelWidth = 0;
             this.Length = 0;
+
+            foreach (var branch in Branches.ToList())
+            {
+                Detach(branch);
+
+                if (branch.ParentCount == 0)
+                {
+                    branch.Discard();
+                }
+            }
         }
 
         public void ApplyLocalStabilityAtTail(double constantRange, double linearRange)

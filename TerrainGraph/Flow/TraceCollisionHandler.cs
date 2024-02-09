@@ -57,7 +57,7 @@ public class TraceCollisionHandler
             PathTracer.DebugOutput($"Collision missing data: {c}");
             #endif
 
-            Stub(c.segmentA, c.framesA);
+            Stub(c.segmentA, c.framesA, c.segmentB);
             return;
         }
 
@@ -97,6 +97,8 @@ public class TraceCollisionHandler
             return;
         }
 
+        // TODO do simplification first again, but only if AdjustmentCount < diversion count?
+
         passiveFirst = c.segmentA.AdjustmentCount > c.segmentB.AdjustmentCount;
 
         if (TrySimplify(c, passiveFirst))
@@ -123,11 +125,11 @@ public class TraceCollisionHandler
 
         if (c.hasMergeA == c.hasMergeB ? c.frameA.width <= c.frameB.width : c.hasMergeB)
         {
-            Stub(c.segmentA, c.framesA);
+            Stub(c.segmentA, c.framesA, c.segmentB);
         }
         else
         {
-            Stub(c.segmentB, c.framesB);
+            Stub(c.segmentB, c.framesB, c.segmentA);
         }
     }
 
@@ -305,6 +307,8 @@ public class TraceCollisionHandler
             {
                 var linearParentsA = endA.LinearParents();
                 var linearParentsB = endB.LinearParents();
+
+                // TODO make the arcs/ducts ineligible in cases where angle diff between frameA and frameB is very low (see WhatTheFlowThe2nd test save)
 
                 var allowSingleFramesA = valueDelta > 0 || linearParentsA.All(s => s.Length < s.TraceParams.StepSize);
                 var allowSingleFramesB = valueDelta < 0 || linearParentsB.All(s => s.Length < s.TraceParams.StepSize);
@@ -708,7 +712,7 @@ public class TraceCollisionHandler
     /// <summary>
     /// Stub the given path segment in order to avoid a collision.
     /// </summary>
-    private void Stub(Path.Segment segment, List<TraceFrame> frames)
+    private void Stub(Path.Segment segment, List<TraceFrame> frames, Path.Segment cause)
     {
         segment.Length = frames[frames.Count - 1].dist;
 
@@ -718,7 +722,9 @@ public class TraceCollisionHandler
         var densityAtTail = frames[0].density;
         var speedAtTail = frames[0].speed;
 
-        while (segment.Length + lengthDiff < 2.5 * widthAtTail)
+        bool discardingCause = false;
+
+        while (segment.Length + lengthDiff < 2 * widthAtTail)
         {
             if (segment.ParentCount == 0 || segment.RelWidth <= 0 || segment.RelDensity <= 0 || segment.RelSpeed <= 0)
             {
@@ -729,11 +735,16 @@ public class TraceCollisionHandler
             if (segment.ParentCount == 1)
             {
                 var parent = segment.Parents.First();
-                if (parent.AnyBranchesMatch(b => b.ParentCount > 1, false)) break;
 
                 widthAtTail = widthAtTail / segment.RelWidth + parent.TraceParams.WidthLoss * parent.Length;
                 densityAtTail = densityAtTail / segment.RelDensity + parent.TraceParams.DensityLoss * parent.Length;
                 speedAtTail = speedAtTail / segment.RelSpeed + parent.TraceParams.SpeedLoss * parent.Length;
+
+                if (!discardingCause && parent.IsParentOf(cause, true))
+                {
+                    lengthDiff += StubBacktrackLength;
+                    discardingCause = true;
+                }
 
                 lengthDiff += segment.Length;
                 segment = parent;

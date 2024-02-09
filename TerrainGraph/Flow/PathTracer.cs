@@ -14,6 +14,8 @@ public class PathTracer
 
     public double RadialThreshold = 0.5;
     public double CollisionAdjMinDist = 5;
+    public double CollisionMinValueDiff = 0.5;
+    public double CollisionMinOffsetDiff = 0.5;
 
     public bool StopWhenOutOfBounds = true;
 
@@ -125,7 +127,7 @@ public class PathTracer
         for (int attempt = 0; attempt < maxAttempts - 1; attempt++)
         {
             #if DEBUG
-            DebugOutput($"### ATTEMPT {attempt} ###");
+            DebugOutput($"### ATTEMPT {attempt+1} ###");
             #endif
 
             TryTrace(path, occuredCollisions);
@@ -148,7 +150,7 @@ public class PathTracer
             DebugLog = debugLog;
             DebugLine(new TraceDebugLine(
                 this, new Vector2d(7, 5 + attempt), 3, 0,
-                $"Attempt {attempt} had {simulatedCollisions.Count} collisions")
+                $"Attempt {attempt+1} had {simulatedCollisions.Count} collisions")
             );
             #endif
 
@@ -274,10 +276,6 @@ public class PathTracer
             if (result.collision != null)
             {
                 occuredCollisions.Add(result.collision);
-
-                #if DEBUG
-                DebugOutput($"Collision happened: {result.collision}");
-                #endif
             }
             else if (result.finalFrame.width > 0)
             {
@@ -577,34 +575,33 @@ public class PathTracer
                                 var dist = a.dist + distDelta * progress;
 
                                 var value = progress.Lerp(a.value, b.value);
-                                var offset = progress.Lerp(a.offset, b.offset);
                                 var density = progress.Lerp(a.densityMul, b.densityMul);
-
-                                if (nowDist < preDist)
-                                {
-                                    _valueGrid[x, z] = value;
-                                    _offsetGrid[x, z] = offset + shift * density;
-                                }
+                                var offset = progress.Lerp(a.offset, b.offset) + shift * density;
 
                                 if (shiftAbs <= extend && dist >= 0 && dist <= length)
                                 {
                                     if (_mainGrid[x, z] > 0)
                                     {
-                                        var collided = _segmentGrid[x, z];
+                                        var valueDiff = Math.Abs(value - _valueGrid[x, z]);
+                                        var offsetDiff = Math.Abs(offset - _offsetGrid[x, z]);
 
-                                        if (CanCollide(task.segment, collided, dist))
+                                        if (valueDiff >= CollisionMinValueDiff || offsetDiff >= CollisionMinOffsetDiff)
                                         {
+                                            #if DEBUG
+                                            DebugOutput($"Collision {task.segment.Id} vs {_segmentGrid[x, z].Id} at {pos} with value diff {valueDiff} and offset diff {offsetDiff}");
+                                            #endif
+
                                             return new TraceResult(a, everFullyInBounds, new TraceCollision
                                             {
                                                 segmentA = task.segment,
-                                                segmentB = collided,
+                                                segmentB = _segmentGrid[x, z],
                                                 framesA = ExchangeFrameBuffer(),
                                                 position = pos
                                             });
                                         }
 
                                         #if DEBUG
-                                        DebugOutput($"Ignoring collision {task.segment.Id} vs {collided.Id} at {pos}");
+                                        DebugOutput($"Ignoring collision {task.segment.Id} vs {_segmentGrid[x, z].Id} at {pos} with value diff {valueDiff} and offset diff {offsetDiff}");
                                         #endif
                                     }
 
@@ -626,6 +623,12 @@ public class PathTracer
                                     _debugGrid[x, z] = task.segment.Id;
                                     #endif
                                 }
+
+                                if (nowDist < preDist)
+                                {
+                                    _valueGrid[x, z] = value;
+                                    _offsetGrid[x, z] = offset;
+                                }
                             }
                         }
                     }
@@ -645,25 +648,6 @@ public class PathTracer
         #endif
 
         return new TraceResult(a, everFullyInBounds);
-    }
-
-    /// <summary>
-    /// Check whether collisions between the given segments should interrupt tracing.
-    /// </summary>
-    private bool CanCollide(Segment active, Segment passive, double dist)
-    {
-        if (dist < CollisionAdjMinDist)
-        {
-            if (active.IsBranchOf(passive, false)) return false;
-            if (active.Siblings().Any(p => p.IsParentOf(passive, true))) return false;
-        }
-
-        if (active.Length - dist < CollisionAdjMinDist)
-        {
-            if (active.CoParents().Any(p => p.IsBranchOf(passive, true))) return false;
-        }
-
-        return true;
     }
 
     /// <summary>
