@@ -27,22 +27,44 @@ public class TraceCollisionHandler
     /// Rewrite path segments such that the earliest of the given collisions is avoided.
     /// </summary>
     /// <param name="collisions">list of collisions that should be considered</param>
-    internal void HandleFirstCollision(List<TraceCollision> collisions)
+    internal void HandleBestCollision(List<TraceCollision> collisions)
     {
-        TraceCollision first = null;
+        var best = FindBestCollision(collisions);
+        if (best != null) HandleCollision(best);
+    }
 
-        foreach (var collision in collisions)
+    private TraceCollision FindBestCollision(List<TraceCollision> collisions)
+    {
+        TraceCollision best = null;
+
+        while (collisions.Count > 0)
         {
-            if (first == null || collision.Precedes(first))
+            best = null;
+
+            foreach (var collision in collisions)
             {
-                first = collision;
+                if (best == null || collision.Precedes(best))
+                {
+                    best = collision;
+                }
             }
+
+            var enclosedSegments = best!.FindEnclosedSegments();
+
+            collisions = collisions.Where(c => c != best && enclosedSegments.Contains(c.segmentA)).ToList();
+
+            #if DEBUG
+
+            if (enclosedSegments.Count > 0)
+            {
+                var debugString = string.Join(", ", enclosedSegments.Select(s => s.Id));
+                PathTracer.DebugOutput($"Enclosed segments for {best.segmentA.Id} vs {best.segmentB.Id}: {debugString}");
+            }
+
+            #endif
         }
 
-        if (first != null)
-        {
-            HandleCollision(first);
-        }
+        return best;
     }
 
     /// <summary>
@@ -97,9 +119,6 @@ public class TraceCollisionHandler
 
             return;
         }
-
-        // TODO do simplification first again, but only if AdjustmentCount < diversion count?
-        // nah, instead try fixing it through collision handling order (check for collisions that would be "enclosed" by a merge, and handle those first)
 
         passiveFirst = c.frameA.width > c.frameB.width;
 
@@ -404,8 +423,16 @@ public class TraceCollisionHandler
 
         merged.ApplyLocalStabilityAtTail(0, 0.5.Lerp(stabilityRangeA, stabilityRangeB) / 2);
 
-        endA.Attach(merged);
-        endB.Attach(merged);
+        if (shift < 0) // order matters for Path.FindEnclosedSegments
+        {
+            endA.Attach(merged);
+            endB.Attach(merged);
+        }
+        else
+        {
+            endB.Attach(merged);
+            endA.Attach(merged);
+        }
 
         foreach (var branch in followingBranches)
         {

@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using System.Linq;
 using TerrainGraph.Util;
+using static TerrainGraph.Flow.Path;
 
 namespace TerrainGraph.Flow;
 
@@ -9,12 +11,12 @@ internal class TraceCollision
     /// <summary>
     /// First segment involved in the collision, the one that was actively being traced.
     /// </summary>
-    public Path.Segment segmentA;
+    public Segment segmentA;
 
     /// <summary>
     /// Second segment involved in the collision. May be the same as activeSegment if it collided with itself.
     /// </summary>
-    public Path.Segment segmentB;
+    public Segment segmentB;
 
     /// <summary>
     /// The position at which the collision occured.
@@ -76,6 +78,60 @@ internal class TraceCollision
         if (!complete && !other.complete) return false;
         if (segmentB == other.segmentB && frameB.dist < other.frameB.dist) return true;
         return false;
+    }
+
+    public List<Segment> FindEnclosedSegments()
+    {
+        if (segmentA == segmentB) return [];
+
+        var enclosed = new List<Segment>();
+
+        var shift = Vector2d.PointToLineOrientation(frameB.pos, frameB.pos + frameB.normal, frameA.pos);
+
+        var rhs = shift < 0 ? segmentA : segmentB;
+        var lhs = shift < 0 ? segmentB : segmentA;
+
+        if (!TraverseEnclosed(rhs, lhs, enclosed, true)) return [];
+        if (!TraverseEnclosed(lhs, rhs, enclosed, false)) return [];
+
+        return enclosed;
+    }
+
+    private bool TraverseEnclosed(Segment start, Segment other, List<Segment> enclosed, bool reversed)
+    {
+        var current = start;
+
+        bool foundOther = false;
+
+        while (current.ParentCount > 0 && !foundOther)
+        {
+            var parent = reversed ? current.Parents.Last() : current.Parents.First();
+
+            if (parent == start) break; // protection against cyclic graphs
+
+            if (parent.BranchCount > 1)
+            {
+                foreach (var branch in reversed ? parent.Branches.Reverse() : parent.Branches)
+                {
+                    if (branch == current) break;
+
+                    var branches = branch.ConnectedSegments(true, false);
+
+                    if (branches.Contains(other))
+                    {
+                        foundOther = true;
+                    }
+                    else
+                    {
+                        enclosed.AddRange(branches);
+                    }
+                }
+            }
+
+            current = parent;
+        }
+
+        return foundOther;
     }
 
     public override string ToString() =>

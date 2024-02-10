@@ -154,7 +154,7 @@ public class PathTracer
             );
             #endif
 
-            CollisionHandler.HandleFirstCollision(simulatedCollisions);
+            CollisionHandler.HandleBestCollision(simulatedCollisions);
 
             simulatedCollisions.Clear();
             occuredCollisions.Clear();
@@ -294,6 +294,9 @@ public class PathTracer
                             if (branch.Parents.Any(p => !taskResults.ContainsKey(p))) continue;
 
                             var parentResults = branch.Parents.Select(p => taskResults[p]).ToList();
+
+                            if (parentResults.Any(r => r.collision != null)) continue;
+
                             var mergedFrame = new TraceFrame(parentResults);
 
                             #if DEBUG
