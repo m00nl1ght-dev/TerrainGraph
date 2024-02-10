@@ -144,7 +144,7 @@ public class NodePathTrace : NodeBase
                 if (Input.GetKey(KeyCode.Alpha9)) maxAttempts = 9;
 
                 if (Input.GetKey(KeyCode.T)) maxAttempts += 10;
-                if (Input.GetKey(KeyCode.Z)) maxAttempts += 10;
+                if (Input.GetKey(KeyCode.Z)) maxAttempts += 20;
             }
 
             #endif

@@ -10,10 +10,11 @@ public class TraceCollisionHandler
 {
     public int MaxDiversionPoints = 5;
 
-    public double StubBacktrackLength = 10;
-    public double SimplificationLength = 10;
     public double MergeValueDeltaLimit = 0.45;
     public double MergeOffsetDeltaLimit = 0.45;
+    public double SimplificationLength = 10;
+    public double DiversionMinLength = 5;
+    public double StubBacktrackLength = 10;
 
     private readonly PathTracer _tracer;
 
@@ -98,8 +99,9 @@ public class TraceCollisionHandler
         }
 
         // TODO do simplification first again, but only if AdjustmentCount < diversion count?
+        // nah, instead try fixing it through collision handling order (check for collisions that would be "enclosed" by a merge, and handle those first)
 
-        passiveFirst = c.segmentA.AdjustmentCount > c.segmentB.AdjustmentCount;
+        passiveFirst = c.frameA.width > c.frameB.width;
 
         if (TrySimplify(c, passiveFirst))
         {
@@ -217,12 +219,20 @@ public class TraceCollisionHandler
         var valueDelta = valueAtMergeB - valueAtMergeA;
         var offsetDelta = offsetAtMergeB - offsetAtMergeA;
 
+        var tight = Math.Abs(frameA.angle - frameB.angle) < 5d;
+
         var interconnected = connectedA.Any(e => connectedB.Contains(e));
 
         if (interconnected)
         {
-            var mutableDistA = arcA + ductA + c.segmentA.LinearParents().Sum(s => s == c.segmentA ? frameA.dist : s.Length);
-            var mutableDistB = arcB + ductB + c.segmentB.LinearParents().Sum(s => s == c.segmentB ? frameB.dist : s.Length);
+            var mutableDistA = c.segmentA.LinearParents().Sum(s => s == c.segmentA ? frameA.dist : s.Length);
+            var mutableDistB = c.segmentB.LinearParents().Sum(s => s == c.segmentB ? frameB.dist : s.Length);
+
+            if (!tight)
+            {
+                mutableDistA += arcA + ductA;
+                mutableDistB += arcB + ductB;
+            }
 
             #if DEBUG
             PathTracer.DebugOutput($"Merge probably spans {valueDelta:F2} / {offsetDelta:F2} over {mutableDistA:F2} + {mutableDistB:F2}");
@@ -305,10 +315,8 @@ public class TraceCollisionHandler
         {
             if (interconnected)
             {
-                var linearParentsA = endA.LinearParents();
-                var linearParentsB = endB.LinearParents();
-
-                // TODO make the arcs/ducts ineligible in cases where angle diff between frameA and frameB is very low (see WhatTheFlowThe2nd test save)
+                var linearParentsA = tight ? c.segmentA.LinearParents() : endA.LinearParents();
+                var linearParentsB = tight ? c.segmentB.LinearParents() : endB.LinearParents();
 
                 var allowSingleFramesA = valueDelta > 0 || linearParentsA.All(s => s.Length < s.TraceParams.StepSize);
                 var allowSingleFramesB = valueDelta < 0 || linearParentsB.All(s => s.Length < s.TraceParams.StepSize);
@@ -579,6 +587,20 @@ public class TraceCollisionHandler
             return ArcCalcResult.ArcLengthNaN;
         }
 
+        // check for potential arc overlap
+
+        var rotRateA = arcAngleA / arcLengthA;
+        var rotRateB = arcAngleB / arcLengthB;
+
+        if (rotRateA > 0 == rotRateB > 0 && shift < 0 != rotRateA > rotRateB)
+        {
+            #if DEBUG
+            PathTracer.DebugOutput($"The arcs with rotation rates {rotRateA} vs {rotRateB} would overlap");
+            #endif
+
+            return ArcCalcResult.ArcOverlap;
+        }
+
         // calculate max angle for arc B and make sure it is not exceeded
 
         var arcAngleMaxB = (1 - b.TraceParams.AngleTenacity) * 180 * arcLengthB / (frameB.width * Math.PI);
@@ -593,8 +615,8 @@ public class TraceCollisionHandler
         }
 
         #if DEBUG
-        PathTracer.DebugOutput($"Success with arcA {arcLengthA} ductA {ductLengthB} arcB {arcLengthB} ductB {ductLengthB}");
-        PathTracer.DebugOutput($"Target for arcA is {arcEndPosA} and target for arcB is {pointC}");
+        PathTracer.DebugOutput($"Success with arc1 {arcLengthA} duct1 {ductLengthB} arc2 {arcLengthB} duct2 {ductLengthB}");
+        PathTracer.DebugOutput($"Target for arc1 is {arcEndPosA} and target for arc2 is {pointC}");
         #endif
 
         return ArcCalcResult.Success;
@@ -610,7 +632,8 @@ public class TraceCollisionHandler
         NoPointK, // same angle and same problem as NoPointF -> go back in frames, hoping it increases
         ArcLengthNaN, // something went very wrong, likely some angle was 0 -> go back in frames, hoping that fixes it
         ExcMaxAngle, // arc radius is too small for this segment width -> go back in frames, hoping to get more space between the arms
-        ExcAngleLock // arc angle would violate angle delta lock of the segment -> go back in frames
+        ExcAngleLock, // arc angle would violate angle delta lock of the segment -> go back in frames
+        ArcOverlap // arcs curve in the same direction and are located is such a way that they would overlap -> go back in frames
     }
 
     /// <summary>
@@ -649,16 +672,25 @@ public class TraceCollisionHandler
         if ((segmentD.TraceParams.DiversionPoints?.Count ?? 0) >= MaxDiversionPoints) return false;
 
         var normal = frameP.perpCW * Vector2d.PointToLineOrientation(frameD.pos, frameD.pos + frameD.normal, frameP.pos);
-        var reflected = Vector2d.Reflect(frameD.normal, normal) * segmentD.TraceParams.ArcRetraceFactor;
 
-        var point = new Path.DiversionPoint(frameD.pos, reflected, segmentD.TraceParams.ArcRetraceRange);
+        var perpDotD = Vector2d.PerpDot((frameP.pos - frameD.pos).Normalized, frameD.normal);
+        var perpDotP = Vector2d.PerpDot((frameD.pos - frameP.pos).Normalized, frameP.normal);
+
+        // this is low in the case of a frontal/head-on collision
+        var perpScore = 0.5 * (perpDotD.Abs() + perpDotP.Abs());
+
+        var diversion = perpScore > 0.2 ? Vector2d.Reflect(frameD.normal, normal) : normal;
+
+        var factor = segmentD.TraceParams.ArcRetraceFactor;
+
+        var point = new Path.DiversionPoint(frameD.pos, diversion * factor, segmentD.TraceParams.ArcRetraceRange);
 
         var segments = segmentD.ConnectedSegments(false, true,
             s => s.BranchCount == 1 || !s.AnyBranchesMatch(b => b == segmentP || b.ParentCount > 1, false),
             s => s.ParentCount == 1
         );
 
-        if (segments.Sum(s => s == segmentD ? frameD.dist : s.Length) < _tracer.CollisionAdjMinDist) return false;
+        if (segments.Sum(s => s == segmentD ? frameD.dist : s.Length) < DiversionMinLength) return false;
 
         var distanceCovered = 0d;
 
@@ -676,8 +708,8 @@ public class TraceCollisionHandler
         }
 
         #if DEBUG
-        PathTracer.DebugLine(new TraceDebugLine(_tracer, frameD.pos, 4, 0, $"D {distanceCovered}"));
-        PathTracer.DebugLine(new TraceDebugLine(_tracer, frameD.pos, frameD.pos + reflected, 4));
+        PathTracer.DebugLine(new TraceDebugLine(_tracer, frameD.pos, 4, 0, $"DC {distanceCovered:F2}\nPSC {perpScore:F2}"));
+        PathTracer.DebugLine(new TraceDebugLine(_tracer, frameD.pos, frameD.pos + diversion, 4));
         PathTracer.DebugLine(new TraceDebugLine(_tracer, frameP.pos, frameP.pos + normal, 4));
         #endif
 
@@ -703,7 +735,13 @@ public class TraceCollisionHandler
 
         if (preAnchor.Branches.Any(b => b != postAnchor && b.AnyBranchesMatch(s => s.ParentCount > 1, true))) return false;
 
-        preAnchor.Length += SimplificationLength * Math.Pow(2d, segment.AdjustmentCount);
+        var lengthAdj = SimplificationLength * Math.Pow(2d, preAnchor.AdjustmentCount);
+
+        #if DEBUG
+        PathTracer.DebugOutput($"Adjusting length of segment {preAnchor.Id} by {lengthAdj}");
+        #endif
+
+        preAnchor.Length += lengthAdj;
         preAnchor.AdjustmentCount++;
 
         return true;
@@ -749,7 +787,7 @@ public class TraceCollisionHandler
                 lengthDiff += segment.Length;
                 segment = parent;
             }
-            else
+            else // TODO handle ParentCount > 1 (pick one of them to stub, leave the rest untouched) - need to check for merges in the other ones though
             {
                 break;
             }

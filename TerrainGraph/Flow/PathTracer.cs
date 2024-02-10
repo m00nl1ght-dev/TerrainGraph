@@ -13,8 +13,8 @@ public class PathTracer
     private const int MaxTraceFrames = 1_000_000;
 
     public double RadialThreshold = 0.5;
-    public double CollisionAdjMinDist = 5;
-    public double CollisionMinValueDiff = 0.5;
+    public double SplitAngleLockLength = 5;
+    public double CollisionMinValueDiff = 0.75;
     public double CollisionMinOffsetDiff = 0.5;
 
     public bool StopWhenOutOfBounds = true;
@@ -219,11 +219,11 @@ public class PathTracer
 
                     if (i < threshold)
                     {
-                        branch.AngleDeltaNegLockLength = CollisionAdjMinDist;
+                        branch.AngleDeltaNegLockLength = SplitAngleLockLength;
                     }
                     else if (i > threshold)
                     {
-                        branch.AngleDeltaPosLockLength = CollisionAdjMinDist;
+                        branch.AngleDeltaPosLockLength = SplitAngleLockLength;
                     }
                 }
 
