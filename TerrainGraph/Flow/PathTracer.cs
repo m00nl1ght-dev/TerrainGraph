@@ -47,6 +47,10 @@ public class PathTracer
 
     public readonly TraceCollisionHandler CollisionHandler;
 
+    private readonly Dictionary<Segment, TraceResult> _traceResults = new();
+
+    internal IReadOnlyDictionary<Segment, TraceResult> TraceResults => _traceResults;
+
     private readonly GridKernel _followGridKernel = GridKernel.Square(3, 5);
     private readonly GridKernel _avoidGridKernel = GridKernel.Shield(2, 5, 3);
 
@@ -121,59 +125,41 @@ public class PathTracer
         DebugLines?.Clear();
         #endif
 
-        var simulatedCollisions = new List<TraceCollision>();
-        var occuredCollisions = new List<TraceCollision>();
+        var collisions = new List<TraceCollision>();
 
-        for (int attempt = 0; attempt < maxAttempts - 1; attempt++)
+        for (int attempt = 0;; attempt++)
         {
             #if DEBUG
-            DebugOutput($"### ATTEMPT {attempt+1} ###");
+            DebugOutput($"### ATTEMPT {attempt + 1} ###");
             #endif
 
-            TryTrace(path, occuredCollisions);
-            if (occuredCollisions.Count == 0) return true;
-            Clear();
+            TryTrace(path);
 
-            simulatedCollisions.AddRange(occuredCollisions);
-            occuredCollisions.Clear();
+            collisions.AddRange(_traceResults.Values.Select(r => r.collision).Where(c => c != null));
+
+            if (collisions.Count == 0) return true;
+            if (attempt + 1 >= maxAttempts) return false;
+
+            Clear();
 
             #if DEBUG
             var debugLog = DebugLog;
             DebugLog = null;
             #endif
 
-            TryTrace(path, occuredCollisions, simulatedCollisions);
-            if (occuredCollisions.Count == 0) return true;
-            Clear();
+            TryTrace(path, collisions);
 
             #if DEBUG
             DebugLog = debugLog;
-            DebugLine(new TraceDebugLine(
-                this, new Vector2d(7, 5 + attempt), 3, 0,
-                $"Attempt {attempt+1} had {simulatedCollisions.Count} collisions")
-            );
+            DebugLine(new TraceDebugLine(this, new Vector2d(7, 5 + attempt), 3, 0, $"A {attempt + 1} C {collisions.Count}"));
             #endif
 
-            CollisionHandler.HandleBestCollision(simulatedCollisions);
+            CollisionHandler.HandleBestCollision(collisions);
 
-            simulatedCollisions.Clear();
-            occuredCollisions.Clear();
+            collisions.Clear();
+
+            Clear();
         }
-
-        #if DEBUG
-        DebugOutput($"### FINAL ATTEMPT ###");
-        #endif
-
-        TryTrace(path, occuredCollisions);
-
-        #if DEBUG
-        DebugLine(new TraceDebugLine(
-            this, new Vector2d(7, 4 + maxAttempts), 1, 0,
-            $"Final attempt had {occuredCollisions.Count} collisions")
-        );
-        #endif
-
-        return occuredCollisions.Count == 0;
     }
 
     /// <summary>
@@ -181,6 +167,8 @@ public class PathTracer
     /// </summary>
     public void Clear()
     {
+        _traceResults.Clear();
+
         for (int x = 0; x < GridOuterSize.x; x++)
         {
             for (int z = 0; z < GridOuterSize.z; z++)
@@ -249,12 +237,10 @@ public class PathTracer
     /// Attempt to trace the given path once.
     /// </summary>
     /// <param name="path">Path to trace</param>
-    /// <param name="occuredCollisions">Collisions that occur while tracing will be added to this list</param>
     /// <param name="simulatedCollisions">List of collisions to be simulated, may be null if there are none</param>
-    private void TryTrace(Path path, List<TraceCollision> occuredCollisions, List<TraceCollision> simulatedCollisions = null)
+    private void TryTrace(Path path, List<TraceCollision> simulatedCollisions = null)
     {
         var taskQueue = new Queue<TraceTask>();
-        var taskResults = new Dictionary<Segment, TraceResult>();
         var originFrame = new TraceFrame(GridMargin);
 
         foreach (var rootSegment in path.Roots)
@@ -271,13 +257,9 @@ public class PathTracer
 
             var result = TryTrace(task);
 
-            taskResults[task.segment] = result;
+            _traceResults[task.segment] = result;
 
-            if (result.collision != null)
-            {
-                occuredCollisions.Add(result.collision);
-            }
-            else if (result.finalFrame.width > 0)
+            if (result.collision == null && result.finalFrame.width > 0)
             {
                 var endInBounds = result.finalFrame.PossiblyInBounds(Vector2d.Zero, GridOuterSize);
 
@@ -291,9 +273,9 @@ public class PathTracer
                         }
                         else
                         {
-                            if (branch.Parents.Any(p => !taskResults.ContainsKey(p))) continue;
+                            if (branch.Parents.Any(p => !_traceResults.ContainsKey(p))) continue;
 
-                            var parentResults = branch.Parents.Select(p => taskResults[p]).ToList();
+                            var parentResults = branch.Parents.Select(p => _traceResults[p]).ToList();
 
                             if (parentResults.Any(r => r.collision != null)) continue;
 
@@ -320,7 +302,7 @@ public class PathTracer
 
         void Enqueue(Segment branch, TraceFrame baseFrame, bool everInBounds)
         {
-            if (taskResults.ContainsKey(branch) || taskQueue.Any(t => t.segment == branch)) return;
+            if (_traceResults.ContainsKey(branch) || taskQueue.Any(t => t.segment == branch)) return;
 
             var collisionList = simulatedCollisions?.Where(c => c.segmentB == branch).ToList();
 
@@ -352,7 +334,7 @@ public class PathTracer
 
         var everFullyInBounds = task.everInBounds || !initialFrame.PossiblyOutOfBounds(Vector2d.Zero, GridOuterSize);
 
-        if (length <= 0) return new TraceResult(initialFrame, everFullyInBounds);
+        if (length <= 0) return new TraceResult(initialFrame, initialFrame, everFullyInBounds);
 
         var a = initialFrame;
 
@@ -594,7 +576,7 @@ public class PathTracer
                                             DebugOutput($"Collision {task.segment.Id} vs {_segmentGrid[x, z].Id} at {pos} with value diff {valueDiff} and offset diff {offsetDiff}");
                                             #endif
 
-                                            return new TraceResult(a, everFullyInBounds, new TraceCollision
+                                            return new TraceResult(initialFrame, a, everFullyInBounds, new TraceCollision
                                             {
                                                 segmentA = task.segment,
                                                 segmentB = _segmentGrid[x, z],
@@ -650,7 +632,7 @@ public class PathTracer
         DebugOutput($"Segment {task.segment.Id} finished with final frame [{a}]");
         #endif
 
-        return new TraceResult(a, everFullyInBounds);
+        return new TraceResult(initialFrame, a, everFullyInBounds);
     }
 
     /// <summary>
