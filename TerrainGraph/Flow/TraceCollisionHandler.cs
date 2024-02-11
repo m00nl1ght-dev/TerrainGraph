@@ -80,7 +80,7 @@ public class TraceCollisionHandler
             PathTracer.DebugOutput($"Collision missing data: {c}");
             #endif
 
-            Stub(c.segmentA, c.framesA, c.segmentB);
+            Stub(c.segmentA, c.frameA.dist);
             return;
         }
 
@@ -100,7 +100,12 @@ public class TraceCollisionHandler
         var divCountA = c.segmentA.TraceParams.DiversionPoints?.Count ?? 0;
         var divCountB = c.segmentB.TraceParams.DiversionPoints?.Count ?? 0;
 
-        var passiveFirst = divCountA == divCountB ? c.frameA.width > c.frameB.width : divCountA > divCountB;
+        var adjPrioA = c.segmentA.TraceParams.AdjustmentPriority;
+        var adjPrioB = c.segmentB.TraceParams.AdjustmentPriority;
+
+        var passiveFirst = adjPrioA != adjPrioB ? adjPrioB
+            : divCountA != divCountB ? divCountA > divCountB
+            : c.frameA.width > c.frameB.width;
 
         if (TryDivert(c, passiveFirst))
         {
@@ -120,7 +125,8 @@ public class TraceCollisionHandler
             return;
         }
 
-        passiveFirst = c.frameA.width > c.frameB.width;
+        passiveFirst = adjPrioA != adjPrioB ? adjPrioB
+            : c.frameA.width > c.frameB.width;
 
         if (TrySimplify(c, passiveFirst))
         {
@@ -146,11 +152,11 @@ public class TraceCollisionHandler
 
         if (c.hasMergeA == c.hasMergeB ? c.frameA.width <= c.frameB.width : c.hasMergeB)
         {
-            Stub(c.segmentA, c.framesA, c.segmentB);
+            Stub(c.segmentA, c.frameA.dist);
         }
         else
         {
-            Stub(c.segmentB, c.framesB, c.segmentA);
+            Stub(c.segmentB, c.frameB.dist);
         }
     }
 
@@ -162,6 +168,8 @@ public class TraceCollisionHandler
     {
         if (c.cyclic || c.hasMergeA || c.hasMergeB) return false;
         if (c.segmentA.TraceParams.AvoidOverlap > 0) return false;
+
+        if (c.segmentA.TraceParams.AdjustmentPriority != c.segmentB.TraceParams.AdjustmentPriority) return false;
 
         var dot = Vector2d.Dot(c.frameA.normal, c.frameB.normal);
         var perpDot = Vector2d.PerpDot(c.frameA.normal, c.frameB.normal);
@@ -394,7 +402,7 @@ public class TraceCollisionHandler
 
                 if (fullSteps > 0)
                 {
-                    segment.SmoothDelta = new Path.SmoothDelta(valueDiff, offsetDiff, totalSteps, currentSteps, padding);
+                    segment.ApplyDelta(new Path.SmoothDelta(valueDiff, offsetDiff, totalSteps, currentSteps, padding));
                     currentSteps += fullSteps;
                 }
             }
@@ -472,8 +480,11 @@ public class TraceCollisionHandler
 
         // calculate min arc lengths based on width and tenacity
 
-        arcLengthA = arcAngleA.Abs() / 180 * frameA.width * Math.PI / (1 - a.TraceParams.AngleTenacity.WithMax(0.9));
-        arcLengthB = arcAngleB.Abs() / 180 * frameB.width * Math.PI / (1 - b.TraceParams.AngleTenacity.WithMax(0.9));
+        var widthForTenacityA = a.TraceParams.StaticAngleTenacity ? _tracer.TraceResults[a].initialFrame.width : frameA.width;
+        var widthForTenacityB = b.TraceParams.StaticAngleTenacity ? _tracer.TraceResults[b].initialFrame.width : frameB.width;
+
+        arcLengthA = arcAngleA.Abs() / 180 * widthForTenacityA * Math.PI / (1 - a.TraceParams.AngleTenacity.WithMax(0.9));
+        arcLengthB = arcAngleB.Abs() / 180 * widthForTenacityB * Math.PI / (1 - b.TraceParams.AngleTenacity.WithMax(0.9));
 
         ductLengthA = 0;
         ductLengthB = 0;
@@ -777,45 +788,31 @@ public class TraceCollisionHandler
     /// <summary>
     /// Stub the given path segment in order to avoid a collision.
     /// </summary>
-    private void Stub(Path.Segment segment, List<TraceFrame> frames, Path.Segment cause)
+    private void Stub(Path.Segment segment, double toLength)
     {
-        segment.Length = frames[frames.Count - 1].dist;
+        var lengthDiff = toLength - StubBacktrackLength - segment.Length;
 
-        var lengthDiff = -1 * StubBacktrackLength;
-
-        var widthAtTail = frames[0].width;
-        var densityAtTail = frames[0].density;
-        var speedAtTail = frames[0].speed;
-
-        bool discardingCause = false;
-
-        while (segment.Length + lengthDiff < 2 * widthAtTail)
+        while (segment.Length + lengthDiff < MinStubLengthFor(segment))
         {
-            if (segment.ParentCount == 0 || segment.RelWidth <= 0 || segment.RelDensity <= 0 || segment.RelSpeed <= 0)
+            if (segment.ParentCount == 0) break;
+
+            if (segment.ParentCount > 1 && segment.AnyBranchesMatch(b => b.ParentCount > 1, false))
             {
-                segment.Discard();
+                foreach (var parent in segment.Parents.ToList())
+                {
+                    if (parent.RelWidth > 0) Stub(parent, parent.Length);
+                }
+
                 return;
             }
 
-            if (segment.ParentCount == 1)
+            lengthDiff += segment.Length;
+
+            segment = segment.Parents.OrderBy(s => _tracer.TraceResults[s].initialFrame.width).First();
+
+            if (segment.BranchCount > 1)
             {
-                var parent = segment.Parents.First();
-
-                widthAtTail = widthAtTail / segment.RelWidth + parent.TraceParams.WidthLoss * parent.Length;
-                densityAtTail = densityAtTail / segment.RelDensity + parent.TraceParams.DensityLoss * parent.Length;
-                speedAtTail = speedAtTail / segment.RelSpeed + parent.TraceParams.SpeedLoss * parent.Length;
-
-                if (!discardingCause && parent.IsParentOf(cause, true))
-                {
-                    lengthDiff += StubBacktrackLength;
-                    discardingCause = true;
-                }
-
-                lengthDiff += segment.Length;
-                segment = parent;
-            }
-            else // TODO handle ParentCount > 1 (pick one of them to stub, leave the rest untouched) - need to check for merges in the other ones though
-            {
+                lengthDiff = MinStubLengthFor(segment) - segment.Length;
                 break;
             }
         }
@@ -827,20 +824,30 @@ public class TraceCollisionHandler
             segment.Discard();
 
             #if DEBUG
-            PathTracer.DebugOutput($"Discarding stub segment {segment.Id}");
+            PathTracer.DebugOutput($"Discarded stub segment {segment.Id}");
             #endif
         }
         else
         {
-            segment.TraceParams.WidthLoss = widthAtTail / segment.Length;
-            segment.TraceParams.DensityLoss = -3 * densityAtTail / segment.Length;
-            segment.TraceParams.SpeedLoss = -3 * speedAtTail / segment.Length;
+            var initialFrame = _tracer.TraceResults[segment].initialFrame;
+
+            segment.TraceParams.WidthLoss = initialFrame.width / segment.Length;
+            segment.TraceParams.DensityLoss = -3 * initialFrame.density / segment.Length;
+            segment.TraceParams.SpeedLoss = -3 * initialFrame.speed / segment.Length;
+
+            segment.TraceParams.StaticAngleTenacity = true;
+            segment.TraceParams.AdjustmentPriority = true;
 
             #if DEBUG
-            PathTracer.DebugOutput($"Stubbing segment {segment.Id}");
+            PathTracer.DebugOutput($"Stubbed segment {segment.Id}");
             #endif
         }
 
         segment.DetachAll(true);
+    }
+
+    private double MinStubLengthFor(Path.Segment segment)
+    {
+        return 2 * _tracer.TraceResults[segment].initialFrame.width;
     }
 }

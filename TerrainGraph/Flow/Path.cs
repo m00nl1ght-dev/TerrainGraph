@@ -134,7 +134,7 @@ public class Path
         public LocalStability StabilityAtHead;
         public LocalStability StabilityAtTail;
 
-        public SmoothDelta SmoothDelta;
+        public IReadOnlyList<SmoothDelta> ExtraDelta;
 
         public TraceParams TraceParams;
 
@@ -178,7 +178,7 @@ public class Path
             StabilityAtTail = other.StabilityAtTail;
             StabilityAtHead = other.StabilityAtHead;
             RelPosition = other.RelPosition;
-            SmoothDelta = other.SmoothDelta;
+            ExtraDelta = other.ExtraDelta;
             TraceParams = other.TraceParams;
         }
 
@@ -230,7 +230,11 @@ public class Path
             foreach (var branch in Branches.ToList())
             {
                 Detach(branch);
-                if (discard) branch.Discard();
+
+                if (discard && branch.ParentCount == 0)
+                {
+                    branch.Discard();
+                }
             }
         }
 
@@ -262,6 +266,11 @@ public class Path
                     branch.Discard();
                 }
             }
+        }
+
+        public void ApplyDelta(SmoothDelta delta)
+        {
+            ExtraDelta = ExtraDelta != null ? [..ExtraDelta, delta] : [delta];
         }
 
         public void ApplyLocalStabilityAtTail(double constantRange, double linearRange)
@@ -515,7 +524,7 @@ public class Path
             RelPosition.Equals(other.RelPosition) &&
             Equals(StabilityAtHead, other.StabilityAtHead) &&
             Equals(StabilityAtTail, other.StabilityAtTail) &&
-            Equals(SmoothDelta, other.SmoothDelta) &&
+            Equals(ExtraDelta, other.ExtraDelta) &&
             TraceParams.Equals(other.TraceParams);
     }
 
@@ -604,6 +613,9 @@ public class Path
         public double ArcRetraceRange;
         public double ArcStableRange;
 
+        public bool StaticAngleTenacity;
+        public bool AdjustmentPriority;
+
         public IGridFunction<double> AbsFollowGrid;
         public IGridFunction<double> RelFollowGrid;
         public IGridFunction<double> SwerveGrid;
@@ -652,6 +664,8 @@ public class Path
                 ArcRetraceFactor = t.Lerp(a.ArcRetraceFactor, b.ArcRetraceFactor),
                 ArcRetraceRange = t.Lerp(a.ArcRetraceRange, b.ArcRetraceRange),
                 ArcStableRange = t.Lerp(a.ArcStableRange, b.ArcStableRange),
+                StaticAngleTenacity = a.StaticAngleTenacity || b.StaticAngleTenacity,
+                AdjustmentPriority = a.AdjustmentPriority || b.AdjustmentPriority,
                 AbsFollowGrid = Lerp.Of(a.AbsFollowGrid, b.AbsFollowGrid, t),
                 RelFollowGrid = Lerp.Of(a.RelFollowGrid, b.RelFollowGrid, t),
                 SwerveGrid = Lerp.Of(a.SwerveGrid, b.SwerveGrid, t),
@@ -671,6 +685,8 @@ public class Path
             ArcRetraceFactor.Equals(other.ArcRetraceFactor) &&
             ArcRetraceRange.Equals(other.ArcRetraceRange) &&
             ArcStableRange.Equals(other.ArcStableRange) &&
+            StaticAngleTenacity == other.StaticAngleTenacity &&
+            AdjustmentPriority == other.AdjustmentPriority &&
             Equals(AbsFollowGrid, other.AbsFollowGrid) &&
             Equals(RelFollowGrid, other.RelFollowGrid) &&
             Equals(SwerveGrid, other.SwerveGrid) &&
@@ -689,6 +705,8 @@ public class Path
             $"{nameof(ArcRetraceFactor)}: {ArcRetraceFactor:F2}, " +
             $"{nameof(ArcRetraceRange)}: {ArcRetraceRange:F2}, " +
             $"{nameof(ArcStableRange)}: {ArcStableRange:F2}, " +
+            $"{nameof(StaticAngleTenacity)}: {StaticAngleTenacity}, " +
+            $"{nameof(AdjustmentPriority)}: {AdjustmentPriority}, " +
             $"{nameof(AbsFollowGrid)}: {AbsFollowGrid}, " +
             $"{nameof(RelFollowGrid)}: {RelFollowGrid}, " +
             $"{nameof(SwerveGrid)}: {SwerveGrid}, " +

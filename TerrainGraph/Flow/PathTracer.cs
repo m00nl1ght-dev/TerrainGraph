@@ -16,6 +16,9 @@ public class PathTracer
     public double SplitAngleLockLength = 5;
     public double CollisionMinValueDiff = 0.75;
     public double CollisionMinOffsetDiff = 0.5;
+    public double CollisionCheckMargin = 0.5;
+    public double CollisionMinValueDiffM = 5;
+    public double CollisionMinOffsetDiffM = 5;
 
     public bool StopWhenOutOfBounds = true;
 
@@ -402,49 +405,51 @@ public class PathTracer
                 if (a.dist < task.segment.AngleDeltaPosLockLength && angleDelta > 0) angleDelta = 0;
                 if (a.dist < task.segment.AngleDeltaNegLockLength && angleDelta < 0) angleDelta = 0;
 
-                var maxAngleDelta = (1 - extParams.AngleTenacity) * 180 * distDelta / (a.width * Math.PI);
+                var widthForTenacity = extParams.StaticAngleTenacity ? initialFrame.width : a.width;
+                var maxAngleDelta = (1 - extParams.AngleTenacity) * 180 * distDelta / (widthForTenacity * Math.PI);
                 angleDelta = (distDelta * angleDelta).NormalizeDeg().InRange(-maxAngleDelta, maxAngleDelta);
 
-                if (task.segment.SmoothDelta != null)
+                if (task.segment.ExtraDelta != null)
                 {
-                    var smoothDelta = task.segment.SmoothDelta;
-
-                    if (smoothDelta.StepsTotal <= 0)
+                    foreach (var smoothDelta in task.segment.ExtraDelta)
                     {
-                        extraValue += smoothDelta.ValueDelta;
-                        extraOffset += smoothDelta.OffsetDelta;
-                    }
-                    else
-                    {
-                        var stepsDone = (int) Math.Floor(a.dist / stepSize);
-                        var stepsTotal = (int) Math.Floor(length / stepSize);
-
-                        var pointer = stepsDone;
-                        var factor = 1d;
-
-                        if (stepsDone == stepsTotal - 1)
+                        if (smoothDelta.StepsTotal <= 0)
                         {
-                            factor = stepSize / (stepSize + length % stepSize);
+                            extraValue += smoothDelta.ValueDelta;
+                            extraOffset += smoothDelta.OffsetDelta;
                         }
-                        else if (stepsDone == stepsTotal && stepsTotal > 0)
+                        else
                         {
-                            pointer = stepsTotal - 1;
-                            factor = length % stepSize / (stepSize + length % stepSize);
+                            var stepsDone = (int) Math.Floor(a.dist / stepSize);
+                            var stepsTotal = (int) Math.Floor(length / stepSize);
+
+                            var pointer = stepsDone;
+                            var factor = 1d;
+
+                            if (stepsDone == stepsTotal - 1)
+                            {
+                                factor = stepSize / (stepSize + length % stepSize);
+                            }
+                            else if (stepsDone == stepsTotal && stepsTotal > 0)
+                            {
+                                pointer = stepsTotal - 1;
+                                factor = length % stepSize / (stepSize + length % stepSize);
+                            }
+
+                            var n = smoothDelta.StepsTotal;
+                            var x = smoothDelta.StepsStart + pointer;
+
+                            if (n > smoothDelta.StepsPadding * 2)
+                            {
+                                n -= smoothDelta.StepsPadding * 2;
+                                x -= smoothDelta.StepsPadding;
+                            }
+
+                            var value = x < 0 || x >= n ? 0 : MathUtil.LinearDist(n, x);
+
+                            extraValue += smoothDelta.ValueDelta * value * factor;
+                            extraOffset += smoothDelta.OffsetDelta * value * factor;
                         }
-
-                        var n = smoothDelta.StepsTotal;
-                        var x = smoothDelta.StepsStart + pointer;
-
-                        if (n > smoothDelta.StepsPadding * 2)
-                        {
-                            n -= smoothDelta.StepsPadding * 2;
-                            x -= smoothDelta.StepsPadding;
-                        }
-
-                        var value = x < 0 || x >= n ? 0 : MathUtil.LinearDist(n, x);
-
-                        extraValue += smoothDelta.ValueDelta * value * factor;
-                        extraOffset += smoothDelta.OffsetDelta * value * factor;
                     }
                 }
             }
@@ -545,17 +550,18 @@ public class PathTracer
 
                         var extend = progress.Lerp(extendA, extendB);
 
-                        if (shiftAbs <= extend + TraceOuterMargin)
+                        var nowDist = shiftAbs - extend;
+
+                        if (nowDist <= TraceOuterMargin)
                         {
                             var preDist = _distanceGrid[x, z];
-                            var nowDist = shiftAbs - extend;
 
                             if (nowDist < preDist)
                             {
                                 _distanceGrid[x, z] = nowDist;
                             }
 
-                            if (shiftAbs <= extend + TraceInnerMargin)
+                            if (nowDist <= TraceInnerMargin)
                             {
                                 var dist = a.dist + distDelta * progress;
 
@@ -563,14 +569,17 @@ public class PathTracer
                                 var density = progress.Lerp(a.densityMul, b.densityMul);
                                 var offset = progress.Lerp(a.offset, b.offset) + shift * density;
 
-                                if (shiftAbs <= extend && dist >= 0 && dist <= length)
+                                if (nowDist <= CollisionCheckMargin && dist >= 0 && dist <= length)
                                 {
                                     if (_mainGrid[x, z] > 0)
                                     {
                                         var valueDiff = Math.Abs(value - _valueGrid[x, z]);
                                         var offsetDiff = Math.Abs(offset - _offsetGrid[x, z]);
 
-                                        if (valueDiff >= CollisionMinValueDiff || offsetDiff >= CollisionMinOffsetDiff)
+                                        var valueThr = nowDist <= 0 ? CollisionMinValueDiff : CollisionMinValueDiffM;
+                                        var offsetThr = nowDist <= 0 ? CollisionMinOffsetDiff : CollisionMinOffsetDiffM;
+
+                                        if (valueDiff >= valueThr || offsetDiff >= offsetThr)
                                         {
                                             #if DEBUG
                                             DebugOutput($"Collision {task.segment.Id} vs {_segmentGrid[x, z].Id} at {pos} with value diff {valueDiff} and offset diff {offsetDiff}");
@@ -602,11 +611,15 @@ public class PathTracer
                                     }
 
                                     _segmentGrid[x, z] = task.segment;
-                                    _mainGrid[x, z] = extend;
 
-                                    #if DEBUG
-                                    _debugGrid[x, z] = task.segment.Id;
-                                    #endif
+                                    if (nowDist <= 0)
+                                    {
+                                        _mainGrid[x, z] = extend;
+
+                                        #if DEBUG
+                                        _debugGrid[x, z] = task.segment.Id;
+                                        #endif
+                                    }
                                 }
 
                                 if (nowDist < preDist)
