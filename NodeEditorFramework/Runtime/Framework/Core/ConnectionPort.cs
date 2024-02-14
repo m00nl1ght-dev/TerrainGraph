@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 using NodeEditorFramework.Utilities;
 
-namespace NodeEditorFramework 
+namespace NodeEditorFramework
 {
 	public enum NodeSide { Left = 4, Top = 3, Right = 2, Bottom = 1 }
 	public enum Direction { None, In, Out }
@@ -33,7 +33,7 @@ namespace NodeEditorFramework
 		protected List<ConnectionPort> _connections = new List<ConnectionPort> ();
 		public List<ConnectionPort> connections { get { return _connections; } }
 
-		public void Init (Node nodeBody, string knobName) 
+		public void Init (Node nodeBody, string knobName)
 		{
 			body = nodeBody;
 			name = knobName;
@@ -79,7 +79,7 @@ namespace NodeEditorFramework
 		/// </summary>
 		protected void CheckConnectionStyle ()
 		{
-			if (_connectionStyle == null || !_connectionStyle.isValid ()) 
+			if (_connectionStyle == null || !_connectionStyle.isValid ())
 			{
 				_connectionStyle = ConnectionPortStyles.GetPortStyle (styleID, styleBaseClass);
 				if (_connectionStyle == null || !_connectionStyle.isValid())
@@ -92,7 +92,7 @@ namespace NodeEditorFramework
 		/// <summary>
 		/// Draws the connection lines from this port to all it's connections
 		/// </summary>
-		public virtual void DrawConnections () 
+		public virtual void DrawConnections ()
 		{
 			if (Event.current.type != EventType.Repaint)
 				return;
@@ -107,7 +107,7 @@ namespace NodeEditorFramework
 		/// <summary>
 		/// Draws a connection line from the current knob to the specified position
 		/// </summary>
-		public virtual void DrawConnection (Vector2 endPos) 
+		public virtual void DrawConnection (Vector2 endPos)
 		{
 			if (Event.current.type != EventType.Repaint)
 				return;
@@ -121,7 +121,7 @@ namespace NodeEditorFramework
 		/// <summary>
 		/// Returns whether this port is connected to any other port
 		/// </summary>
-		public bool connected () 
+		public bool connected ()
 		{
 			return connections.Count > 0;
 		}
@@ -129,7 +129,7 @@ namespace NodeEditorFramework
 		/// <summary>
 		/// Returns the connection with the specified index or null if not existant
 		/// </summary>
-		public ConnectionPort connection (int index) 
+		public ConnectionPort connection (int index)
 		{
 			if (connections.Count <= index)
 				throw new IndexOutOfRangeException ("connections[" + index + "] of '" + name + "'");
@@ -141,7 +141,7 @@ namespace NodeEditorFramework
 		/// </summary>
 		public bool TryApplyConnection (ConnectionPort port, bool silent = false)
 		{
-			if (CanApplyConnection (port)) 
+			if (CanApplyConnection (port))
 			{ // This port and the specified port can be connected
 				ApplyConnection (port, silent);
 				return true;
@@ -164,7 +164,7 @@ namespace NodeEditorFramework
 				return false; // Cannot connect inputs with anything other than outputs
 			if (direction == Direction.Out && port.direction != Direction.In)
 				return false; // Cannot connect outputs with anything other than inputs
-			
+
 			if (!body.canvas.allowRecursion)
 			{ // Assure no loop would be created
 				bool loop;
@@ -181,12 +181,12 @@ namespace NodeEditorFramework
 		}
 
 		/// <summary>
-		/// Applies a connection between between this port and the specified port. 
+		/// Applies a connection between between this port and the specified port.
 		/// 'CanApplyConnection' has to be checked before to avoid interferences!
 		/// </summary>
 		public void ApplyConnection (ConnectionPort port, bool silent = false)
 		{
-			if (port == null) 
+			if (port == null)
 				return;
 
 			if (maxConnectionCount == ConnectionCount.Single && connections.Count > 0)
@@ -220,7 +220,7 @@ namespace NodeEditorFramework
 				port.body.OnAddConnection (port, this);
 				body.OnAddConnection (this, port);
 				NodeEditorCallbacks.IssueOnAddConnection (this, port);
-				body.canvas.OnNodeChange(direction == Direction.In? port.body : body);
+				body.canvas.OnNodeChange(direction == Direction.In ? port.body : body);
 			}
 		}
 
@@ -263,12 +263,12 @@ namespace NodeEditorFramework
 				this.body.OnRemoveConnection(this, port);
 				NodeEditorCallbacks.IssueOnRemoveConnection (this, port);
 			}
-			
+
 			port.connections.Remove (this);
 			connections.Remove (port);
 
 			if (!silent) body.canvas.OnNodeChange (body);
-			if (!silent) port.body.canvas.OnNodeChange (body);
+			if (!silent) port.body.canvas.OnNodeChange (port.body);
 		}
 
 		#endregion
@@ -309,7 +309,7 @@ namespace NodeEditorFramework
 			Setup (name, direction, styleID, maxCount);
 		}
 
-		private void Setup (string name, Direction direction, string styleID, ConnectionCount maxCount) 
+		private void Setup (string name, Direction direction, string styleID, ConnectionCount maxCount)
 		{
 			Name = name;
 			Direction = direction;
@@ -317,7 +317,7 @@ namespace NodeEditorFramework
 			MaxConnectionCount = maxCount;
 		}
 
-		public bool MatchFieldType (Type fieldType) 
+		public bool MatchFieldType (Type fieldType)
 		{
 			return fieldType.IsAssignableFrom (ConnectionType);
 		}
@@ -335,7 +335,7 @@ namespace NodeEditorFramework
 			return true;
 		}
 
-		public virtual ConnectionPort CreateNew (Node body) 
+		public virtual ConnectionPort CreateNew (Node body)
 		{
 			ConnectionPort port = ScriptableObject.CreateInstance<ConnectionPort> ();
 			port.Init (body, Name);
@@ -345,7 +345,7 @@ namespace NodeEditorFramework
 			return port;
 		}
 
-		public virtual void UpdateProperties (ConnectionPort port) 
+		public virtual void UpdateProperties (ConnectionPort port)
 		{
 			port.name = Name;
 			port.direction = Direction;
@@ -365,7 +365,7 @@ namespace NodeEditorFramework
 
 		public ConnectionPortStyle () {}
 
-		public ConnectionPortStyle (string name) 
+		public ConnectionPortStyle (string name)
 		{
 			identifier = name;
 			GenerateColor();
@@ -376,7 +376,7 @@ namespace NodeEditorFramework
 			color = NodeEditorGUI.RandomColorHSV(Identifier.GetHashCode(), 0, 1, 0.6f, 0.8f, 0.8f, 1.4f);
 		}
 
-		public virtual bool isValid () 
+		public virtual bool isValid ()
 		{
 			return true;
 		}

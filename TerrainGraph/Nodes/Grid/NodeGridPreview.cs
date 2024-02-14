@@ -114,7 +114,7 @@ public class NodeGridPreview : NodeBase
         return true;
     }
 
-    public override void RefreshPreview() // TODO doesn't update when input knob disconnected?
+    public override void RefreshPreview()
     {
         var previewSize = _previewSize;
         var previewBuffer = _previewBuffer;

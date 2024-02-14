@@ -53,7 +53,7 @@ namespace NodeEditorFramework
 		/// <summary>
 		/// Specifies the node title.
 		/// </summary>
-		public virtual string Title { get { 
+		public virtual string Title { get {
 			#if UNITY_EDITOR
 				return UnityEditor.ObjectNames.NicifyVariableName (GetID);
 			#else
@@ -83,7 +83,7 @@ namespace NodeEditorFramework
 		public virtual bool ContinueCalculation { get { return true; } }
 
 		/// <summary>
-		/// Specifies whether GUI requires to be updated even when the node is off-screen 
+		/// Specifies whether GUI requires to be updated even when the node is off-screen
 		/// </summary>
 		public virtual bool ForceGUIDrawOffScreen { get { return false; } }
 
@@ -97,12 +97,12 @@ namespace NodeEditorFramework
 		/// </summary>
 		/// <param name="fromGUI"></param>
 		public virtual void OnCreate(bool fromGUI) {}
-		
+
 		/// <summary>
 		/// Draws the Node GUI including all controls and potentially Input/Output labels.
 		/// By default, it displays all Input/Output labels.
 		/// </summary>
-		public virtual void NodeGUI () 
+		public virtual void NodeGUI ()
 		{
 			GUILayout.BeginHorizontal ();
 			GUILayout.BeginVertical ();
@@ -140,7 +140,7 @@ namespace NodeEditorFramework
 				ignoreGUIKnobPlacement = false;
 			}
 		}
-		
+
 		/// <summary>
 		/// Calculates the outputs of this Node depending on the inputs.
 		/// Returns success
@@ -153,13 +153,13 @@ namespace NodeEditorFramework
 		public virtual void FillNodeActionsMenu(NodeEditorInputInfo inputInfo, GenericMenu menu)
 		{
 			NodeEditorState state = inputInfo.editorState;
-			
-			if (canvas.CanDeleteNode(this)) 
+
+			if (canvas.CanDeleteNode(this))
 			{
 				menu.AddItem(new GUIContent ("Delete"), false, () => Delete());
 			}
-			
-			if (canvas.CanAddNode(GetID, true)) 
+
+			if (canvas.CanAddNode(GetID, true))
 			{
 				menu.AddItem(new GUIContent ("Duplicate"), false, () =>
 				{
@@ -182,7 +182,7 @@ namespace NodeEditorFramework
 		/// Callback when the given port on this node was assigned a new connection
 		/// </summary>
 		protected internal virtual void OnAddConnection (ConnectionPort port, ConnectionPort connection) {}
-		
+
 		/// <summary>
 		/// Callback when the given port has a connection that was removed.
 		/// </summary>
@@ -237,7 +237,7 @@ namespace NodeEditorFramework
 			node.position = pos;
 			ConnectionPortManager.UpdateConnectionPorts (node);
 			if (init) node.OnCreate(true);
-			
+
 			if (connectingPort != null)
 			{ // Handle auto-connection and link the output to the first compatible input
 				for (int i = 0; i < node.connectionPorts.Count; i++)
@@ -283,7 +283,7 @@ namespace NodeEditorFramework
 		/// <summary>
 		/// Deletes this Node from it's host canvas and the save file
 		/// </summary>
-		public void Delete (bool silent = false) 
+		public void Delete (bool silent = false)
 		{
 			if (!canvas.nodes.Contains (this))
 				throw new UnityException ("The Node " + name + " does not exist on the Canvas " + canvas.name + "!");
@@ -311,7 +311,7 @@ namespace NodeEditorFramework
 #endif
 
 			canvas.nodes.Remove(this);
-			for (int i = 0; i < connectionPorts.Count; i++) 
+			for (int i = 0; i < connectionPorts.Count; i++)
 				connectionPorts[i].ClearConnections(silent);
 
 			if (!silent)
@@ -335,7 +335,7 @@ namespace NodeEditorFramework
 		/// <summary>
 		/// Draws the node frame and calls NodeGUI. Can be overridden to customize drawing.
 		/// </summary>
-		public virtual void DrawNode () 
+		public virtual void DrawNode ()
 		{
 			// Create a rect that is adjusted to the editor zoom and pixel perfect
 			Rect nodeRect = rect;
@@ -389,7 +389,7 @@ namespace NodeEditorFramework
 		{
 			if (!AutoLayout || Event.current.type != EventType.Repaint)
 				return;
-			
+
 			Rect nodeRect = rect;
 			Vector2 size = new Vector2();
 			size.y = Math.Max(nodeGUIHeight.y, MinSize.y);
@@ -400,7 +400,7 @@ namespace NodeEditorFramework
 			if (verticalKnobs.Count > 0)
 				knobSize = verticalKnobs.Max ((ConnectionKnob knob) => knob.GetCanvasSpaceKnob ().xMax - nodeRect.xMin);
 			size.x = Math.Max (knobSize, Math.Max (nodeGUIHeight.x, MinSize.x));
-			
+
 			autoSize = size;
 			NodeEditor.RepaintClients ();
 		}
@@ -408,16 +408,16 @@ namespace NodeEditorFramework
 		/// <summary>
 		/// Draws the connectionKnobs of this node
 		/// </summary>
-		protected internal virtual void DrawKnobs () 
+		protected internal virtual void DrawKnobs ()
 		{
-			for (int i = 0; i < connectionKnobs.Count; i++) 
+			for (int i = 0; i < connectionKnobs.Count; i++)
 				connectionKnobs[i].DrawKnob ();
 		}
 
 		/// <summary>
 		/// Draws the connections from this node's connectionPorts
 		/// </summary>
-		protected internal virtual void DrawConnections () 
+		protected internal virtual void DrawConnections ()
 		{
 			if (Event.current.type != EventType.Repaint)
 				return;
@@ -480,7 +480,7 @@ namespace NodeEditorFramework
 		/// <summary>
 		/// Returns whether every direct ancestor has been calculated
 		/// </summary>
-		public bool ancestorsCalculated () 
+		public bool ancestorsCalculated ()
 		{
 			for (int i = 0; i < inputPorts.Count; i++)
 			{
@@ -546,22 +546,28 @@ namespace NodeEditorFramework
 		/// A recursive function to clear all calculations depending on this node.
 		/// Usually does not need to be called manually
 		/// </summary>
-		public void ClearCalculation () 
+		public void ClearCalculation ()
 		{
 			calculated = false;
 			if (BeginRecursiveSearchLoop ()) return;
 			for (int i = 0; i < outputPorts.Count; i++)
 			{
 				ConnectionPort port = outputPorts[i];
-				if (port is ValueConnectionKnob)
-					(port as ValueConnectionKnob).ResetValue ();
+				if (port is ValueConnectionKnob knob)
+					knob.ResetValue ();
 				for (int t = 0; t < port.connections.Count; t++)
 				{
 					ConnectionPort conPort = port.connections[t];
-					if (conPort is ValueConnectionKnob)
-						(conPort as ValueConnectionKnob).ResetValue ();
+					if (conPort is ValueConnectionKnob conKnob)
+						conKnob.ResetValue ();
 					conPort.body.ClearCalculation ();
 				}
+			}
+			for (int i = 0; i < inputKnobs.Count; i++)
+			{
+				ConnectionPort port = inputKnobs[i];
+				if (port is ValueConnectionKnob knob && !port.connected())
+					knob.ResetValue ();
 			}
 			EndRecursiveSearchLoop ();
 		}
@@ -576,13 +582,13 @@ namespace NodeEditorFramework
 		/// </summary>
 		internal bool BeginRecursiveSearchLoop ()
 		{
-			if (startRecursiveSearchNode == null) 
+			if (startRecursiveSearchNode == null)
 			{ // Start search
 				if (recursiveSearchSurpassed == null)
 					recursiveSearchSurpassed = new List<Node> ();
 				recursiveSearchSurpassed.Capacity = canvas.nodes.Count;
 				startRecursiveSearchNode = this;
-			} 
+			}
 			// Check and mark node as searched
 			if (recursiveSearchSurpassed.Contains (this))
 				return true;
@@ -593,9 +599,9 @@ namespace NodeEditorFramework
 		/// <summary>
 		/// Ends the recursive search loop if this was the start node
 		/// </summary>
-		internal void EndRecursiveSearchLoop () 
+		internal void EndRecursiveSearchLoop ()
 		{
-			if (startRecursiveSearchNode == this) 
+			if (startRecursiveSearchNode == this)
 			{ // End search
 				recursiveSearchSurpassed.Clear ();
 				startRecursiveSearchNode = null;
@@ -605,7 +611,7 @@ namespace NodeEditorFramework
 		/// <summary>
 		/// Stops the recursive search loop immediately. Call when you found what you needed.
 		/// </summary>
-		internal void StopRecursiveSearchLoop () 
+		internal void StopRecursiveSearchLoop ()
 		{
 			recursiveSearchSurpassed.Clear ();
 			startRecursiveSearchNode = null;

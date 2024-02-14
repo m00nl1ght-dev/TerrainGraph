@@ -5,7 +5,7 @@ using System.Collections.Generic;
 
 using NodeEditorFramework.Utilities;
 
-namespace NodeEditorFramework 
+namespace NodeEditorFramework
 {
 	[System.Serializable]
 	public class ValueConnectionKnob : ConnectionKnob
@@ -46,7 +46,7 @@ namespace NodeEditorFramework
 			styleID = type;
 		}
 
-		new public ValueConnectionKnob connection (int index) 
+		new public ValueConnectionKnob connection (int index)
 		{
 			if (connections.Count <= index)
 				throw new IndexOutOfRangeException ("connections[" + index + "] of '" + name + "'");
@@ -119,7 +119,7 @@ namespace NodeEditorFramework
 		/// <summary>
 		/// Resets the output value to null.
 		/// </summary>
-		public void ResetValue () 
+		public void ResetValue ()
 		{
 			value = null;
 		}
@@ -157,23 +157,23 @@ namespace NodeEditorFramework
 
 		public override Type ConnectionType { get { return typeof(ValueConnectionKnob); } }
 
-		public ValueConnectionKnobAttribute(string name, Direction direction, string type) 
+		public ValueConnectionKnobAttribute(string name, Direction direction, string type)
 			: base(name, direction, type) { }
-		public ValueConnectionKnobAttribute(string name, Direction direction, string type, ConnectionCount maxCount) 
+		public ValueConnectionKnobAttribute(string name, Direction direction, string type, ConnectionCount maxCount)
 			: base(name, direction, type, maxCount) { }
-		public ValueConnectionKnobAttribute(string name, Direction direction, string type, NodeSide nodeSide, float nodeSidePos = 0) 
+		public ValueConnectionKnobAttribute(string name, Direction direction, string type, NodeSide nodeSide, float nodeSidePos = 0)
 			: base(name, direction, type, nodeSide, nodeSidePos) { }
-		public ValueConnectionKnobAttribute(string name, Direction direction, string type, ConnectionCount maxCount, NodeSide nodeSide, float nodeSidePos = 0) 
+		public ValueConnectionKnobAttribute(string name, Direction direction, string type, ConnectionCount maxCount, NodeSide nodeSide, float nodeSidePos = 0)
 			: base(name, direction, type, maxCount, nodeSide, nodeSidePos) { }
 
 		// Directly typed
-		public ValueConnectionKnobAttribute(string name, Direction direction, Type type) 
+		public ValueConnectionKnobAttribute(string name, Direction direction, Type type)
 			: base(name, direction) { Setup(type); }
-		public ValueConnectionKnobAttribute(string name, Direction direction, Type type, ConnectionCount maxCount) 
+		public ValueConnectionKnobAttribute(string name, Direction direction, Type type, ConnectionCount maxCount)
 			: base(name, direction, maxCount) { Setup(type); }
-		public ValueConnectionKnobAttribute(string name, Direction direction, Type type, NodeSide nodeSide, float nodeSidePos = 0) 
+		public ValueConnectionKnobAttribute(string name, Direction direction, Type type, NodeSide nodeSide, float nodeSidePos = 0)
 			: base(name, direction, nodeSide, nodeSidePos) { Setup(type); }
-		public ValueConnectionKnobAttribute(string name, Direction direction, Type type, ConnectionCount maxCount, NodeSide nodeSide, float nodeSidePos = 0) 
+		public ValueConnectionKnobAttribute(string name, Direction direction, Type type, ConnectionCount maxCount, NodeSide nodeSide, float nodeSidePos = 0)
 			: base(name, direction, maxCount, nodeSide, nodeSidePos) { Setup(type); }
 
 		protected void Setup(Type type)
@@ -183,7 +183,7 @@ namespace NodeEditorFramework
 			ConnectionPortStyles.GetValueConnectionType(type);
 		}
 
-		public override bool IsCompatibleWith (ConnectionPort port) 
+		public override bool IsCompatibleWith (ConnectionPort port)
 		{
 			if (!(Direction == Direction.None && port.direction == Direction.None)
 				&& !(Direction == Direction.In && port.direction == Direction.Out)
@@ -196,7 +196,7 @@ namespace NodeEditorFramework
 			return knobType.IsAssignableFrom (valueKnob.valueType);
 		}
 
-		public override ConnectionPort CreateNew (Node body) 
+		public override ConnectionPort CreateNew (Node body)
 		{
 			ValueConnectionKnob knob = ScriptableObject.CreateInstance<ValueConnectionKnob> ();
 			knob.Init (body, Name, Direction, StyleID, NodeSide, NodeSidePos);
@@ -204,7 +204,7 @@ namespace NodeEditorFramework
 			return knob;
 		}
 
-		public override void UpdateProperties (ConnectionPort port) 
+		public override void UpdateProperties (ConnectionPort port)
 		{
 			ValueConnectionKnob knob = (ValueConnectionKnob)port;
 			knob.name = Name;
@@ -217,7 +217,7 @@ namespace NodeEditorFramework
 			knob.sideOffset = 0;
 		}
 	}
-	
+
 	[ReflectionUtility.ReflectionSearchIgnoreAttribute ()]
 	public class ValueConnectionType : ConnectionKnobStyle
 	{
