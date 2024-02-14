@@ -25,6 +25,7 @@ public class NodeGridPreview : NodeBase
     public ValueConnectionKnob OutputKnob;
 
     public string PreviewModelId = "Default";
+    public string PreviewTransformId = "Default";
 
     [NonSerialized]
     private int _previewSize = 100;
@@ -68,14 +69,14 @@ public class NodeGridPreview : NodeBase
             {
                 ActiveTooltipHandler?.Invoke(pRect, () =>
                 {
-                    var pos = NodeEditor.ScreenToCanvasSpace(Event.current.mousePosition) - rect.min - contentOffset;
-                    double previewRatio = TerrainCanvas.GridPreviewRatio;
+                    var posInNode = NodeEditor.ScreenToCanvasSpace(Event.current.mousePosition) - rect.min - contentOffset;
+                    var posInPreview = new Vector2Int((int) posInNode.x, TerrainCanvas.GridPreviewSize - (int) posInNode.y);
 
-                    double x = Math.Max(0, Math.Min(_previewSize, pos.x)) * previewRatio;
-                    double y = GridSize - Math.Max(0, Math.Min(_previewSize, pos.y)) * previewRatio;
+                    var previewTransform = GetPreviewTransform(PreviewTransformId);
+                    var canvasPos = previewTransform.PreviewToCanvasSpace(TerrainCanvas, posInPreview);
+                    var value = _previewFunction?.ValueAt(canvasPos.x, canvasPos.y) ?? 0;
 
-                    double value = _previewFunction?.ValueAt(x, y) ?? 0;
-                    return Math.Round(value, 2) + " ( " + Math.Round(x, 0) + " | " + Math.Round(y, 0) + " )";
+                    return Math.Round(value, 2) + " ( " + Math.Round(canvasPos.x, 0) + " | " + Math.Round(canvasPos.y, 0) + " )";
                 }, 0f);
             }
         }
@@ -91,12 +92,19 @@ public class NodeGridPreview : NodeBase
         base.FillNodeActionsMenu(inputInfo, menu);
         menu.AddSeparator("");
 
-        SelectionMenu(menu, PreviewModels.Keys.ToList(), SetModel, e => "Set preview model/" + e);
+        SelectionMenu(menu, PreviewModelIds.ToList(), SetModel, e => "Set preview model/" + e);
+        SelectionMenu(menu, PreviewTransformIds.ToList(), SetTransform, e => "Set preview transform/" + e);
     }
 
     private void SetModel(string id)
     {
         PreviewModelId = id;
+        canvas.OnNodeChange(this);
+    }
+
+    private void SetTransform(string id)
+    {
+        PreviewTransformId = id;
         canvas.OnNodeChange(this);
     }
 
@@ -110,10 +118,9 @@ public class NodeGridPreview : NodeBase
     {
         var previewSize = _previewSize;
         var previewBuffer = _previewBuffer;
-        var previewRatio = TerrainCanvas.GridPreviewRatio;
 
-        PreviewModels.TryGetValue(PreviewModelId, out var previewModel);
-        previewModel ??= DefaultModel;
+        var previewModel = GetPreviewModel(PreviewModelId);
+        var previewTransform = GetPreviewTransform(PreviewTransformId);
 
         _previewTexture.SetPixels(previewBuffer);
         _previewTexture.Apply();
@@ -128,7 +135,8 @@ public class NodeGridPreview : NodeBase
             {
                 for (int y = 0; y < previewSize; y++)
                 {
-                    var val = (float) previewFunction.ValueAt(x * previewRatio, y * previewRatio);
+                    var pos = previewTransform.PreviewToCanvasSpace(TerrainCanvas, new Vector2Int(x, y));
+                    var val = (float) previewFunction.ValueAt(pos.x, pos.y);
                     previewBuffer[y * previewSize + x] = previewModel.GetColorFor(val, x, y);
                 }
             }
@@ -142,16 +150,39 @@ public class NodeGridPreview : NodeBase
         }));
     }
 
-    // TODO add range scheme (0-1, -1-1, 0-10, -10-10 etc)
-
     private static readonly Dictionary<string, IPreviewModel> PreviewModels = new();
+    private static readonly Dictionary<string, IPreviewTransform> PreviewTransforms = new();
+
+    public static IEnumerable<string> PreviewModelIds => PreviewModels.Keys.AsEnumerable();
+    public static IEnumerable<string> PreviewTransformIds => PreviewTransforms.Keys.AsEnumerable();
+
     public static readonly IPreviewModel DefaultModel = new DefaultPreviewModel();
     public static readonly IPreviewModel DefaultModel_10 = new DefaultPreviewModel(10f);
     public static readonly IPreviewModel DefaultModel_100 = new DefaultPreviewModel(100f);
 
+    public static readonly IPreviewTransform DefaultTransform = new DefaultPreviewTransform(1f, 0f);
+    public static readonly IPreviewTransform DefaultTransformQuad = new DefaultPreviewTransform(1f, -0.5f);
+    public static readonly IPreviewTransform LargeTransform = new DefaultPreviewTransform(2f, -0.5f);
+    public static readonly IPreviewTransform LargeTransformQuad = new DefaultPreviewTransform(2f, -1f);
+
     public static void RegisterPreviewModel(IPreviewModel model, string id)
     {
         PreviewModels[id] = model;
+    }
+
+    public static void RegisterPreviewRange(IPreviewTransform transform, string id)
+    {
+        PreviewTransforms[id] = transform;
+    }
+
+    public static IPreviewModel GetPreviewModel(string id)
+    {
+        return PreviewModels.TryGetValue(id, out var previewModel) ? previewModel : DefaultModel;
+    }
+
+    public static IPreviewTransform GetPreviewTransform(string id)
+    {
+        return PreviewTransforms.TryGetValue(id, out var previewTransform) ? previewTransform : DefaultTransform;
     }
 
     static NodeGridPreview()
@@ -159,11 +190,22 @@ public class NodeGridPreview : NodeBase
         RegisterPreviewModel(DefaultModel, "Default");
         RegisterPreviewModel(DefaultModel_10, "Default x10");
         RegisterPreviewModel(DefaultModel_100, "Default x100");
+
+        RegisterPreviewRange(DefaultTransform, "Default");
+        RegisterPreviewRange(DefaultTransformQuad, "Default Quad");
+        RegisterPreviewRange(LargeTransform, "Large");
+        RegisterPreviewRange(LargeTransformQuad, "Large Quad");
     }
 
     public interface IPreviewModel
     {
         public Color GetColorFor(float val, int x, int y);
+    }
+
+    public interface IPreviewTransform
+    {
+        public Vector2Int CanvasToPreviewSpace(TerrainCanvas canvas, Vector2 pos);
+        public Vector2 PreviewToCanvasSpace(TerrainCanvas canvas, Vector2Int pos);
     }
 
     private class DefaultPreviewModel : IPreviewModel
@@ -188,6 +230,34 @@ public class NodeGridPreview : NodeBase
                 < 5f => new Color(1f, 1f - (val - 2f) / 3f, 0f),
                 _ => new Color(1f, 0f, 0f)
             };
+        }
+    }
+
+    private class DefaultPreviewTransform : IPreviewTransform
+    {
+        public readonly float Scale;
+        public readonly float Offset;
+
+        public DefaultPreviewTransform(float scale, float offset)
+        {
+            Scale = scale;
+            Offset = offset;
+        }
+
+        public Vector2Int CanvasToPreviewSpace(TerrainCanvas canvas, Vector2 pos)
+        {
+            var f = canvas.GridFullSize / (double) canvas.GridPreviewSize;
+            var x = (pos.x - canvas.GridFullSize * Offset) / (f * Scale);
+            var y = (pos.y - canvas.GridFullSize * Offset) / (f * Scale);
+            return new Vector2Int((int) x, (int) y);
+        }
+
+        public Vector2 PreviewToCanvasSpace(TerrainCanvas canvas, Vector2Int pos)
+        {
+            var f = canvas.GridFullSize / (float) canvas.GridPreviewSize;
+            var x = pos.x * f * Scale + canvas.GridFullSize * Offset;
+            var y = pos.y * f * Scale + canvas.GridFullSize * Offset;
+            return new Vector2(x, y);
         }
     }
 }

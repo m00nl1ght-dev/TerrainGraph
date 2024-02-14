@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEngine;
 
 namespace TerrainGraph.Util;
 
@@ -65,6 +66,8 @@ public static class MathUtil
         if (value > max) return max;
         return value;
     }
+
+    public static Vector2Int ToInt(this Vector2 vec) => new Vector2Int((int) vec.x, (int) vec.y);
 
     public static bool NullOrEmpty<T>(this IEnumerable<T> enumerable) => enumerable == null || !enumerable.Any();
 

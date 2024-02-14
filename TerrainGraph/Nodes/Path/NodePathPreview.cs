@@ -1,5 +1,7 @@
 using System;
+using System.Linq;
 using NodeEditorFramework;
+using NodeEditorFramework.Utilities;
 using TerrainGraph.Flow;
 using UnityEngine;
 
@@ -21,6 +23,9 @@ public class NodePathPreview : NodeBase
 
     [ValueConnectionKnob("Output", Direction.Out, PathFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
+
+    public string PreviewModelId = "Default";
+    public string PreviewTransformId = "Default";
 
     [NonSerialized]
     private int _previewSize = 100;
@@ -63,6 +68,27 @@ public class NodePathPreview : NodeBase
         }
     }
 
+    public override void FillNodeActionsMenu(NodeEditorInputInfo inputInfo, GenericMenu menu)
+    {
+        base.FillNodeActionsMenu(inputInfo, menu);
+        menu.AddSeparator("");
+
+        SelectionMenu(menu, NodeGridPreview.PreviewModelIds.ToList(), SetModel, e => "Set preview model/" + e);
+        SelectionMenu(menu, NodeGridPreview.PreviewTransformIds.ToList(), SetTransform, e => "Set preview transform/" + e);
+    }
+
+    private void SetModel(string id)
+    {
+        PreviewModelId = id;
+        canvas.OnNodeChange(this);
+    }
+
+    private void SetTransform(string id)
+    {
+        PreviewTransformId = id;
+        canvas.OnNodeChange(this);
+    }
+
     public override bool Calculate()
     {
         OutputKnob.SetValue(InputKnob.GetValue<ISupplier<Path>>());
@@ -73,9 +99,9 @@ public class NodePathPreview : NodeBase
     {
         var previewSize = _previewSize;
         var previewBuffer = _previewBuffer;
-        var previewRatio = TerrainCanvas.GridPreviewRatio;
 
-        var model = NodeGridPreview.DefaultModel;
+        var previewModel = NodeGridPreview.GetPreviewModel(PreviewModelId);
+        var previewTransform = NodeGridPreview.GetPreviewTransform(PreviewTransformId);
 
         _previewTexture.SetPixels(previewBuffer);
         _previewTexture.Apply();
@@ -102,8 +128,9 @@ public class NodePathPreview : NodeBase
             {
                 for (int y = 0; y < previewSize; y++)
                 {
-                    var val = (float) previewFunction.ValueAt(x * previewRatio, y * previewRatio);
-                    var color = model.GetColorFor(val, x, y);
+                    var pos = previewTransform.PreviewToCanvasSpace(TerrainCanvas, new Vector2Int(x, y));
+                    var val = (float) previewFunction.ValueAt(pos.x, pos.y);
+                    var color = previewModel.GetColorFor(val, x, y);
                     previewBuffer[y * previewSize + x] = color;
                 }
             }

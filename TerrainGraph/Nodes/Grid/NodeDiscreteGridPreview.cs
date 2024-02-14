@@ -1,5 +1,7 @@
 using System;
+using System.Linq;
 using NodeEditorFramework;
+using NodeEditorFramework.Utilities;
 using UnityEngine;
 
 namespace TerrainGraph;
@@ -12,6 +14,8 @@ public abstract class NodeDiscreteGridPreview<T> : NodeBase
 
     public abstract ValueConnectionKnob InputKnobRef { get; }
     public abstract ValueConnectionKnob OutputKnobRef { get; }
+
+    public string PreviewTransformId = "Default";
 
     [NonSerialized]
     protected int PreviewSize = 100;
@@ -55,14 +59,13 @@ public abstract class NodeDiscreteGridPreview<T> : NodeBase
             {
                 ActiveTooltipHandler?.Invoke(pRect, () =>
                 {
-                    var pos = NodeEditor.ScreenToCanvasSpace(Event.current.mousePosition) - rect.min - contentOffset;
-                    double previewRatio = TerrainCanvas.GridPreviewRatio;
+                    var posInNode = NodeEditor.ScreenToCanvasSpace(Event.current.mousePosition) - rect.min - contentOffset;
+                    var posInPreview = new Vector2Int((int) posInNode.x, TerrainCanvas.GridPreviewSize - (int) posInNode.y);
 
-                    double x = Math.Max(0, Math.Min(PreviewSize, pos.x)) * previewRatio;
-                    double y = GridSize - Math.Max(0, Math.Min(PreviewSize, pos.y)) * previewRatio;
-
-                    var value = PreviewFunction == null ? default : PreviewFunction.ValueAt(x, y);
-                    return MakeTooltip(value, x, y);
+                    var previewTransform = NodeGridPreview.GetPreviewTransform(PreviewTransformId);
+                    var canvasPos = previewTransform.PreviewToCanvasSpace(TerrainCanvas, posInPreview);
+                    var value = PreviewFunction == null ? default : PreviewFunction.ValueAt(canvasPos.x, canvasPos.y);
+                    return MakeTooltip(value, canvasPos.x, canvasPos.y);
                 }, 0f);
             }
         }
@@ -71,6 +74,20 @@ public abstract class NodeDiscreteGridPreview<T> : NodeBase
         {
             TerrainCanvas.PreviewScheduler.DrawLoadingIndicator(this, pRect);
         }
+    }
+
+    public override void FillNodeActionsMenu(NodeEditorInputInfo inputInfo, GenericMenu menu)
+    {
+        base.FillNodeActionsMenu(inputInfo, menu);
+        menu.AddSeparator("");
+
+        SelectionMenu(menu, NodeGridPreview.PreviewTransformIds.ToList(), SetTransform, e => "Set preview transform/" + e);
+    }
+
+    private void SetTransform(string id)
+    {
+        PreviewTransformId = id;
+        canvas.OnNodeChange(this);
     }
 
     protected abstract string MakeTooltip(T value, double x, double y);
@@ -83,7 +100,8 @@ public abstract class NodeDiscreteGridPreview<T> : NodeBase
     {
         var previewSize = PreviewSize;
         var previewBuffer = PreviewBuffer;
-        var previewRatio = TerrainCanvas.GridPreviewRatio;
+
+        var previewTransform = NodeGridPreview.GetPreviewTransform(PreviewTransformId);
 
         var supplier = SupplierOrFallback(InputKnobRef, Default);
 
@@ -95,7 +113,8 @@ public abstract class NodeDiscreteGridPreview<T> : NodeBase
             {
                 for (int y = 0; y < previewSize; y++)
                 {
-                    var color = GetColor(previewFunction.ValueAt(x * previewRatio, y * previewRatio));
+                    var pos = previewTransform.PreviewToCanvasSpace(TerrainCanvas, new Vector2Int(x, y));
+                    var color = GetColor(previewFunction.ValueAt(pos.x, pos.y));
                     previewBuffer[y * previewSize + x] = color;
                 }
             }
