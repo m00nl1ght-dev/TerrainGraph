@@ -6,6 +6,10 @@ using TerrainGraph.Util;
 
 namespace TerrainGraph;
 
+#if DEBUG
+public class HotSwappableAttribute : Attribute;
+#endif
+
 [Serializable]
 [NodeCanvasType("TerrainCanvas")]
 public class TerrainCanvas : NodeCanvas

@@ -155,7 +155,6 @@
         <Compile Include="TerrainGraph\Nodes\NodeBase.cs" />
         <Compile Include="TerrainGraph\Util\FastRandom.cs" />
         <Compile Include="TerrainGraph\Util\GridKernel.cs" />
-        <Compile Include="TerrainGraph\Util\HotSwappableAttribute.cs" />
         <Compile Include="TerrainGraph\Util\IRandom.cs" />
         <Compile Include="TerrainGraph\Util\MathUtil.cs" />
         <Compile Include="TerrainGraph\Util\Vector2d.cs" />
