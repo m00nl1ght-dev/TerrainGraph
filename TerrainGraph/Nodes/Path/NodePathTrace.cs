@@ -15,10 +15,12 @@ namespace TerrainGraph;
 [Node(false, "Path/Trace", 621)]
 public class NodePathTrace : NodeBase
 {
-    public const int GridMarginDefault = 3;
+    public static int GridMarginDefault = 3;
 
-    public const double TraceMarginInnerDefault = 3;
-    public const double TraceMarginOuterDefault = 50;
+    public static double TraceMarginInnerDefault = 3;
+    public static double TraceMarginOuterDefault = 50;
+
+    public static Action<Exception> OnError;
 
     public const string ID = "pathTrace";
     public override string GetID => ID;
@@ -81,8 +83,7 @@ public class NodePathTrace : NodeBase
 
         var output = new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
-            TerrainCanvas.GridFullSize,
-            TerrainCanvas.HasActiveGUI
+            TerrainCanvas.GridFullSize
         );
 
         MainOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
@@ -108,13 +109,11 @@ public class NodePathTrace : NodeBase
     {
         private readonly ISupplier<Path> _input;
         private readonly int _gridSize;
-        private readonly bool _hasGUI;
 
-        public Output(ISupplier<Path> input, int gridSize, bool hasGUI)
+        public Output(ISupplier<Path> input, int gridSize)
         {
             _input = input;
             _gridSize = gridSize;
-            _hasGUI = hasGUI;
         }
 
         public PathTracer Get()
@@ -130,41 +129,42 @@ public class NodePathTrace : NodeBase
 
             #if DEBUG
 
-            if (!_hasGUI)
-            {
-                if (Input.GetKey(KeyCode.Alpha0)) maxAttempts = 0;
-                if (Input.GetKey(KeyCode.Alpha1)) maxAttempts = 1;
-                if (Input.GetKey(KeyCode.Alpha2)) maxAttempts = 2;
-                if (Input.GetKey(KeyCode.Alpha3)) maxAttempts = 3;
-                if (Input.GetKey(KeyCode.Alpha4)) maxAttempts = 4;
-                if (Input.GetKey(KeyCode.Alpha5)) maxAttempts = 5;
-                if (Input.GetKey(KeyCode.Alpha6)) maxAttempts = 6;
-                if (Input.GetKey(KeyCode.Alpha7)) maxAttempts = 7;
-                if (Input.GetKey(KeyCode.Alpha8)) maxAttempts = 8;
-                if (Input.GetKey(KeyCode.Alpha9)) maxAttempts = 9;
+            if (Input.GetKey(KeyCode.Alpha0)) maxAttempts = 0;
+            if (Input.GetKey(KeyCode.Alpha1)) maxAttempts = 1;
+            if (Input.GetKey(KeyCode.Alpha2)) maxAttempts = 2;
+            if (Input.GetKey(KeyCode.Alpha3)) maxAttempts = 3;
+            if (Input.GetKey(KeyCode.Alpha4)) maxAttempts = 4;
+            if (Input.GetKey(KeyCode.Alpha5)) maxAttempts = 5;
+            if (Input.GetKey(KeyCode.Alpha6)) maxAttempts = 6;
+            if (Input.GetKey(KeyCode.Alpha7)) maxAttempts = 7;
+            if (Input.GetKey(KeyCode.Alpha8)) maxAttempts = 8;
+            if (Input.GetKey(KeyCode.Alpha9)) maxAttempts = 9;
 
-                if (Input.GetKey(KeyCode.T)) maxAttempts += 10;
-                if (Input.GetKey(KeyCode.Z)) maxAttempts += 20;
-            }
+            if (Input.GetKey(KeyCode.T)) maxAttempts += 10;
+            if (Input.GetKey(KeyCode.Z)) maxAttempts += 20;
 
             #endif
 
-            tracer.Trace(_input.Get(), maxAttempts); // TODO error handling
+            try
+            {
+                tracer.Trace(_input.Get(), maxAttempts);
+            }
+            catch (Exception e)
+            {
+                OnError?.Invoke(e);
+            }
 
             #if DEBUG
 
-            if (!_hasGUI)
+            DebugGrid = tracer.DebugGrid;
+
+            if (Input.GetKey(KeyCode.LeftShift))
             {
-                DebugGrid = tracer.DebugGrid;
+                var folder = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+                var file = System.IO.Path.Combine(folder, "TerrainGraph.log");
 
-                if (Input.GetKey(KeyCode.LeftShift))
-                {
-                    var folder = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-                    var file = System.IO.Path.Combine(folder, "TerrainGraph.log");
-
-                    if (File.Exists(file)) File.Delete(file);
-                    File.WriteAllLines(file, PathTracer.DebugLog);
-                }
+                if (File.Exists(file)) File.Delete(file);
+                File.WriteAllLines(file, PathTracer.DebugLog);
             }
 
             #endif
