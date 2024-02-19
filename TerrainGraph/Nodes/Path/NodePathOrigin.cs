@@ -56,7 +56,7 @@ public class NodePathOrigin : NodeBase
     [ValueConnectionKnob("Output", NodeEditorFramework.Direction.Out, PathFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
 
-    public PlacementMode Mode = PlacementMode.Position_XZ;
+    public PlacementMode Mode = PlacementMode.Grid_Edge;
 
     public double Angle;
     public double Offset;
@@ -333,7 +333,7 @@ public class NodePathOrigin : NodeBase
 
             for (int i = 0; i < count; i++)
             {
-                var angle = Angle.Get() - 90;
+                var angle = Angle.Get() + 90d;
                 var offset = Offset.Get();
                 var margin = Margin.Get();
 
