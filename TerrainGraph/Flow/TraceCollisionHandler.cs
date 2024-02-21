@@ -383,8 +383,17 @@ public class TraceCollisionHandler
             }
             else
             {
-                ModifyRoots(connectedA, 0.5 * valueDelta, 0.5 * offsetDelta);
-                ModifyRoots(connectedB, -0.5 * valueDelta, -0.5 * offsetDelta);
+                foreach (var segment in connectedA.Where(segment => segment.IsRoot).Except(discardedBranches))
+                {
+                    segment.RelValue += valueDelta / 2;
+                    segment.RelOffset += offsetDelta / 2;
+                }
+
+                foreach (var segment in connectedB.Where(segment => segment.IsRoot).Except(followingBranches))
+                {
+                    segment.RelValue -= valueDelta / 2;
+                    segment.RelOffset -= offsetDelta / 2;
+                }
             }
         }
 
@@ -405,15 +414,6 @@ public class TraceCollisionHandler
                     segment.ApplyDelta(new Path.SmoothDelta(valueDiff, offsetDiff, totalSteps, currentSteps, padding));
                     currentSteps += fullSteps;
                 }
-            }
-        }
-
-        void ModifyRoots(List<Path.Segment> segments, double valueDiff, double offsetDiff)
-        {
-            foreach (var segment in segments.Where(segment => segment.IsRoot))
-            {
-                segment.RelValue += valueDiff;
-                segment.RelOffset += offsetDiff;
             }
         }
 
