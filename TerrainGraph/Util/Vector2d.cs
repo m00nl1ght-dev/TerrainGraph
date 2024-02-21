@@ -56,7 +56,7 @@ public struct Vector2d
 
     public override bool Equals(object other) => other is Vector2d vec && Equals(vec);
 
-    public bool Equals(Vector2d other) => x == other.x && z == other.z;
+    public readonly bool Equals(Vector2d other) => x == other.x && z == other.z;
 
     public static Vector2d operator +(Vector2d a, Vector2d b) => new(a.x + b.x, a.z + b.z);
 

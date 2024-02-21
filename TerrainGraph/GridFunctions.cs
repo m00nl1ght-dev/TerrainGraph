@@ -611,6 +611,88 @@ public static class GridFunction
         public override string ToString() => $"DELTA MAP {{ {Input} with step {Step:F2} }}";
     }
 
+    public class BilinearDiscrete : IGridFunction<double>
+    {
+        public readonly IGridFunction<double> Input;
+
+        public BilinearDiscrete(IGridFunction<double> input)
+        {
+            Input = input;
+        }
+
+        public double ValueAt(double x, double z)
+        {
+            var mx = x % 1;
+            var mz = z % 1;
+            var fx = Math.Floor(x);
+            var fz = Math.Floor(z);
+
+            var p00 = Input.ValueAt(fx, fz);
+            if (mx == 0 && mz == 0) return p00;
+
+            var p10 = Input.ValueAt(fx + 1, fz);
+            var p01 = Input.ValueAt(fx, fz + 1);
+            var p11 = Input.ValueAt(fx + 1, fz + 1);
+
+            var v1 = (1 - mx) * p00 + mx * p10;
+            var v2 = (1 - mx) * p01 + mx * p11;
+
+            return (1 - mz) * v1 + mz * v2;
+        }
+
+        protected bool Equals(BilinearDiscrete other) =>
+            Input.Equals(other.Input);
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((BilinearDiscrete) obj);
+        }
+
+        public override string ToString() => $"INTERPOLATE DISCRETE {{ {Input} }}";
+    }
+
+    public class WrapCoords : IGridFunction<double>
+    {
+        public readonly IGridFunction<double> Input;
+        public readonly Vector2d Size;
+
+        public WrapCoords(IGridFunction<double> input, Vector2d size)
+        {
+            Input = input;
+            Size = size;
+        }
+
+        public double ValueAt(double x, double z)
+        {
+            return Input.ValueAt(x % Size.x, z % Size.z);
+        }
+
+        protected bool Equals(WrapCoords other) =>
+            Equals(Input, other.Input) &&
+            Size.Equals(other.Size);
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((WrapCoords) obj);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                return ((Input != null ? Input.GetHashCode() : 0) * 397) ^ Size.GetHashCode();
+            }
+        }
+
+        public override string ToString() => $"WRAP COORDS {{ {Input} at size {Size} }}";
+    }
+
     public class Transform<T> : IGridFunction<T>
     {
         public readonly IGridFunction<T> Input;
