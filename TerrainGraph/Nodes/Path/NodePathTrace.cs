@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using NodeEditorFramework;
 using TerrainGraph.Flow;
+using TerrainGraph.Util;
 using UnityEngine;
 using Path = TerrainGraph.Flow.Path;
 
@@ -46,6 +47,10 @@ public class NodePathTrace : NodeBase
     [ValueConnectionKnob("Distance Output", Direction.Out, GridFunctionConnection.Id)]
     public ValueConnectionKnob DistanceOutputKnob;
 
+    public int GridMargin = GridMarginDefault;
+    public double TraceMarginInner = TraceMarginInnerDefault;
+    public double TraceMarginOuter = TraceMarginOuterDefault;
+
     public override void NodeGUI()
     {
         GUILayout.BeginVertical(BoxStyle);
@@ -71,10 +76,19 @@ public class NodePathTrace : NodeBase
         DistanceOutputKnob.SetPosition();
         GUILayout.EndHorizontal();
 
+        IntField("Grid Margin", ref GridMargin);
+        ValueField("Inner Margin", ref TraceMarginInner);
+        ValueField("Outer Margin", ref TraceMarginOuter);
+
         GUILayout.EndVertical();
 
         if (GUI.changed)
+        {
+            GridMargin = GridMargin.InRange(0, 100);
+            TraceMarginInner = TraceMarginInner.InRange(0, 100);
+            TraceMarginOuter = TraceMarginOuter.InRange(0, 100);
             canvas.OnNodeChange(this);
+        }
     }
 
     public override bool Calculate()
@@ -83,7 +97,8 @@ public class NodePathTrace : NodeBase
 
         var output = new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
-            TerrainCanvas.GridFullSize
+            TerrainCanvas.GridFullSize, GridMargin,
+            TraceMarginInner, TraceMarginOuter
         );
 
         MainOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
@@ -109,20 +124,24 @@ public class NodePathTrace : NodeBase
     {
         private readonly ISupplier<Path> _input;
         private readonly int _gridSize;
+        private readonly int _gridMargin;
+        private readonly double _traceMarginInner;
+        private readonly double _traceMarginOuter;
 
-        public Output(ISupplier<Path> input, int gridSize)
+        public Output(ISupplier<Path> input, int gridSize, int gridMargin, double traceMarginInner, double traceMarginOuter)
         {
             _input = input;
             _gridSize = gridSize;
+            _gridMargin = gridMargin;
+            _traceMarginInner = traceMarginInner;
+            _traceMarginOuter = traceMarginOuter;
         }
 
         public PathTracer Get()
         {
             var tracer = new PathTracer(
-                _gridSize, _gridSize,
-                GridMarginDefault,
-                TraceMarginInnerDefault,
-                TraceMarginOuterDefault
+                _gridSize, _gridSize, _gridMargin,
+                _traceMarginInner, _traceMarginOuter
             );
 
             var maxAttempts = 50;

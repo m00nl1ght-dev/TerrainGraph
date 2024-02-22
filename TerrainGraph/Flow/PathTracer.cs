@@ -42,7 +42,7 @@ public class PathTracer
     public IGridFunction<double> MainGrid => BuildGridFunction(_mainGrid);
     public IGridFunction<double> ValueGrid => BuildGridFunction(_valueGrid);
     public IGridFunction<double> OffsetGrid => BuildGridFunction(_offsetGrid);
-    public IGridFunction<double> DistanceGrid => BuildGridFunction(_distanceGrid);
+    public IGridFunction<double> DistanceGrid => BuildGridFunction(_distanceGrid, TraceOuterMargin);
 
     #if DEBUG
     public IGridFunction<double> DebugGrid => BuildGridFunction(_debugGrid);
@@ -54,7 +54,7 @@ public class PathTracer
 
     internal IReadOnlyDictionary<Segment, TraceResult> TraceResults => _traceResults;
 
-    private readonly GridKernel _followGridKernel = GridKernel.Square(3, 5);
+    private readonly GridKernel _followGridKernel = GridKernel.Square(3, 3);
     private readonly GridKernel _avoidGridKernel = GridKernel.Shield(2, 5, 3);
 
     private readonly IGridFunction<double> _overlapAvoidanceGrid = Zero;
@@ -651,10 +651,10 @@ public class PathTracer
     /// <summary>
     /// Wrap the given raw grid array in a GridFunction, transforming values into map space.
     /// </summary>
-    private IGridFunction<double> BuildGridFunction(double[,] grid)
+    private IGridFunction<double> BuildGridFunction(double[,] grid, double fallback = 0d)
     {
         if (GridMargin == Vector2d.Zero) return new Cache<double>(grid);
-        return new Transform<double>(new Cache<double>(grid), -GridMargin.x, -GridMargin.z, 1, 1);
+        return new Transform<double>(new Cache<double>(grid, fallback), -GridMargin.x, -GridMargin.z, 1, 1);
     }
 
     /// <summary>
