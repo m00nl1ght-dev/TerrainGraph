@@ -52,7 +52,7 @@ namespace NodeEditorFramework
 			// Copy default styles in current setting, modified to fit custom style
 			// This mostly refers to the editor styles
 
-			List<GUIStyle> customStyles = new List<GUIStyle> (overrideSkin.customStyles);
+			List<GUIStyle> customStyles = [..overrideSkin.customStyles];
 			foreach (GUIStyle style in GUI.skin.customStyles)
 			{
 				if (overrideSkin.FindStyle(style.name) == null)
@@ -101,7 +101,7 @@ namespace NodeEditorFramework
 				//style.normal.textColor = style.active.textColor = style.focused.textColor = style.hover.textColor = NE_TextColor;
 			}
 
-			List<GUIStyle> customStyles = new List<GUIStyle> (); 
+			List<GUIStyle> customStyles = []; 
 
 			// Label
 			defaultSkin.label.normal.textColor = NE_TextColor;

@@ -88,7 +88,7 @@ namespace NodeEditorFramework.IO
 				if (string.IsNullOrEmpty(fileSelection) || !File.Exists(RuntimeIOPath + fileSelection + "." + FormatExtension))
 					return false;
 				fileSelection = Path.GetFileNameWithoutExtension(fileSelection);
-				locationArgs = new object[] { RuntimeIOPath + fileSelection + "." + FormatExtension };
+				locationArgs = [RuntimeIOPath + fileSelection + "." + FormatExtension];
 				return true;
 			}
 			GUILayout.EndHorizontal();
@@ -110,7 +110,7 @@ namespace NodeEditorFramework.IO
 					"Import " + FormatIdentifier + (!string.IsNullOrEmpty (FormatDescription)? (" (" + FormatDescription + ")") : ""), 
 					"Assets", FormatExtension.ToLower ());
 #endif
-			locationArgs = new object[] { path };
+			locationArgs = [path];
 			return !string.IsNullOrEmpty (path);
 		}
 
@@ -143,7 +143,7 @@ namespace NodeEditorFramework.IO
 				if (string.IsNullOrEmpty(fileSelection))
 					return false;
 				fileSelection = Path.GetFileNameWithoutExtension(fileSelection);
-				locationArgs = new object[] { RuntimeIOPath + fileSelection + "." + FormatExtension };
+				locationArgs = [RuntimeIOPath + fileSelection + "." + FormatExtension];
 				return true;
 			}
 			GUILayout.EndHorizontal();
@@ -165,7 +165,7 @@ namespace NodeEditorFramework.IO
 				"Export " + FormatIdentifier + (!string.IsNullOrEmpty (FormatDescription)? (" (" + FormatDescription + ")") : ""), 
 				"Assets", canvasName, FormatExtension.ToLower ());
 #endif
-			locationArgs = new object[] { path };
+			locationArgs = [path];
 			return !string.IsNullOrEmpty (path);
 		}
 

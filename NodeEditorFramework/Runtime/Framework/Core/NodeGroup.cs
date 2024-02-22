@@ -36,8 +36,8 @@ namespace NodeEditorFramework
 
 		// Resizing and dragging state for active node group
 		private static BorderSelection resizeDir;
-		[NonSerialized] private List<Node> pinnedNodes = new List<Node> ();
-		[NonSerialized] private List<NodeGroup> pinnedGroups = new List<NodeGroup> ();
+		[NonSerialized] private List<Node> pinnedNodes = [];
+		[NonSerialized] private List<NodeGroup> pinnedGroups = [];
 
 		// Settings
 		private static bool headerFree = true;
@@ -82,13 +82,13 @@ namespace NodeEditorFramework
 		/// </summary>
 		private void UpdatePins ()
 		{
-			pinnedGroups = new List<NodeGroup> ();
+			pinnedGroups = [];
 			foreach (NodeGroup group in NodeEditor.curNodeCanvas.groups)
 			{ // Get all pinned groups -> all groups atleast half in the group
 				if (group != this && rect.Contains(group.headerRect.center))
 					pinnedGroups.Add(group);
 			}
-			pinnedNodes = new List<Node>();
+			pinnedNodes = [];
 			foreach (Node node in NodeEditor.curNodeCanvas.nodes)
 			{ // Get all pinned nodes -> all nodes atleast half in the group
 				if (rect.Contains(node.rect.center))
@@ -229,7 +229,7 @@ namespace NodeEditorFramework
 			GUILayout.FlexibleSpace ();
 
 			// Edit Button
-			if (GUILayout.Button ("E", new GUILayoutOption [] { GUILayout.ExpandWidth (false), GUILayout.ExpandHeight (false) }))
+			if (GUILayout.Button ("E", [GUILayout.ExpandWidth (false), GUILayout.ExpandHeight (false)]))
 				edit = !edit;
 
 			GUILayout.EndHorizontal ();

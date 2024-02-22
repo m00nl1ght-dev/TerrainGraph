@@ -25,11 +25,11 @@ namespace NodeEditorFramework
 
 		public bool livesInScene = false;
 
-		public List<Node> nodes = new List<Node> ();
-		public List<NodeGroup> groups = new List<NodeGroup> ();
+		public List<Node> nodes = [];
+		public List<NodeGroup> groups = [];
 		
 		[NonSerialized]
-		public List<ScriptableObject> SOMemoryDump = new List<ScriptableObject>();
+		public List<ScriptableObject> SOMemoryDump = [];
 
 		#region Constructors
 
@@ -171,7 +171,7 @@ namespace NodeEditorFramework
 			if (list == null)
 			{
 				Debug.LogWarning("NodeCanvas '" + name + "' " + listName + " were erased and set to null! Automatically fixed!");
-				list = new List<T>();
+				list = [];
 			}
 			int originalCount = list.Count;
 			for (int i = 0; i < list.Count; i++) {

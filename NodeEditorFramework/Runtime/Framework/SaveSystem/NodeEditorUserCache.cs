@@ -335,7 +335,7 @@ namespace NodeEditorFramework
 		/// </summary>
 		public void SaveSceneNodeCanvas (string path) 
 		{
-			nodeCanvas.editorStates = new NodeEditorState[] { editorState };
+			nodeCanvas.editorStates = [editorState];
 			bool switchedToScene = !nodeCanvas.livesInScene;
 			NodeEditorSaveManager.SaveSceneNodeCanvas (path, ref nodeCanvas, true);
 			editorState = NodeEditorSaveManager.ExtractEditorState (nodeCanvas, MainEditorStateIdentifier);
@@ -373,7 +373,7 @@ namespace NodeEditorFramework
 		/// </summary>
 		public void SaveNodeCanvas (string path) 
 		{
-			nodeCanvas.editorStates = new NodeEditorState[] { editorState };
+			nodeCanvas.editorStates = [editorState];
 			bool switchedToFile = nodeCanvas.livesInScene;
 			NodeEditorSaveManager.SaveNodeCanvas (path, ref nodeCanvas, true);
 			if (switchedToFile)
@@ -428,7 +428,7 @@ namespace NodeEditorFramework
 			if (!nodeCanvas) return;
 			editorState.canvas = nodeCanvas;
 			editorState.name = MainEditorStateIdentifier;
-			nodeCanvas.editorStates = new NodeEditorState[] { editorState };
+			nodeCanvas.editorStates = [editorState];
 #if UNITY_EDITOR
 			UnityEditor.EditorUtility.SetDirty (nodeCanvas);
 #endif

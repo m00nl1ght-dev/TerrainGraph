@@ -34,7 +34,7 @@ namespace NodeEditorFramework
 		public Rect canvasViewport { get { return new Rect(-panOffset - zoomPos * zoom, canvasRect.size * zoom); } } // canvas viewport in canvas space (same as nodes)
 		[NonSerialized] public Rect canvasRect; // canvas rect in GUI space
 		[NonSerialized] public Vector2 zoomPanAdjust; // calculated value to offset elements with when zooming
-		[NonSerialized] public List<Rect> ignoreInput = new List<Rect> (); // Rects inside the canvas to ignore input in (nested canvases, fE)
+		[NonSerialized] public List<Rect> ignoreInput = []; // Rects inside the canvas to ignore input in (nested canvases, fE)
 
 		#region DragHelper
 

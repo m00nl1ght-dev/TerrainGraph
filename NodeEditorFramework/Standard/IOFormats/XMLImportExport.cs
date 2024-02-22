@@ -287,7 +287,7 @@ namespace NodeEditorFramework.IO
 				// EDITOR STATES
 
 				IEnumerable<XmlElement> xmlEditorStates = xmlCanvas.SelectNodes("EditorStates/EditorState").OfType<XmlElement>();
-				List<EditorStateData> editorStates = new List<EditorStateData>();
+				List<EditorStateData> editorStates = [];
 				foreach (XmlElement xmlEditorState in xmlEditorStates)
 				{
 					Vector2 pan = GetVectorAttribute(xmlEditorState, "pan");

@@ -119,7 +119,7 @@ namespace NodeEditorFramework.Utilities
 		public static void Seperator () 
 		{
 			setupSeperator ();
-			GUILayout.Box (GUIContent.none, seperator, new GUILayoutOption[] { GUILayout.Height (1) });
+			GUILayout.Box (GUIContent.none, seperator, [GUILayout.Height (1)]);
 		}
 
 		/// <summary>
@@ -531,7 +531,7 @@ namespace NodeEditorFramework.Utilities
 
 			// Clean string if it could not be parsed
 			bool recordedDecimalPoint = false;
-			List<char> strVal = new List<char> (str);
+			List<char> strVal = [..str];
 			for (int cnt = 0; cnt < strVal.Count; cnt++) 
 			{
 				UnicodeCategory type = CharUnicodeInfo.GetUnicodeCategory (str[cnt]);
@@ -637,7 +637,7 @@ namespace NodeEditorFramework.Utilities
 			{
 				GUILayout.BeginHorizontal ();
 				GUILayout.Label (label);
-				open = GUILayout.Button (obj as Texture2D, new GUILayoutOption[] { GUILayout.MaxWidth (64), GUILayout.MaxHeight (64) });
+				open = GUILayout.Button (obj as Texture2D, [GUILayout.MaxWidth (64), GUILayout.MaxHeight (64)]);
 				GUILayout.EndHorizontal ();
 			}
 			else

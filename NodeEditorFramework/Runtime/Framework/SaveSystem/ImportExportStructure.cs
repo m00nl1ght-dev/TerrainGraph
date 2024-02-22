@@ -13,10 +13,10 @@ namespace NodeEditorFramework.IO
 		public Type type;
 
 		public EditorStateData[] editorStates;
-		public List<GroupData> groups = new List<GroupData>();
+		public List<GroupData> groups = [];
 
 		public Dictionary<int, NodeData> nodes = new Dictionary<int, NodeData>();
-		public List<ConnectionData> connections = new List<ConnectionData>();
+		public List<ConnectionData> connections = [];
 		public Dictionary<int, ObjectData> objects = new Dictionary<int, ObjectData>();
 
 		public CanvasData(NodeCanvas nodeCanvas)
@@ -131,8 +131,8 @@ namespace NodeEditorFramework.IO
 		public Vector2 nodePos;
 		public Type type;
 		
-		public List<PortData> connectionPorts = new List<PortData>();
-		public List<VariableData> variables = new List<VariableData>();
+		public List<PortData> connectionPorts = [];
+		public List<VariableData> variables = [];
 
 		public NodeData(Node n, int NodeID)
 		{
@@ -165,7 +165,7 @@ namespace NodeEditorFramework.IO
 		public bool dynamic = false;
 		public Type dynaType;
 
-		public List<PortData> connections = new List<PortData>();
+		public List<PortData> connections = [];
 
 		// STATIC
 

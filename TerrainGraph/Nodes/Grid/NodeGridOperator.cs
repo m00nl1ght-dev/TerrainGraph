@@ -19,7 +19,7 @@ public class NodeGridOperator : NodeOperatorBase
 
     public override ValueConnectionKnob OutputKnobRef => OutputKnob;
 
-    public List<double> Values = new();
+    public List<double> Values = [];
 
     public override void NodeGUI()
     {
@@ -70,7 +70,7 @@ public class NodeGridOperator : NodeOperatorBase
         var smoothness = SupplierOrFallback(SmoothnessKnob, Smoothness);
         var stackCount = SupplierOrFallback(StackCountKnob, StackCount);
 
-        List<ISupplier<IGridFunction<double>>> inputs = new();
+        List<ISupplier<IGridFunction<double>>> inputs = [];
         for (int i = 0; i < Math.Min(Values.Count, InputKnobs.Count); i++)
         {
             inputs.Add(SupplierOrFallback(InputKnobs[i], GridFunction.Of(Values[i])));

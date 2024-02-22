@@ -186,7 +186,7 @@ namespace NodeEditorFramework
 			// Handle input events
 			NodeEditorInputSystem.HandleInputEvents (curEditorState);
 			if (Event.current.type != EventType.Layout)
-				curEditorState.ignoreInput = new List<Rect> ();
+				curEditorState.ignoreInput = [];
 
 			// We're using a custom scale method, as default one is messing up clipping rect
 			Rect canvasRect = curEditorState.canvasRect;

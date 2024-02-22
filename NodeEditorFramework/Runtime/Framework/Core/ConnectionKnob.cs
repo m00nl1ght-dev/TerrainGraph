@@ -85,7 +85,7 @@ namespace NodeEditorFramework
 			if (side != defaultSide) 
 			{ // Rotate Knob texture according to the side it's used on
 				int rotationSteps = getRotationStepsAntiCW (defaultSide, side);
-				string[] mods = new string[] { "Rotation:" + rotationSteps };
+				string[] mods = ["Rotation:" + rotationSteps];
 				Texture2D modKnobTex = null;
 
 				// Try to get standard texture in memory

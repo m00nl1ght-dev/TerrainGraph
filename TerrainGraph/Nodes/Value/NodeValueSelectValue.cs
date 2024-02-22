@@ -23,7 +23,7 @@ public class NodeValueSelectValue : NodeSelectBase
     public override ValueConnectionKnob InputKnobRef => InputKnob;
     public override ValueConnectionKnob OutputKnobRef => OutputKnob;
 
-    public List<double> Values = new();
+    public List<double> Values = [];
 
     public override void NodeGUI()
     {
@@ -56,7 +56,7 @@ public class NodeValueSelectValue : NodeSelectBase
     public override void RefreshPreview()
     {
         base.RefreshPreview();
-        List<ISupplier<double>> suppliers = new();
+        List<ISupplier<double>> suppliers = [];
 
         for (int i = 0; i < Math.Min(Values.Count, OptionKnobs.Count); i++)
         {
@@ -76,7 +76,7 @@ public class NodeValueSelectValue : NodeSelectBase
     {
         var input = SupplierOrFallback(InputKnob, 0d);
 
-        List<ISupplier<double>> options = new();
+        List<ISupplier<double>> options = [];
         for (int i = 0; i < Math.Min(Values.Count, OptionKnobs.Count); i++)
         {
             options.Add(SupplierOrFallback(OptionKnobs[i], Values[i]));

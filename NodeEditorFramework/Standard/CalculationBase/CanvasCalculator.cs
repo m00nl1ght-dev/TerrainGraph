@@ -15,7 +15,7 @@ namespace NodeEditorFramework.Standard
 		/// </summary>
 		public override void TraverseAll () 
 		{
-			workList = new List<Node> ();
+			workList = [];
 			for (int i = 0; i < nodeCanvas.nodes.Count; i++) 
 			{
 				Node node = nodeCanvas.nodes[i];
@@ -34,7 +34,7 @@ namespace NodeEditorFramework.Standard
 		public override void OnChange (Node node) 
 		{
 			node.ClearCalculation ();
-			workList = new List<Node> { node };
+			workList = [node];
 			StartCalculation ();
 		}
 

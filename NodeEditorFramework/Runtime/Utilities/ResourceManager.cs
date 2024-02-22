@@ -26,7 +26,7 @@ namespace NodeEditorFramework.Utilities
 			return _assetBundle.LoadAsset<T>(fullPath);
 		}
 
-		private static readonly List<MemoryTexture> loadedTextures = new();
+		private static readonly List<MemoryTexture> loadedTextures = [];
 
 		/// <summary>
 		/// Loads a texture in the resources folder in both the editor and at runtime and manages it in a memory for later use.

@@ -30,7 +30,7 @@ namespace NodeEditorFramework
 
 		// Connections
 		[SerializeField]
-		protected List<ConnectionPort> _connections = new List<ConnectionPort> ();
+		protected List<ConnectionPort> _connections = [];
 		public List<ConnectionPort> connections { get { return _connections; } }
 
 		public void Init (Node nodeBody, string knobName)
@@ -50,7 +50,7 @@ namespace NodeEditorFramework
 			if (_connections == null)
 			{
 				if (!repair) return false;
-				_connections = new List<ConnectionPort>();
+				_connections = [];
 			}
 			int originalCount = _connections.Count;
 			for (int i = 0; i < _connections.Count; i++)

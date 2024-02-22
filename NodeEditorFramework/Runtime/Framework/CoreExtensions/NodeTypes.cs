@@ -75,7 +75,7 @@ namespace NodeEditorFramework
 		{
 			if (port == null)
 				return NodeTypes.nodes.Values.ToList ();
-			List<NodeTypeData> compatibleNodes = new();
+			List<NodeTypeData> compatibleNodes = [];
 			foreach (NodeTypeData nodeData in NodeTypes.nodes.Values)
 			{ // Iterate over all nodes to check compability of any of their connection ports
 				if (ConnectionPortManager.GetPortDeclarations (nodeData.typeID).Any (

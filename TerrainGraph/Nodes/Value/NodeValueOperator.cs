@@ -18,7 +18,7 @@ public class NodeValueOperator : NodeOperatorBase
 
     public override ValueConnectionKnob OutputKnobRef => OutputKnob;
 
-    public List<double> Values = new();
+    public List<double> Values = [];
 
     public override void NodeGUI()
     {
@@ -58,7 +58,7 @@ public class NodeValueOperator : NodeOperatorBase
     public override void RefreshPreview()
     {
         base.RefreshPreview();
-        List<ISupplier<double>> suppliers = new();
+        List<ISupplier<double>> suppliers = [];
 
         for (int i = 0; i < Math.Min(Values.Count, InputKnobs.Count); i++)
         {
@@ -80,7 +80,7 @@ public class NodeValueOperator : NodeOperatorBase
         var smoothness = SupplierOrFallback(SmoothnessKnob, Smoothness);
         var stackCount = SupplierOrFallback(StackCountKnob, StackCount);
 
-        List<ISupplier<double>> inputs = new();
+        List<ISupplier<double>> inputs = [];
         for (int i = 0; i < Math.Min(Values.Count, InputKnobs.Count); i++)
         {
             inputs.Add(SupplierOrFallback(InputKnobs[i], Values[i]));

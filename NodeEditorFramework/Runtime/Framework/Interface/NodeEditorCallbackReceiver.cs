@@ -30,7 +30,7 @@ namespace NodeEditorFramework
 
 		public static void SetupReceivers () 
 		{
-			callbackReceiver = new List<NodeEditorCallbackReceiver> (MonoBehaviour.FindObjectsOfType<NodeEditorCallbackReceiver> ());
+			callbackReceiver = [..MonoBehaviour.FindObjectsOfType<NodeEditorCallbackReceiver>()];
 			receiverCount = callbackReceiver.Count;
 		}
 

@@ -47,10 +47,10 @@ namespace NodeEditorFramework.Utilities
 		public static void Init () 
 		{
 			// As we can call Begin/Ends inside another, we need to save their states hierarchial in Lists (not Stack, as we need to iterate over them!):
-			currentRectStack = new List<Rect> ();
-			rectStackGroups = new List<List<Rect>> ();
-			GUIMatrices = new List<Matrix4x4> ();
-			adjustedGUILayout = new List<bool> ();
+			currentRectStack = [];
+			rectStackGroups = [];
+			GUIMatrices = [];
+			adjustedGUILayout = [];
 
 			// Fetch rect acessors using Reflection
 			Assembly UnityEngine = Assembly.GetAssembly (typeof (GUI));
@@ -59,7 +59,7 @@ namespace NodeEditorFramework.Utilities
 			PropertyInfo topmostRect = GUIClipType?.GetProperty ("topmostRect", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
 			MethodInfo GetTopmostRect = topmostRect != null ? (topmostRect.GetGetMethod(false) ?? topmostRect.GetGetMethod(true)) : null;
 			MethodInfo GetTopRect = GUIClipType?.GetMethod ("GetTopRect", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-			MethodInfo ClipRect = GUIClipType?.GetMethod ("Clip", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic, Type.DefaultBinder, new[] { typeof(Rect) }, new ParameterModifier[] {});
+			MethodInfo ClipRect = GUIClipType?.GetMethod ("Clip", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic, Type.DefaultBinder, [typeof(Rect)], []);
 
 			if (GUIClipType == null || topmostRect == null || GetTopRect == null || ClipRect == null) 
 			{
@@ -203,7 +203,7 @@ namespace NodeEditorFramework.Utilities
 		public static void BeginNoClip () 
 		{
 			// Record and close all clips one by one, from bottom to top, until we hit the 'origin'
-			List<Rect> rectStackGroup = new List<Rect> ();
+			List<Rect> rectStackGroup = [];
 			Rect topMostClip = getTopRect;
 			while (topMostClip != new Rect (-10000, -10000, 40000, 40000)) 
 			{
@@ -223,7 +223,7 @@ namespace NodeEditorFramework.Utilities
 		public static void MoveClipsUp (int count) 
 		{
 			// Record and close all clips one by one, from bottom to top, until reached the count or hit the 'origin'
-			List<Rect> rectStackGroup = new List<Rect> ();
+			List<Rect> rectStackGroup = [];
 			Rect topMostClip = getTopRect;
 			while (topMostClip != new Rect (-10000, -10000, 40000, 40000) && count > 0)
 			{

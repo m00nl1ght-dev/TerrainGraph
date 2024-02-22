@@ -8,7 +8,7 @@ namespace NodeEditorFramework.Utilities
 {
 	public static class ReflectionUtility
 	{
-		private static readonly HashSet<Assembly> SearchableAssemblies = new();
+		private static readonly HashSet<Assembly> SearchableAssemblies = [];
 		private static readonly Dictionary<string, string> IdentifierReplacements = new();
 
 		static ReflectionUtility()

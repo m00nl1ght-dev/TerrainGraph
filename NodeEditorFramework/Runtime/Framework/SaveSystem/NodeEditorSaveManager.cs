@@ -419,8 +419,8 @@ namespace NodeEditorFramework
 				return null;
 
 			// Lists holding initial and cloned version of each ScriptableObject for later replacement of references
-			List<ScriptableObject> allSOs = new List<ScriptableObject> ();
-			List<ScriptableObject> clonedSOs = new List<ScriptableObject> ();
+			List<ScriptableObject> allSOs = [];
+			List<ScriptableObject> clonedSOs = [];
 			System.Func<ScriptableObject, ScriptableObject> copySOs = (ScriptableObject so) => ReplaceSO (allSOs, clonedSOs, so);
 
 			// Clone and enter the canvas object and it's referenced SOs

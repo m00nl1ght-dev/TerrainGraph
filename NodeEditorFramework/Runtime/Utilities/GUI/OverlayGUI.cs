@@ -77,7 +77,7 @@ namespace NodeEditorFramework.Utilities
 	{
 		static PopupMenu() {}
 		
-		public List<MenuItem> menuItems = new List<MenuItem> ();
+		public List<MenuItem> menuItems = [];
 		
 		// State
 		private Rect position;
@@ -338,7 +338,7 @@ namespace NodeEditorFramework.Utilities
 				group = _group;
 				
 				if (group)
-					subItems = new List<MenuItem> ();
+					subItems = [];
 			}
 			
 			public MenuItem (string _path, GUIContent _content, MenuFunction _func)

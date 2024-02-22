@@ -18,16 +18,16 @@ namespace NodeEditorFramework
 		public Rect fullAABBRect { get { return new Rect(position.x - 20, position.y - 20, size.x + 40, size.y + 40); } }
 
 		// Dynamic connection ports
-		public List<ConnectionPort> dynamicConnectionPorts = new List<ConnectionPort>();
+		public List<ConnectionPort> dynamicConnectionPorts = [];
 		// Static connection ports stored in the actual declaration variables
-		[NonSerialized] public List<ConnectionPort> staticConnectionPorts = new List<ConnectionPort>();
+		[NonSerialized] public List<ConnectionPort> staticConnectionPorts = [];
 		// Representative lists of static port declarations aswell as dynamic ports
-		[NonSerialized] public List<ConnectionPort> connectionPorts = new List<ConnectionPort> ();
-		[NonSerialized] public List<ConnectionPort> inputPorts = new List<ConnectionPort> ();
-		[NonSerialized] public List<ConnectionPort> outputPorts = new List<ConnectionPort> ();
-		[NonSerialized] public List<ConnectionKnob> connectionKnobs = new List<ConnectionKnob> ();
-		[NonSerialized] public List<ConnectionKnob> inputKnobs = new List<ConnectionKnob> ();
-		[NonSerialized] public List<ConnectionKnob> outputKnobs = new List<ConnectionKnob> ();
+		[NonSerialized] public List<ConnectionPort> connectionPorts = [];
+		[NonSerialized] public List<ConnectionPort> inputPorts = [];
+		[NonSerialized] public List<ConnectionPort> outputPorts = [];
+		[NonSerialized] public List<ConnectionKnob> connectionKnobs = [];
+		[NonSerialized] public List<ConnectionKnob> inputKnobs = [];
+		[NonSerialized] public List<ConnectionKnob> outputKnobs = [];
 
 		// Calculation graph
 		[HideInInspector] [NonSerialized]
@@ -574,7 +574,7 @@ namespace NodeEditorFramework
 
 		#region Recursive Search Helpers
 
-		[NonSerialized] private static List<Node> recursiveSearchSurpassed = new List<Node> ();
+		[NonSerialized] private static List<Node> recursiveSearchSurpassed = [];
 		[NonSerialized] private static Node startRecursiveSearchNode; // Temporary start node for recursive searches
 
 		/// <summary>
@@ -585,7 +585,7 @@ namespace NodeEditorFramework
 			if (startRecursiveSearchNode == null)
 			{ // Start search
 				if (recursiveSearchSurpassed == null)
-					recursiveSearchSurpassed = new List<Node> ();
+					recursiveSearchSurpassed = [];
 				recursiveSearchSurpassed.Capacity = canvas.nodes.Count;
 				startRecursiveSearchNode = this;
 			}

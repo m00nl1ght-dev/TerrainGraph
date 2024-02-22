@@ -682,14 +682,6 @@ public static class GridFunction
             return Equals((WrapCoords) obj);
         }
 
-        public override int GetHashCode()
-        {
-            unchecked
-            {
-                return ((Input != null ? Input.GetHashCode() : 0) * 397) ^ Size.GetHashCode();
-            }
-        }
-
         public override string ToString() => $"WRAP COORDS {{ {Input} at size {Size} }}";
     }
 

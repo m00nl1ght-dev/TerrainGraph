@@ -21,16 +21,16 @@ public class NodePathSplit : NodeBase
     public ValueConnectionKnob InputKnob;
 
     [NonSerialized]
-    public List<ValueConnectionKnob> WidthKnobs = new();
+    public List<ValueConnectionKnob> WidthKnobs = [];
 
     [NonSerialized]
-    public List<ValueConnectionKnob> SpeedKnobs = new();
+    public List<ValueConnectionKnob> SpeedKnobs = [];
 
     [NonSerialized]
-    public List<ValueConnectionKnob> OutputKnobs = new();
+    public List<ValueConnectionKnob> OutputKnobs = [];
 
-    public List<double> Widths = new();
-    public List<double> Speeds = new();
+    public List<double> Widths = [];
+    public List<double> Speeds = [];
 
     public override void RefreshDynamicKnobs()
     {

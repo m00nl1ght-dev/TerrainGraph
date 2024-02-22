@@ -20,7 +20,7 @@ public class TerrainCanvasTraversal : NodeCanvasTraversal
     /// </summary>
     public override void TraverseAll()
     {
-        workList = new List<Node>();
+        workList = [];
         for (int i = 0; i < nodeCanvas.nodes.Count; i++)
         {
             var node = nodeCanvas.nodes[i];
@@ -41,7 +41,7 @@ public class TerrainCanvasTraversal : NodeCanvasTraversal
     public override void OnChange(Node node)
     {
         node.ClearCalculation();
-        workList = new List<Node> { node };
+        workList = [node];
         StartCalculation(TerrainCanvas.HasActiveGUI);
     }
 

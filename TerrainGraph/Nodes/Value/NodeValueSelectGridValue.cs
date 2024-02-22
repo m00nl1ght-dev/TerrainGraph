@@ -22,7 +22,7 @@ public class NodeValueSelectGridValue : NodeSelectBase
     public override ValueConnectionKnob InputKnobRef => InputKnob;
     public override ValueConnectionKnob OutputKnobRef => OutputKnob;
 
-    public List<double> Values = new();
+    public List<double> Values = [];
 
     public override void NodeGUI()
     {
@@ -56,7 +56,7 @@ public class NodeValueSelectGridValue : NodeSelectBase
     {
         var input = SupplierOrFallback(InputKnob, 0d);
 
-        List<ISupplier<IGridFunction<double>>> options = new();
+        List<ISupplier<IGridFunction<double>>> options = [];
         for (int i = 0; i < Math.Min(Values.Count, OptionKnobs.Count); i++)
         {
             options.Add(SupplierOrFallback(OptionKnobs[i], GridFunction.Of(Values[i])));

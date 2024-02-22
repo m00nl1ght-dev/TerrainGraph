@@ -22,7 +22,7 @@ namespace NodeEditorFramework
 			foreach (NodeTypeData nodeData in NodeTypes.getNodeDefinitions ())	
 			{
 				Type nodeType = nodeData.type;
-				List<ConnectionPortDeclaration> declarations = new List<ConnectionPortDeclaration> ();
+				List<ConnectionPortDeclaration> declarations = [];
 				// Get all declared port fields
 				FieldInfo[] declaredPorts = ReflectionUtility.getFieldsOfType (nodeType, typeof(ConnectionPort));
 				foreach (FieldInfo portField in declaredPorts)
@@ -87,7 +87,7 @@ namespace NodeEditorFramework
 		/// </summary>
 		public static IEnumerable GetPortDeclarationEnumerator (Node node, bool triggerUpdate = false) 
 		{
-			List<ConnectionPort> declaredConnectionPorts = new List<ConnectionPort> ();
+			List<ConnectionPort> declaredConnectionPorts = [];
 			ConnectionPortDeclaration[] portDecls;
 			if (nodePortDeclarations.TryGetValue (node.GetID, out portDecls))
 			{
@@ -114,7 +114,7 @@ namespace NodeEditorFramework
 			node.dynamicConnectionPorts = node.dynamicConnectionPorts.Where(o => o != null).ToList();
 			node.staticConnectionPorts = node.staticConnectionPorts.Where(o => o != null).ToList();
 			// Combine static and dynamic ports into one list
-			node.connectionPorts = new List<ConnectionPort>();
+			node.connectionPorts = [];
 			node.connectionPorts.AddRange(node.staticConnectionPorts);
 			node.connectionPorts.AddRange(node.dynamicConnectionPorts);
 			// Differenciate ports into types and direction

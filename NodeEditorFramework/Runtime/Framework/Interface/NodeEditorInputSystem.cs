@@ -34,10 +34,10 @@ namespace NodeEditorFramework
 		/// </summary>
 		public static void SetupInput () 
 		{
-			eventHandlers = new List<KeyValuePair<EventHandlerAttribute, Delegate>> ();
-			hotkeyHandlers = new List<KeyValuePair<HotkeyAttribute, Delegate>> ();
-			contextEntries = new List<KeyValuePair<ContextEntryAttribute, MenuFunctionData>> ();
-			contextFillers = new List<KeyValuePair<ContextFillerAttribute, Delegate>> ();
+			eventHandlers = [];
+			hotkeyHandlers = [];
+			contextEntries = [];
+			contextFillers = [];
 
 			// Iterate through each static method
 			IEnumerable<Assembly> scriptAssemblies = ReflectionUtility.getScriptAssemblies();
@@ -113,7 +113,7 @@ namespace NodeEditorFramework
 		/// </summary>
 		private static void CallEventHandlers (NodeEditorInputInfo inputInfo, bool late) 
 		{
-			object[] parameter = new object[] { inputInfo };
+			object[] parameter = [inputInfo];
 			foreach (KeyValuePair<EventHandlerAttribute, Delegate> eventHandler in eventHandlers)
 			{
 				if ((eventHandler.Key.handledEvent == null || eventHandler.Key.handledEvent == inputInfo.inputEvent.type) &&
@@ -129,7 +129,7 @@ namespace NodeEditorFramework
 		/// </summary>
 		private static void CallHotkeys (NodeEditorInputInfo inputInfo, KeyCode keyCode, EventModifiers mods) 
 		{
-			object[] parameter = new object[] { inputInfo };
+			object[] parameter = [inputInfo];
 			foreach (KeyValuePair<HotkeyAttribute, Delegate> hotKey in hotkeyHandlers)
 			{
 				if (hotKey.Key.handledHotKey == keyCode && 
@@ -154,7 +154,7 @@ namespace NodeEditorFramework
 					contextMenu.AddItem (new GUIContent (contextEntry.Key.contextPath), false, contextEntry.Value, inputInfo);
 			}
 
-			object[] fillerParams = new object[] { inputInfo, contextMenu };
+			object[] fillerParams = [inputInfo, contextMenu];
 			foreach (KeyValuePair<ContextFillerAttribute, Delegate> contextFiller in contextFillers)
 			{ // Let all registered menu fillers for the specified type add their entries to the contextMenu
 				if (contextFiller.Key.contextType == contextType)

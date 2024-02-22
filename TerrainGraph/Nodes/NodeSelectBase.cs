@@ -16,9 +16,9 @@ public abstract class NodeSelectBase : NodeBase
     public abstract ValueConnectionKnob OutputKnobRef { get; }
 
     [NonSerialized]
-    public List<ValueConnectionKnob> OptionKnobs = new();
+    public List<ValueConnectionKnob> OptionKnobs = [];
 
-    public List<double> Thresholds = new();
+    public List<double> Thresholds = [];
 
     public override void RefreshDynamicKnobs()
     {

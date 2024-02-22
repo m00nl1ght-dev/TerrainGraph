@@ -21,7 +21,7 @@ public class NodePathCombine : NodeBase
     public ValueConnectionKnob OutputKnob;
 
     [NonSerialized]
-    public List<ValueConnectionKnob> InputKnobs = new();
+    public List<ValueConnectionKnob> InputKnobs = [];
 
     public override void RefreshDynamicKnobs()
     {
