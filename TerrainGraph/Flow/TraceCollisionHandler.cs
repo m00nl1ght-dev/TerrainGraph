@@ -15,6 +15,8 @@ public class TraceCollisionHandler
     public double SimplificationLength = 10;
     public double DiversionMinLength = 5;
     public double StubBacktrackLength = 10;
+    public double TenacityAdjStep = 0.15;
+    public double TenacityAdjMax = 0.9;
 
     private readonly PathTracer _tracer;
 
@@ -141,6 +143,15 @@ public class TraceCollisionHandler
         {
             #if DEBUG
             PathTracer.DebugOutput("Second path simplification attempt was successful");
+            #endif
+
+            return;
+        }
+
+        if (TryApplyTenacity(c))
+        {
+            #if DEBUG
+            PathTracer.DebugOutput("Tenacity adjustment attempt was successful");
             #endif
 
             return;
@@ -717,6 +728,7 @@ public class TraceCollisionHandler
         // this is low in the case of a frontal/head-on collision
         var perpScore = 0.5 * (perpDotD.Abs() + perpDotP.Abs());
 
+        // TODO improve handling for cyclic collisions (shorter range, stronger diversion)
         var diversion = c.cyclic ? -1 * frameP.normal : perpScore > 0.2 ? Vector2d.Reflect(frameD.normal, normal) : normal;
 
         var factor = segmentD.TraceParams.ArcRetraceFactor;
@@ -783,6 +795,37 @@ public class TraceCollisionHandler
         preAnchor.AdjustmentCount++;
 
         return true;
+    }
+
+    /// <summary>
+    /// Attempt to increase tenacity of involved segments in order to avoid the given collision.
+    /// </summary>
+    /// <returns>true if any segments were adjusted successfully, otherwise false</returns>
+    private bool TryApplyTenacity(TraceCollision c)
+    {
+        if (c.hasMergeB || !c.cyclic) return false;
+
+        var segments = c.segmentA.ConnectedSegments(false, true, s => s != c.segmentB, s => s.ParentCount == 1);
+
+        if (segments.Count == 0) segments.Add(c.segmentA);
+
+        var segmentsAdjusted = 0;
+
+        foreach (var segment in segments)
+        {
+            var newTenacity = segment.TraceParams.AngleTenacity + TenacityAdjStep;
+            if (newTenacity <= TenacityAdjMax)
+            {
+                #if DEBUG
+                PathTracer.DebugOutput($"Adjusting tenacity of segment {segment.Id} to {newTenacity}");
+                #endif
+
+                segment.TraceParams.AngleTenacity = newTenacity;
+                segmentsAdjusted++;
+            }
+        }
+
+        return segmentsAdjusted > 0;
     }
 
     /// <summary>
