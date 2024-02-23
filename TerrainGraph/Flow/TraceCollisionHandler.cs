@@ -685,7 +685,7 @@ public class TraceCollisionHandler
 
         if (passiveBranch)
         {
-            if (c.hasMergeB) return false;
+            if (c.hasMergeB || c.cyclic) return false;
 
             segmentP = c.segmentA;
             segmentD = c.segmentB;
@@ -717,7 +717,7 @@ public class TraceCollisionHandler
         // this is low in the case of a frontal/head-on collision
         var perpScore = 0.5 * (perpDotD.Abs() + perpDotP.Abs());
 
-        var diversion = perpScore > 0.2 ? Vector2d.Reflect(frameD.normal, normal) : normal;
+        var diversion = c.cyclic ? -1 * frameP.normal : perpScore > 0.2 ? Vector2d.Reflect(frameD.normal, normal) : normal;
 
         var factor = segmentD.TraceParams.ArcRetraceFactor;
 
