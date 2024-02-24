@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using TerrainGraph.Util;
+using static TerrainGraph.Flow.Path;
 
 namespace TerrainGraph.Flow;
 
@@ -309,8 +310,8 @@ public class TraceCollisionHandler
         var endA = InsertArcWithDuct(c.segmentA, ref frameA, arcA, ductA);
         var endB = InsertArcWithDuct(c.segmentB, ref frameB, arcB, ductB);
 
-        Path.Segment InsertArcWithDuct(
-            Path.Segment segment,
+        Segment InsertArcWithDuct(
+            Segment segment,
             ref TraceFrame frame,
             double arcLength,
             double ductLength)
@@ -408,7 +409,7 @@ public class TraceCollisionHandler
             }
         }
 
-        void ModifySegments(List<Path.Segment> segments, double valueDiff, double offsetDiff, bool allowSingleFrames)
+        void ModifySegments(List<Segment> segments, double valueDiff, double offsetDiff, bool allowSingleFrames)
         {
             var totalSteps = segments.Sum(s => s.FullStepsCount(allowSingleFrames));
 
@@ -422,7 +423,7 @@ public class TraceCollisionHandler
 
                 if (fullSteps > 0)
                 {
-                    segment.ApplyDelta(new Path.SmoothDelta(valueDiff, offsetDiff, totalSteps, currentSteps, padding));
+                    segment.ApplyDelta(new SmoothDelta(valueDiff, offsetDiff, totalSteps, currentSteps, padding));
                     currentSteps += fullSteps;
                 }
             }
@@ -434,9 +435,9 @@ public class TraceCollisionHandler
             if (endB.Length > 0) endB.TraceParams.DensityLoss = (frameB.density - targetDensity) / endB.Length;
         }
 
-        var merged = new Path.Segment(endA.Path)
+        var merged = new Segment(endA.Path)
         {
-            TraceParams = Path.TraceParams.Merge(c.segmentA.TraceParams, c.segmentB.TraceParams),
+            TraceParams = TraceParams.Merge(c.segmentA.TraceParams, c.segmentB.TraceParams),
             Length = remainingLength
         };
 
@@ -475,7 +476,7 @@ public class TraceCollisionHandler
     }
 
     private ArcCalcResult TryCalcArcs(
-        Path.Segment a, Path.Segment b,
+        Segment a, Segment b,
         Vector2d normal, double shift,
         ref TraceFrame frameA, ref TraceFrame frameB,
         out double arcLengthA, out double arcLengthB,
@@ -691,7 +692,7 @@ public class TraceCollisionHandler
     /// <returns>true if one of the segments was diverted successfully, otherwise false</returns>
     private bool TryDivert(TraceCollision c, bool passiveBranch)
     {
-        Path.Segment segmentD, segmentP;
+        Segment segmentD, segmentP;
         TraceFrame frameD, frameP;
 
         if (passiveBranch)
@@ -720,7 +721,16 @@ public class TraceCollisionHandler
 
         if ((segmentD.TraceParams.DiversionPoints?.Count ?? 0) >= MaxDiversionPoints) return false;
 
-        var normal = frameP.perpCW * Vector2d.PointToLineOrientation(frameD.pos, frameD.pos + frameD.normal, frameP.pos);
+        var divertableSegments = segmentD.ConnectedSegments(false, true,
+            s => s.BranchCount == 1 || !s.AnyBranchesMatch(b => b == segmentP || b.ParentCount > 1, false),
+            s => s.ParentCount == 1 && s != segmentP
+        );
+
+        var divertableLength = divertableSegments.Sum(DivertableLength);
+
+        if (divertableLength < DiversionMinLength) return false;
+
+        var normal = frameP.perpCCW * Vector2d.PointToLineOrientation(frameP.pos, frameP.pos + frameP.normal, frameD.pos);
 
         var perpDotD = Vector2d.PerpDot((frameP.pos - frameD.pos).Normalized, frameD.normal);
         var perpDotP = Vector2d.PerpDot((frameD.pos - frameP.pos).Normalized, frameP.normal);
@@ -728,42 +738,80 @@ public class TraceCollisionHandler
         // this is low in the case of a frontal/head-on collision
         var perpScore = 0.5 * (perpDotD.Abs() + perpDotP.Abs());
 
-        // TODO improve handling for cyclic collisions (shorter range, stronger diversion)
-        var diversion = c.cyclic ? -1 * frameP.normal : perpScore > 0.2 ? Vector2d.Reflect(frameD.normal, normal) : normal;
-
         var factor = segmentD.TraceParams.ArcRetraceFactor;
+        var range = segmentD.TraceParams.ArcRetraceRange;
 
-        var point = new Path.DiversionPoint(frameD.pos, diversion * factor, segmentD.TraceParams.ArcRetraceRange);
+        var diversion = normal;
 
-        var segments = segmentD.ConnectedSegments(false, true,
-            s => s.BranchCount == 1 || !s.AnyBranchesMatch(b => b == segmentP || b.ParentCount > 1, false),
-            s => s.ParentCount == 1
-        );
-
-        if (segments.Sum(s => s == segmentD ? frameD.dist : s.Length) < DiversionMinLength) return false;
-
-        var distanceCovered = 0d;
-
-        foreach (var segment in segments)
+        if (c.cyclic)
         {
-            distanceCovered += segment == segmentD ? frameD.dist : segment.Length;
+            diversion = 0.5 * normal - 0.5 * frameP.normal;
+            range = 0.5 * divertableLength;
+        }
+        else if (perpScore > 0.2)
+        {
+            diversion = Vector2d.Reflect(frameD.normal, normal);
+        }
 
-            segment.TraceParams.AddDiversionPoint(point);
+        var point = new DiversionPoint(frameD.pos, diversion * factor, range);
+
+        var divertedLength = 0d;
+
+        foreach (var segment in divertableSegments)
+        {
+            var divertableInSegment = DivertableLength(segment);
+
+            var adjSegment = segment;
+
+            if (divertedLength + divertableInSegment > range && c.cyclic)
+            {
+                var anchorAt = segment == segmentD ? frameD.dist : segment.Length;
+                var splitAt = anchorAt - (range - divertedLength);
+
+                adjSegment = segment.InsertNew();
+                adjSegment.Length = segment.Length - splitAt;
+                segment.Length = splitAt;
+                divertedLength = range;
+            }
+
+            divertedLength += divertableInSegment;
+
+            adjSegment.TraceParams.AddDiversionPoint(point);
 
             #if DEBUG
-            PathTracer.DebugOutput($"Added diversion to {segment.Id} with data {point}");
+            PathTracer.DebugOutput($"Added diversion to {adjSegment.Id} with data {point}");
             #endif
 
-            if (distanceCovered >= point.Range) break;
+            if (divertedLength >= range) break;
         }
 
         #if DEBUG
-        PathTracer.DebugLine(new TraceDebugLine(_tracer, frameD.pos, 4, 0, $"DC {distanceCovered:F2}\nPSC {perpScore:F2}"));
+        PathTracer.DebugLine(new TraceDebugLine(_tracer, frameD.pos, 4, 0, $"DL {divertedLength:F2}\nPSC {perpScore:F2}"));
         PathTracer.DebugLine(new TraceDebugLine(_tracer, frameD.pos, frameD.pos + diversion, 4));
         PathTracer.DebugLine(new TraceDebugLine(_tracer, frameP.pos, frameP.pos + normal, 4));
         #endif
 
         return true;
+
+        double DivertableLength(Segment segment)
+        {
+            if (segment == segmentD)
+            {
+                if (segmentD == segmentP)
+                {
+                    return frameD.dist - frameP.dist;
+                }
+
+                return frameD.dist;
+            }
+
+            if (segment == segmentP)
+            {
+                return segmentP.Length - frameP.dist;
+            }
+
+            return segment.Length;
+        }
     }
 
     /// <summary>
@@ -831,7 +879,7 @@ public class TraceCollisionHandler
     /// <summary>
     /// Stub the given path segment in order to avoid a collision.
     /// </summary>
-    private void Stub(Path.Segment segment, double toLength)
+    private void Stub(Segment segment, double toLength)
     {
         var lengthDiff = toLength - StubBacktrackLength - segment.Length;
 
@@ -889,7 +937,7 @@ public class TraceCollisionHandler
         segment.DetachAll(true);
     }
 
-    private double MinStubLengthFor(Path.Segment segment)
+    private double MinStubLengthFor(Segment segment)
     {
         return 2 * _tracer.TraceResults[segment].initialFrame.width;
     }
