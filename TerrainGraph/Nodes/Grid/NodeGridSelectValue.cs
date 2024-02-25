@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using NodeEditorFramework;
 using NodeEditorFramework.Utilities;
+using TerrainGraph.Util;
 using UnityEngine;
 
 namespace TerrainGraph;
@@ -21,6 +22,8 @@ public class NodeGridSelectValue : NodeSelectBase
 
     public override ValueConnectionKnob InputKnobRef => InputKnob;
     public override ValueConnectionKnob OutputKnobRef => OutputKnob;
+
+    public override bool SupportsInterpolation => true;
 
     public List<double> Values = [];
 
@@ -50,6 +53,7 @@ public class NodeGridSelectValue : NodeSelectBase
     {
         CreateValueConnectionKnob(new("Option " + OptionKnobs.Count, Direction.In, GridFunctionConnection.Id));
         RefreshDynamicKnobs();
+        canvas.OnNodeChange(this);
     }
 
     public override bool Calculate()
@@ -57,12 +61,19 @@ public class NodeGridSelectValue : NodeSelectBase
         var input = SupplierOrFallback(InputKnob, GridFunction.Zero);
 
         List<ISupplier<IGridFunction<double>>> options = [];
+
         for (int i = 0; i < Math.Min(Values.Count, OptionKnobs.Count); i++)
         {
             options.Add(SupplierOrFallback(OptionKnobs[i], GridFunction.Of(Values[i])));
         }
 
-        OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new GridOutput<double>(input, options, Thresholds));
+        OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
+            new GridOutput<double>(
+                input, options, Thresholds,
+                Interpolated ? MathUtil.Lerp : null
+            )
+        );
+
         return true;
     }
 }

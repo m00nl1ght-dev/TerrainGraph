@@ -4,21 +4,26 @@ using System.Linq;
 using NodeEditorFramework;
 using NodeEditorFramework.Utilities;
 using UnityEngine;
+using static TerrainGraph.GridFunction;
 
 namespace TerrainGraph;
 
 [Serializable]
 public abstract class NodeSelectBase : NodeBase
 {
-    public override string Title => "Select";
+    public override string Title => Interpolated ? "Interpolate" : "Select";
 
     public abstract ValueConnectionKnob InputKnobRef { get; }
     public abstract ValueConnectionKnob OutputKnobRef { get; }
+
+    public virtual bool SupportsInterpolation => false;
 
     [NonSerialized]
     public List<ValueConnectionKnob> OptionKnobs = [];
 
     public List<double> Thresholds = [];
+
+    public bool Interpolated;
 
     public override void RefreshDynamicKnobs()
     {
@@ -76,12 +81,32 @@ public abstract class NodeSelectBase : NodeBase
     public override void FillNodeActionsMenu(NodeEditorInputInfo inputInfo, GenericMenu menu)
     {
         base.FillNodeActionsMenu(inputInfo, menu);
+
+        menu.AddSeparator("");
+
+        if (!Interpolated && SupportsInterpolation)
+        {
+            menu.AddItem(new GUIContent("Add interpolation"), false, () =>
+            {
+                Interpolated = true;
+                canvas.OnNodeChange(this);
+            });
+        }
+
+        if (Interpolated)
+        {
+            menu.AddItem(new GUIContent("Remove interpolation"), false, () =>
+            {
+                Interpolated = false;
+                canvas.OnNodeChange(this);
+            });
+        }
+
         menu.AddSeparator("");
 
         if (OptionKnobs.Count < 20)
         {
             menu.AddItem(new GUIContent("Add branch"), false, CreateNewOptionKnob);
-            canvas.OnNodeChange(this);
         }
 
         if (OptionKnobs.Count > 2)
@@ -100,20 +125,33 @@ public abstract class NodeSelectBase : NodeBase
         private readonly ISupplier<double> _input;
         private readonly List<ISupplier<T>> _options;
         private readonly List<double> _thresholds;
+        private readonly Interpolation<T> _interpolation;
 
-        public Output(ISupplier<double> input, List<ISupplier<T>> options, List<double> thresholds)
+        public Output(
+            ISupplier<double> input,
+            List<ISupplier<T>> options,
+            List<double> thresholds, Interpolation<T> interpolation)
         {
             _input = input;
             _options = options;
             _thresholds = thresholds;
+            _interpolation = interpolation;
         }
 
         public T Get()
         {
             var value = _input.Get();
+
             for (int i = 0; i < Math.Min(_thresholds.Count, _options.Count - 1); i++)
+            {
                 if (value < _thresholds[i])
-                    return _options[i].Get();
+                {
+                    if (_interpolation == null || i == 0) return _options[i].Get();
+                    var t = (value - _thresholds[i - 1]) / (_thresholds[i] - _thresholds[i - 1]);
+                    return _interpolation(t, _options[i].Get(), _options[i + 1].Get());
+                }
+            }
+
             return _options[_options.Count - 1].Get();
         }
 
@@ -129,22 +167,24 @@ public abstract class NodeSelectBase : NodeBase
         private readonly ISupplier<IGridFunction<double>> _input;
         private readonly List<ISupplier<IGridFunction<T>>> _options;
         private readonly List<double> _thresholds;
+        private readonly Interpolation<T> _interpolation;
         private readonly Func<T, int, T> _postProcess;
 
         public GridOutput(
             ISupplier<IGridFunction<double>> input, List<ISupplier<IGridFunction<T>>> options,
-            List<double> thresholds, Func<T, int, T> postProcess = null)
+            List<double> thresholds, Interpolation<T> interpolation, Func<T, int, T> postProcess = null)
         {
             _input = input;
             _options = options;
             _thresholds = thresholds;
+            _interpolation = interpolation;
             _postProcess = postProcess;
         }
 
         public IGridFunction<T> Get()
         {
-            return new GridFunction.Select<T>(
-                _input.Get(), _options.Select(o => o.Get()).ToList(), _thresholds, _postProcess
+            return new Select<T>(
+                _input.Get(), _options.Select(o => o.Get()).ToList(), _thresholds, _interpolation, _postProcess
             );
         }
 

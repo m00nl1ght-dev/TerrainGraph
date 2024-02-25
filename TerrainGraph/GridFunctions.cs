@@ -14,6 +14,8 @@ public static class GridFunction
 
     public static IGridFunction<T> Of<T>(T value) => new Const<T>(value);
 
+    public delegate T Interpolation<T>(double t, T a, T b);
+
     public class Const<T> : IGridFunction<T>
     {
         public readonly T Value;
@@ -49,22 +51,39 @@ public static class GridFunction
         public readonly IGridFunction<double> Input;
         public readonly List<IGridFunction<T>> Options;
         public readonly List<double> Thresholds;
+        public readonly Interpolation<T> Interpolation;
         public readonly Func<T, int, T> PostProcess;
 
-        public Select(IGridFunction<double> input, List<IGridFunction<T>> options, List<double> thresholds, Func<T, int, T> postProcess = null)
+        public Select(
+            IGridFunction<double> input,
+            List<IGridFunction<T>> options,
+            List<double> thresholds,
+            Interpolation<T> interpolation,
+            Func<T, int, T> postProcess = null)
         {
             Input = input;
             Options = options;
             Thresholds = thresholds;
+            Interpolation = interpolation;
             PostProcess = postProcess ?? ((v, _) => v);
         }
 
         public T ValueAt(double x, double z)
         {
             var value = Input.ValueAt(x, z);
+
             for (int i = 0; i < Math.Min(Thresholds.Count, Options.Count - 1); i++)
+            {
                 if (value < Thresholds[i])
-                    return PostProcess(Options[i].ValueAt(x, z), i);
+                {
+                    var a = PostProcess(Options[i].ValueAt(x, z), i);
+                    if (Interpolation == null || i == 0) return a;
+                    var t = (value - Thresholds[i - 1]) / (Thresholds[i] - Thresholds[i - 1]);
+                    var b = PostProcess(Options[i + 1].ValueAt(x, z), i + 1);
+                    return Interpolation(t, a, b);
+                }
+            }
+
             return PostProcess(Options[Options.Count - 1].ValueAt(x, z), Options.Count - 1);
         }
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using NodeEditorFramework;
 using NodeEditorFramework.Utilities;
 using UnityEngine;
+using static TerrainGraph.GridFunction;
 
 namespace TerrainGraph;
 
@@ -21,6 +22,8 @@ public class NodeValueSelectGridValue : NodeSelectBase
 
     public override ValueConnectionKnob InputKnobRef => InputKnob;
     public override ValueConnectionKnob OutputKnobRef => OutputKnob;
+
+    public override bool SupportsInterpolation => true;
 
     public List<double> Values = [];
 
@@ -50,6 +53,7 @@ public class NodeValueSelectGridValue : NodeSelectBase
     {
         CreateValueConnectionKnob(new("Option " + OptionKnobs.Count, Direction.In, GridFunctionConnection.Id));
         RefreshDynamicKnobs();
+        canvas.OnNodeChange(this);
     }
 
     public override bool Calculate()
@@ -57,12 +61,18 @@ public class NodeValueSelectGridValue : NodeSelectBase
         var input = SupplierOrFallback(InputKnob, 0d);
 
         List<ISupplier<IGridFunction<double>>> options = [];
+
         for (int i = 0; i < Math.Min(Values.Count, OptionKnobs.Count); i++)
         {
-            options.Add(SupplierOrFallback(OptionKnobs[i], GridFunction.Of(Values[i])));
+            options.Add(SupplierOrFallback(OptionKnobs[i], Of(Values[i])));
         }
 
-        OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output<IGridFunction<double>>(input, options, Thresholds));
+        OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
+            new Output<IGridFunction<double>>(
+                input, options, Thresholds,
+                Interpolated ? (t, a, b) => Lerp.Of(a, b, t) : null
+            )
+        );
         return true;
     }
 }
