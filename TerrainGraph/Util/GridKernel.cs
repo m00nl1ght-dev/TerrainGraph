@@ -1,21 +1,63 @@
+using System.Collections.Generic;
 using static TerrainGraph.GridFunction;
 
 namespace TerrainGraph.Util;
 
-[HotSwappable]
 public class GridKernel
 {
-    public readonly int PointCount;
+    public readonly int Size;
+    public readonly double Extend;
 
-    private readonly Vector2d[] _directions;
-    private readonly Vector2d[] _offsets;
+    public int PointCount => Offsets.Count;
+
+    public readonly IReadOnlyList<Vector2d> Offsets;
+    public readonly IReadOnlyList<Vector2d> Directions;
+
+    public readonly IReadOnlyList<double> Distances;
+    public readonly IReadOnlyList<double> Angles;
+
+    public static GridKernel DiscreteCircle(int radius, double extend)
+    {
+        var offsets = new List<Vector2d>();
+
+        int x = 0;
+        int y = radius;
+        int d = 2 - 2 * radius;
+
+        while (y >= 0)
+        {
+            if (x > radius) x = radius;
+            else if (x < -radius) x = -radius;
+
+            if (y > radius) y = radius;
+            else if (y < -radius) y = -radius;
+
+            offsets.Add(new Vector2d(x * extend, y * extend));
+            offsets.Add(new Vector2d(x * extend, -y * extend));
+            offsets.Add(new Vector2d(-x * extend, y * extend));
+            offsets.Add(new Vector2d(-x * extend, -y * extend));
+
+            if (d < 0 && 2 * (d + y) - 1 <= 0)
+            {
+                d += 2 * ++x + 1;
+                continue;
+            }
+
+            if (d > 0 && 2 * (d - x) - 1 > 0)
+            {
+                d += 1 - 2 * --y;
+                continue;
+            }
+
+            d += 2 * (++x - y--);
+        }
+
+        return new GridKernel(radius, extend, offsets.ToArray());
+    }
 
     public static GridKernel Square(int size, double extend)
     {
-        var kernel = new GridKernel((1 + 2 * size) * (1 + 2 * size) - 1);
-
-        var directions = kernel._directions;
-        var offsets = kernel._offsets;
+        var offsets = new Vector2d[(1 + 2 * size) * (1 + 2 * size) - 1];
 
         var index = 0;
 
@@ -25,47 +67,49 @@ public class GridKernel
             {
                 if (x != 0 || z != 0)
                 {
-                    var offset = new Vector2d(x * extend, z * extend);
-
-                    directions[index] = offset.Normalized;
-                    offsets[index] = offset;
-
+                    offsets[index] = new Vector2d(x * extend, z * extend);
                     index++;
                 }
             }
         }
 
-        return kernel;
+        return new GridKernel(size, extend, offsets);
     }
 
     public static GridKernel Shield(int size, double extend, double spacing)
     {
-        var kernel = new GridKernel(1 + 2 * size);
-
-        var directions = kernel._directions;
-        var offsets = kernel._offsets;
+        var offsets = new Vector2d[1 + 2 * size];
 
         var index = 0;
 
         for (int z = -size; z <= size; z++)
         {
-            var offset = new Vector2d(extend, z * spacing);
-
-            directions[index] = offset.Normalized;
-            offsets[index] = offset;
-
+            offsets[index] = new Vector2d(extend, z * spacing);
             index++;
         }
 
-        return kernel;
+        return new GridKernel(size, extend, offsets);
     }
 
-    private GridKernel(int pointCount)
+    private GridKernel(int size, double extend, IReadOnlyList<Vector2d> offsets)
     {
-        PointCount = pointCount;
+        var directions = new Vector2d[offsets.Count];
+        var distances = new double[offsets.Count];
+        var angles = new double[offsets.Count];
 
-        _directions = new Vector2d[PointCount];
-        _offsets = new Vector2d[PointCount];
+        for (int i = 0; i < offsets.Count; i++)
+        {
+            directions[i] = offsets[i].Normalized;
+            distances[i] = offsets[i].Magnitude;
+            angles[i] = Vector2d.SignedAngle(new Vector2d(1, 0), directions[i]);
+        }
+
+        Size = size;
+        Extend = extend;
+        Offsets = offsets;
+        Directions = directions;
+        Distances = distances;
+        Angles = angles;
     }
 
     public Vector2d CalculateAt(
@@ -80,10 +124,10 @@ public class GridKernel
         if (absFunc != null) valHere += absFunc.ValueAt(absPos);
         if (relFunc != null) valHere += Rotate<double>.Calculate(relFunc, relPos.x, relPos.z, 0, 0, relAngle);
 
-        for (var i = 0; i < _offsets.Length; i++)
+        for (var i = 0; i < Offsets.Count; i++)
         {
-            var offset = _offsets[i];
-            var direction = _directions[i];
+            var offset = Offsets[i];
+            var direction = Directions[i];
 
             var offsetT = offset.x * axisX + offset.z * axisZ;
             var directionT = direction.x * axisX + direction.z * axisZ;
