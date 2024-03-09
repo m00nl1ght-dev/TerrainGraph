@@ -1,11 +1,13 @@
 using System;
+using UnityEngine;
 
 namespace TerrainGraph.Util;
 
-[HotSwappable]
 public struct Vector2d
 {
     public static readonly Vector2d Zero = new(0, 0);
+    public static readonly Vector2d AxisX = new(1, 0);
+    public static readonly Vector2d AxisZ = new(0, 1);
     public static readonly Vector2d One = new(1, 1);
 
     public double x;
@@ -82,6 +84,10 @@ public struct Vector2d
     }
 
     public static bool operator !=(Vector2d a, Vector2d b) => !(a == b);
+
+    public static implicit operator Vector2d(Vector2Int vec) => new(vec.x, vec.y);
+
+    public static implicit operator Vector2d(Vector2 vec) => new(vec.x, vec.y);
 
     public static Vector2d Min(Vector2d a, Vector2d b) => new(Math.Min(a.x, b.x), Math.Min(a.z, b.z));
 

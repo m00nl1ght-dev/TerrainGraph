@@ -101,7 +101,7 @@ public class GridKernel
         {
             directions[i] = offsets[i].Normalized;
             distances[i] = offsets[i].Magnitude;
-            angles[i] = Vector2d.SignedAngle(new Vector2d(1, 0), directions[i]);
+            angles[i] = Vector2d.SignedAngle(Vector2d.AxisX, directions[i]);
         }
 
         Size = size;

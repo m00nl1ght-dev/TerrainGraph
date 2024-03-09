@@ -157,7 +157,7 @@ internal readonly struct TraceFrame
         // move result frame backwards up to the farthest import
         this.pos += this.normal * minDot;
 
-        this.angle = -Vector2d.SignedAngle(new Vector2d(1, 0), this.normal);
+        this.angle = -Vector2d.SignedAngle(Vector2d.AxisX, this.normal);
         this.factors = new TraceFactors();
     }
 

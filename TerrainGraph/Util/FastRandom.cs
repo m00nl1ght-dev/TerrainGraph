@@ -1,43 +1,72 @@
+/*
+
+The MIT License (MIT)
+
+Copyright (c) 2015 lidgren
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+*/
+
 using System;
 using System.Threading;
 
+// ReSharper disable LocalVariableHidesMember
+// ReSharper disable ArrangeTypeMemberModifiers
+// ReSharper disable RedundantCast
+// ReSharper disable InconsistentNaming
+
 namespace TerrainGraph.Util;
-
-// This file is originally from the Lidgren.Network library.
-// modified, MIT License
-
 
 /// <summary>
 /// A fast random number generator for .NET
 /// Colin Green, January 2005
+/// Lidgren.Network library
 /// </summary>
+///
 /// September 4th 2005
 ///	 Added NextBytesUnsafe() - commented out by default.
-///	 Fixed bugx in Reinitialise() - y,z and w variables were not being reset.
-/// 
+///	 Fixed bug in Reinitialise() - y,z and w variables were not being reset.
+///
 /// Key points:
-///  1) Based on a simple and fast xor-shift pseudo random number generator (RNG) specified in: 
+///  1) Based on a simple and fast xor-shift pseudo random number generator (RNG) specified in:
 ///  Marsaglia, George. (2003). Xorshift RNGs.
 ///  http://www.jstatsoft.org/v08/i14/xorshift.pdf
-///  
+///
 ///  This particular implementation of xorshift has a period of 2^128-1. See the above paper to see
-///  how this can be easily extened if you need a longer period. At the time of writing I could find no 
+///  how this can be easily extended if you need a longer period. At the time of writing I could find no
 ///  information on the period of System.Random for comparison.
-/// 
+///
 ///  2) Faster than System.Random. Up to 8x faster, depending on which methods are called.
-/// 
-///  3) Direct replacement for System.Random. This class implements all of the methods that System.Random 
+///
+///  3) Direct replacement for System.Random. This class implements all of the methods that System.Random
 ///  does plus some additional methods. The like named methods are functionally equivalent.
-///  
+///
 ///  4) Allows fast re-initialisation with a seed, unlike System.Random which accepts a seed at construction
 ///  time which then executes a relatively expensive initialisation routine. This provides a vast speed improvement
 ///  if you need to reset the pseudo-random number sequence many times, e.g. if you want to re-generate the same
 ///  sequence many times. An alternative might be to cache random numbers in an array, but that approach is limited
 ///  by memory capacity and the fact that you may also want a large number of different sequences cached. Each sequence
 ///  can each be represented by a single seed value (int) when using FastRandom.
-///  
-///  Notes.
-///  A further performance improvement can be obtained by declaring local variables as static, thus avoiding 
+///
+/// Notes.
+///  A further performance improvement can be obtained by declaring local variables as static, thus avoiding
 ///  re-allocation of variables on each call. However care should be taken if multiple instances of
 ///  FastRandom are in use or if being used in a multi-threaded environment.
 public class FastRandom : IRandom
@@ -116,11 +145,11 @@ public class FastRandom : IRandom
     /// MaxValue is not generated in order to remain functionally equivalent to System.Random.Next().
     /// This does slightly eat into some of the performance gain over System.Random, but not much.
     /// For better performance see:
-    /// 
+    ///
     /// Call NextInt() for an int over the range 0 to int.MaxValue.
-    /// 
+    ///
     /// Call NextUInt() and cast the result to an int to generate an int over the full Int32 value range
-    /// including negative values. 
+    /// including negative values.
     /// </summary>
     /// <returns></returns>
     public int Next()
@@ -129,7 +158,7 @@ public class FastRandom : IRandom
         x = y; y = z; z = w;
         w = (w ^ (w >> 19)) ^ (t ^ (t >> 8));
 
-        // Handle the special case where the value int.MaxValue is generated. This is outside of 
+        // Handle the special case where the value int.MaxValue is generated. This is outside of
         // the range of permitted values, so we therefore call Next() to try again.
         uint rtn = w & 0x7FFFFFFF;
         if (rtn == 0x7FFFFFFF)
@@ -145,7 +174,7 @@ public class FastRandom : IRandom
     public int Next(int upperBound)
     {
         if (upperBound < 0)
-            throw new ArgumentOutOfRangeException("upperBound", upperBound, "upperBound must be >=0");
+            throw new ArgumentOutOfRangeException(nameof(upperBound), upperBound, "upperBound must be >=0");
 
         uint t = (x ^ (x << 11));
         x = y; y = z; z = w;
@@ -165,7 +194,7 @@ public class FastRandom : IRandom
     public int Next(int lowerBound, int upperBound)
     {
         if (lowerBound > upperBound)
-            throw new ArgumentOutOfRangeException("upperBound", upperBound, "upperBound must be >=lowerBound");
+            throw new ArgumentOutOfRangeException(nameof(upperBound), upperBound, "upperBound must be >=lowerBound");
 
         uint t = (x ^ (x << 11));
         x = y; y = z; z = w;
@@ -175,7 +204,7 @@ public class FastRandom : IRandom
         int range = upperBound - lowerBound;
         if (range < 0)
         {	// If range is <0 then an overflow has occured and must resort to using long integer arithmetic instead (slower).
-            // We also must use all 32 bits of precision, instead of the normal 31, which again is slower.	
+            // We also must use all 32 bits of precision, instead of the normal 31, which again is slower.
             return lowerBound + (int)((REAL_UNIT_UINT * (double)(w = (w ^ (w >> 19)) ^ (t ^ (t >> 8)))) * (double)((long)upperBound - (long)lowerBound));
         }
 
@@ -193,18 +222,18 @@ public class FastRandom : IRandom
         uint t = (x ^ (x << 11));
         x = y; y = z; z = w;
 
-        // Here we can gain a 2x speed improvement by generating a value that can be cast to 
-        // an int instead of the more easily available uint. If we then explicitly cast to an 
-        // int the compiler will then cast the int to a double to perform the multiplication, 
+        // Here we can gain a 2x speed improvement by generating a value that can be cast to
+        // an int instead of the more easily available uint. If we then explicitly cast to an
+        // int the compiler will then cast the int to a double to perform the multiplication,
         // this final cast is a lot faster than casting from a uint to a double. The extra cast
-        // to an int is very fast (the allocated bits remain the same) and so the overall effect 
+        // to an int is very fast (the allocated bits remain the same) and so the overall effect
         // of the extra cast is a significant performance improvement.
         //
-        // Also note that the loss of one bit of precision is equivalent to what occurs within 
+        // Also note that the loss of one bit of precision is equivalent to what occurs within
         // System.Random.
         return (REAL_UNIT_INT * (int)(0x7FFFFFFF & (w = (w ^ (w >> 19)) ^ (t ^ (t >> 8)))));
     }
-    
+
     public double NextDouble(double min, double max) => max <= min ? min : NextDouble() * (max - min) + min;
 
     /// <summary>
@@ -217,7 +246,7 @@ public class FastRandom : IRandom
 
     /// <summary>
     /// Fills the provided byte array with random bytes.
-    /// This method is functionally equivalent to System.Random.NextBytes(). 
+    /// This method is functionally equivalent to System.Random.NextBytes().
     /// </summary>
     /// <param name="buffer"></param>
     public void NextBytes(byte[] buffer)
@@ -228,10 +257,10 @@ public class FastRandom : IRandom
         uint t;
         for (int bound = buffer.Length - 3; i < bound; )
         {
-            // Generate 4 bytes. 
+            // Generate 4 bytes.
             // Increased performance is achieved by generating 4 random bytes per loop.
             // Also note that no mask needs to be applied to zero out the higher order bytes before
-            // casting because the cast ignores thos bytes. Thanks to Stefan Troschütz for pointing this out.
+            // casting because the cast ignores those bytes. Thanks to Stefan Troschütz for pointing this out.
             t = (x ^ (x << 11));
             x = y; y = z; z = w;
             w = (w ^ (w >> 19)) ^ (t ^ (t >> 8));
@@ -273,10 +302,10 @@ public class FastRandom : IRandom
     //		/// thus providing a nice speedup. The loop is also partially unrolled to allow out-of-order-execution,
     //		/// this results in about a x2 speedup on an AMD Athlon. Thus performance may vary wildly on different CPUs
     //		/// depending on the number of execution units available.
-    //		/// 
+    //		///
     //		/// Another significant speedup is obtained by setting the 4 bytes by indexing pDWord (e.g. pDWord[i++]=w)
     //		/// instead of adjusting it dereferencing it (e.g. *pDWord++=w).
-    //		/// 
+    //		///
     //		/// Note that this routine requires the unsafe compilation flag to be specified and so is commented out by default.
     //		/// </summary>
     //		/// <param name="buffer"></param>
@@ -286,11 +315,11 @@ public class FastRandom : IRandom
     //				throw new ArgumentException("Buffer length must be divisible by 8", "buffer");
     //
     //			uint x=this.x, y=this.y, z=this.z, w=this.w;
-    //			
+    //
     //			fixed(byte* pByte0 = buffer)
     //			{
     //				uint* pDWord = (uint*)pByte0;
-    //				for(int i=0, len=buffer.Length>>2; i < len; i+=2) 
+    //				for(int i=0, len=buffer.Length>>2; i < len; i+=2)
     //				{
     //					uint t=(x^(x<<11));
     //					x=y; y=z; z=w;
@@ -310,11 +339,11 @@ public class FastRandom : IRandom
     #region Public Methods [Methods not present on System.Random]
 
     /// <summary>
-    /// Generates a uint. Values returned are over the full range of a uint, 
+    /// Generates a uint. Values returned are over the full range of a uint,
     /// uint.MinValue to uint.MaxValue, inclusive.
-    /// 
+    ///
     /// This is the fastest method for generating a single random number because the underlying
-    /// random number generator algorithm generates 32 random bits that can be cast directly to 
+    /// random number generator algorithm generates 32 random bits that can be cast directly to
     /// a uint.
     /// </summary>
     //[CLSCompliant(false)]
@@ -326,10 +355,10 @@ public class FastRandom : IRandom
     }
 
     /// <summary>
-    /// Generates a random int over the range 0 to int.MaxValue, inclusive. 
+    /// Generates a random int over the range 0 to int.MaxValue, inclusive.
     /// This method differs from Next() only in that the range is 0 to int.MaxValue
     /// and not 0 to int.MaxValue-1.
-    /// 
+    ///
     /// The slight difference in range means this method is slightly faster than Next()
     /// but is not functionally equivalent to System.Random.Next().
     /// </summary>
