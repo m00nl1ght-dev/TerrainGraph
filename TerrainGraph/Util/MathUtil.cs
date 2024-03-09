@@ -29,6 +29,13 @@ public static class MathUtil
         return value;
     }
 
+    public static double AngleDeltaAbs(double a, double b)
+    {
+        var angleDelta = Math.Abs(a - b);
+        if (angleDelta > 180) angleDelta = 360 - angleDelta;
+        return angleDelta;
+    }
+
     public static double ToRad(this double val) => (Math.PI / 180) * val;
 
     public static double ToDeg(this double val) => (180 / Math.PI) * val;

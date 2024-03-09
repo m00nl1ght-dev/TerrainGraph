@@ -712,7 +712,7 @@ public static class GridFunction
         public readonly double ScaleX;
         public readonly double ScaleZ;
 
-        public Transform(IGridFunction<T> input, double translateX, double translateZ, double scaleX, double scaleZ)
+        public Transform(IGridFunction<T> input, double translateX, double translateZ, double scaleX = 1, double scaleZ = 1)
         {
             Input = input;
             TranslateX = translateX;

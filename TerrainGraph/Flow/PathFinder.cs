@@ -10,9 +10,13 @@ namespace TerrainGraph.Flow;
 /// Implementation of the eLIAN limited-angle pathfinding algorithm developed by Andreychuk et al.
 /// https://arxiv.org/abs/1811.00797
 /// </summary>
+[HotSwappable]
 public class PathFinder
 {
+    public IGridFunction<double> Grid;
+
     public double ObstacleThreshold = 1d;
+    public double AngleDeltaLimit = 10d;
 
     public float HeuristicCostWeight = 2;
     public float HeuristicCurvatureWeight = 0;
@@ -33,21 +37,24 @@ public class PathFinder
         _maxKernelSize = (float) kernels.Max(k => k.Size * k.Extend);
     }
 
-    public List<Node> FindPath(IGridFunction<double> grid, Vector2Int start, Vector2Int target, double angleLimit)
+    public List<Node> FindPath(Vector2Int startPos, double startAngle, Vector2Int targetPos)
     {
-        _open.Enqueue(new Node(start), HeuristicCostWeight * Vector2Int.Distance(start, target));
+        _open.Clear();
+        _closed.Clear();
+
+        _open.Enqueue(new Node(startPos, startAngle), HeuristicCostWeight * Vector2Int.Distance(startPos, targetPos));
 
         while (_open.Count > 0 && _closed.Count < ClosedNodeMaxLimit)
         {
             var curNode = _open.Dequeue();
             _closed.Add(new NodeKey(curNode));
 
-            if (curNode.Position == target)
+            if (curNode.Position == targetPos)
             {
                 return WeavePath(curNode);
             }
 
-            while (!Expand(grid, curNode, target, angleLimit) && curNode.Kernel + 1 < Kernels.Count)
+            while (!Expand(curNode, targetPos) && curNode.Kernel + 1 < Kernels.Count)
             {
                 curNode.Kernel++;
             }
@@ -56,7 +63,7 @@ public class PathFinder
         return null;
     }
 
-    private bool Expand(IGridFunction<double> grid, Node curNode, Vector2Int target, double angleLimit)
+    private bool Expand(Node curNode, Vector2Int target)
     {
         var anyNewNodes = false;
 
@@ -64,27 +71,23 @@ public class PathFinder
 
         for (int i = 0; i < kernel.PointCount; i++)
         {
-            var angleDelta = Math.Abs(curNode.Angle - kernel.Angles[i]);
-            if (angleDelta > 180) angleDelta = 360 - angleDelta;
-
-            if (curNode.Parent != null && angleDelta > angleLimit) continue;
+            var angleDelta = MathUtil.AngleDeltaAbs(curNode.Angle, kernel.Angles[i]);
+            if (angleDelta > AngleDeltaLimit * kernel.Distances[i]) continue;
 
             var offset = kernel.Offsets[i];
 
             var newX = curNode.Position.x + offset.x;
             var newY = curNode.Position.y + offset.z;
 
-            if (grid.ValueAt(newX, newY) >= ObstacleThreshold) continue;
+            if (Grid.ValueAt(newX, newY) >= ObstacleThreshold) continue;
 
             var newPos = new Vector2Int((int) newX, (int) newY);
 
-            if (!CheckLineOfSight(grid, curNode.Position, newPos)) continue;
+            if (!CheckLineOfSight(curNode.Position, newPos)) continue;
             if (_closed.Contains(new NodeKey(curNode.Position, newPos))) continue;
 
-            var newNode = new Node(newPos, curNode)
+            var newNode = new Node(newPos, kernel.Angles[i], curNode)
             {
-                Angle = kernel.Angles[i],
-                Kernel = curNode.Kernel,
                 TotalCost = curNode.TotalCost + CalculateCost(curNode.Position, newPos)
             };
 
@@ -116,22 +119,21 @@ public class PathFinder
             anyNewNodes = true;
         }
 
-        if (Vector2Int.Distance(curNode.Position, target) <= _maxKernelSize)
-        {
-            var angle = Vector2d.SignedAngle(Vector2d.AxisX, target - curNode.Position);
-            var angleDelta = Math.Abs(curNode.Angle - angle);
-            if (angleDelta > 180) angleDelta = 360 - angleDelta;
+        var distToTarget = Vector2Int.Distance(curNode.Position, target);
 
-            if (curNode.Parent == null || angleDelta <= angleLimit)
+        if (distToTarget <= _maxKernelSize)
+        {
+            var angle = -Vector2d.SignedAngle(Vector2d.AxisX, target - curNode.Position);
+            var angleDelta = MathUtil.AngleDeltaAbs(curNode.Angle, angle);
+
+            if (angleDelta <= AngleDeltaLimit * distToTarget)
             {
-                if (CheckLineOfSight(grid, curNode.Position, target))
+                if (CheckLineOfSight(curNode.Position, target))
                 {
                     if (!_closed.Contains(new NodeKey(curNode.Position, target)))
                     {
-                        var newNode = new Node(target, curNode)
+                        var newNode = new Node(target, angle, curNode)
                         {
-                            Angle = angle,
-                            Kernel = curNode.Kernel,
                             TotalCost = curNode.TotalCost + CalculateCost(curNode.Position, target)
                         };
 
@@ -173,7 +175,7 @@ public class PathFinder
         return list;
     }
 
-    private bool CheckLineOfSight(IGridFunction<double> grid, Vector2Int a, Vector2Int b)
+    private bool CheckLineOfSight(Vector2Int a, Vector2Int b)
     {
         int x1 = a.x;
         int x2 = b.x;
@@ -222,7 +224,7 @@ public class PathFinder
             {
                 for (int x = x1; x <= x2; ++x)
                 {
-                    if (grid.ValueAt(x, y2) >= ObstacleThreshold) return false;
+                    if (Grid.ValueAt(x, y2) >= ObstacleThreshold) return false;
 
                     step += dy;
 
@@ -237,7 +239,7 @@ public class PathFinder
             {
                 for (int y = y1; y <= y2; ++y)
                 {
-                    if (grid.ValueAt(x2, y) >= ObstacleThreshold) return false;
+                    if (Grid.ValueAt(x2, y) >= ObstacleThreshold) return false;
 
                     step += dx;
 
@@ -258,7 +260,7 @@ public class PathFinder
             {
                 for (int x = x1; x <= x2; ++x)
                 {
-                    if (grid.ValueAt(x, y1) >= ObstacleThreshold) return false;
+                    if (Grid.ValueAt(x, y1) >= ObstacleThreshold) return false;
 
                     step += dy;
 
@@ -274,7 +276,7 @@ public class PathFinder
 
             for (int y = y1; y <= y2; ++y)
             {
-                if (grid.ValueAt(x1, y) >= ObstacleThreshold) return false;
+                if (Grid.ValueAt(x1, y) >= ObstacleThreshold) return false;
 
                 step += dx;
 
@@ -294,7 +296,7 @@ public class PathFinder
             {
                 for (int x = x1; x <= x2; ++x)
                 {
-                    if (grid.ValueAt(x, y2) >= ObstacleThreshold) return false;
+                    if (Grid.ValueAt(x, y2) >= ObstacleThreshold) return false;
 
                     step += dy;
 
@@ -309,7 +311,7 @@ public class PathFinder
             {
                 for (int y = y1; y <= y2; ++y)
                 {
-                    if (grid.ValueAt(x2, y) >= ObstacleThreshold) return false;
+                    if (Grid.ValueAt(x2, y) >= ObstacleThreshold) return false;
 
                     step += dx;
 
@@ -328,7 +330,7 @@ public class PathFinder
         {
             for (int x = x1; x <= x2; ++x)
             {
-                if (grid.ValueAt(x, y1) >= ObstacleThreshold) return false;
+                if (Grid.ValueAt(x, y1) >= ObstacleThreshold) return false;
 
                 step += dy;
 
@@ -343,7 +345,7 @@ public class PathFinder
         {
             for (int y = y1; y <= y2; ++y)
             {
-                if (grid.ValueAt(x1, y) >= ObstacleThreshold) return false;
+                if (Grid.ValueAt(x1, y) >= ObstacleThreshold) return false;
 
                 step += dx;
 
@@ -362,18 +364,26 @@ public class PathFinder
     {
         public readonly Node Parent;
         public readonly Vector2Int Position;
+        public readonly double Angle;
 
         public int Kernel;
-        public double Angle;
         public float TotalCost;
 
-        public Node(Vector2Int position, Node parent = null)
+        public Node(Vector2Int position, double angle, Node parent = null)
         {
             this.Position = position;
+            this.Angle = angle;
             this.Parent = parent;
-            this.Priority = float.PositiveInfinity;
-            this.TotalCost = float.PositiveInfinity;
+            this.Kernel = parent?.Kernel ?? 0;
         }
+
+        public override string ToString() =>
+            $"{nameof(Position)}: {Position}, " +
+            $"{nameof(Parent)}: {(Parent == null ? "null" : Parent.Position)}, " +
+            $"{nameof(Angle)}: {Angle:F2}, " +
+            $"{nameof(Kernel)}: {Kernel}, " +
+            $"{nameof(Priority)}: {Priority:F2}, " +
+            $"{nameof(TotalCost)}: {TotalCost:F2}";
     }
 
     public readonly struct NodeKey : IEquatable<NodeKey>

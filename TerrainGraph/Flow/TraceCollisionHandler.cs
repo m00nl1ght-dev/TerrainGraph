@@ -716,6 +716,7 @@ public class TraceCollisionHandler
             frameD = c.frameA;
         }
 
+        if (segmentD.TraceParams.Target != null) return false;
         if (segmentD.TraceParams.ArcRetraceRange <= 0) return false;
         if (segmentD.TraceParams.ArcRetraceFactor <= 0) return false;
 

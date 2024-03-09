@@ -339,14 +339,30 @@ public class PathTracer
 
         if (length <= 0) return new TraceResult(initialFrame, initialFrame, everFullyInBounds);
 
+        List<PathFinder.Node> pathNodes = null;
+
+        if (extParams.Target != null)
+        {
+            var grid = extParams.AbsFollowGrid ?? Zero;
+
+            var pathFinder = new PathFinder([GridKernel.DiscreteCircle((int) stepSize, 1)])
+            {
+                AngleDeltaLimit = (1 - extParams.AngleTenacity) * 180 / (initialFrame.width * Math.PI),
+                Grid = new Transform<double>(grid, GridMargin.x, GridMargin.z)
+            };
+
+            pathNodes = pathFinder.FindPath(
+                initialFrame.pos.ToIntRounded(), initialFrame.angle,
+                extParams.Target.Value.ToIntRounded()
+            );
+        }
+
         var a = initialFrame;
 
         _frameBuffer.Clear();
 
         while (a.dist < length + task.marginHead)
         {
-            _frameBuffer.Add(a);
-
             double distDelta = 0d;
             double angleDelta = 0d;
             double extraValue = 0d;
@@ -354,60 +370,87 @@ public class PathTracer
 
             if (a.dist >= 0)
             {
-                distDelta = Math.Min(stepSize, length + task.marginHead - a.dist);
+                _frameBuffer.Add(a);
 
-                var followVec = Vector2d.Zero;
-
-                if (extParams.AbsFollowGrid != null || extParams.RelFollowGrid != null)
+                if (pathNodes != null)
                 {
-                    followVec = _followGridKernel.CalculateAt(
-                        new(1, 0), new(0, 1),
-                        extParams.AbsFollowGrid,
-                        extParams.RelFollowGrid,
-                        a.pos - GridMargin,
-                        a.pos - initialFrame.pos,
-                        initialFrame.angle - 90
-                    );
-                }
+                    var node = pathNodes[_frameBuffer.Count];
 
-                if (extParams.AvoidOverlap > 0)
-                {
-                    followVec += extParams.AvoidOverlap * _avoidGridKernel.CalculateAt(
-                        a.normal, a.perpCW,
-                        _overlapAvoidanceGrid, null,
-                        a.pos, Vector2d.Zero, 0
-                    );
-                }
+                    angleDelta = (node.Angle - a.angle).NormalizeDeg();
 
-                if (extParams.DiversionPoints != null)
-                {
-                    foreach (var avoidPoint in extParams.DiversionPoints)
+                    var rad = angleDelta.Abs().ToRad();
+                    var chord = Vector2d.Distance(a.pos, node.Position);
+
+                    distDelta = angleDelta.Abs() < RadialThreshold ? chord : rad * 0.5 * chord / Math.Sin(0.5 * rad);
+
+                    if (_frameBuffer.Count + 1 >= pathNodes.Count)
                     {
-                        var distance = Vector2d.Distance(avoidPoint.Position, a.pos);
+                        length = a.dist + distDelta;
+                        pathNodes = null;
+                    }
 
-                        if (distance < avoidPoint.Range)
+                    #if DEBUG
+                    DebugOutput($"ad {angleDelta:F2} dd {distDelta:F2} for {node}");
+                    DebugLine(new TraceDebugLine(this, node.Parent.Position, node.Position));
+                    #endif
+                }
+                else
+                {
+                    distDelta = Math.Min(stepSize, length + task.marginHead - a.dist);
+
+                    var followVec = Vector2d.Zero;
+
+                    if (extParams.AbsFollowGrid != null || extParams.RelFollowGrid != null)
+                    {
+                        followVec = _followGridKernel.CalculateAt(
+                            new(1, 0), new(0, 1),
+                            extParams.AbsFollowGrid,
+                            extParams.RelFollowGrid,
+                            a.pos - GridMargin,
+                            a.pos - initialFrame.pos,
+                            initialFrame.angle - 90
+                        );
+                    }
+
+                    if (extParams.AvoidOverlap > 0)
+                    {
+                        followVec += extParams.AvoidOverlap * _avoidGridKernel.CalculateAt(
+                            a.normal, a.perpCW,
+                            _overlapAvoidanceGrid, null,
+                            a.pos, Vector2d.Zero, 0
+                        );
+                    }
+
+                    if (extParams.DiversionPoints != null)
+                    {
+                        foreach (var avoidPoint in extParams.DiversionPoints)
                         {
-                            followVec += avoidPoint.Diversion * (1 - distance / avoidPoint.Range);
+                            var distance = Vector2d.Distance(avoidPoint.Position, a.pos);
+
+                            if (distance < avoidPoint.Range)
+                            {
+                                followVec += avoidPoint.Diversion * (1 - distance / avoidPoint.Range);
+                            }
                         }
                     }
+
+                    if (followVec != Vector2d.Zero)
+                    {
+                        angleDelta -= Vector2d.SignedAngle(a.normal, a.normal + followVec);
+                    }
+
+                    if (extParams.SwerveGrid != null)
+                    {
+                        angleDelta += extParams.SwerveGrid.ValueAt(a.pos - GridMargin);
+                    }
+
+                    if (a.dist < task.segment.AngleDeltaPosLockLength && angleDelta > 0) angleDelta = 0;
+                    if (a.dist < task.segment.AngleDeltaNegLockLength && angleDelta < 0) angleDelta = 0;
+
+                    var widthForTenacity = extParams.StaticAngleTenacity ? initialFrame.width : a.width;
+                    var maxAngleDelta = (1 - extParams.AngleTenacity) * 180 * distDelta / (widthForTenacity * Math.PI);
+                    angleDelta = (distDelta * angleDelta).NormalizeDeg().InRange(-maxAngleDelta, maxAngleDelta);
                 }
-
-                if (followVec != Vector2d.Zero)
-                {
-                    angleDelta -= Vector2d.SignedAngle(a.normal, a.normal + followVec);
-                }
-
-                if (extParams.SwerveGrid != null)
-                {
-                    angleDelta += extParams.SwerveGrid.ValueAt(a.pos - GridMargin);
-                }
-
-                if (a.dist < task.segment.AngleDeltaPosLockLength && angleDelta > 0) angleDelta = 0;
-                if (a.dist < task.segment.AngleDeltaNegLockLength && angleDelta < 0) angleDelta = 0;
-
-                var widthForTenacity = extParams.StaticAngleTenacity ? initialFrame.width : a.width;
-                var maxAngleDelta = (1 - extParams.AngleTenacity) * 180 * distDelta / (widthForTenacity * Math.PI);
-                angleDelta = (distDelta * angleDelta).NormalizeDeg().InRange(-maxAngleDelta, maxAngleDelta);
 
                 if (task.segment.ExtraDelta != null)
                 {
@@ -654,7 +697,7 @@ public class PathTracer
     private IGridFunction<double> BuildGridFunction(double[,] grid, double fallback = 0d)
     {
         if (GridMargin == Vector2d.Zero) return new Cache<double>(grid);
-        return new Transform<double>(new Cache<double>(grid, fallback), -GridMargin.x, -GridMargin.z, 1, 1);
+        return new Transform<double>(new Cache<double>(grid, fallback), -GridMargin.x, -GridMargin.z);
     }
 
     /// <summary>

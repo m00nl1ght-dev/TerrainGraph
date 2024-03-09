@@ -89,6 +89,8 @@ public struct Vector2d
 
     public static implicit operator Vector2d(Vector2 vec) => new(vec.x, vec.y);
 
+    public readonly Vector2Int ToIntRounded() => new((int) Math.Round(x), (int) Math.Round(z));
+
     public static Vector2d Min(Vector2d a, Vector2d b) => new(Math.Min(a.x, b.x), Math.Min(a.z, b.z));
 
     public static Vector2d Max(Vector2d a, Vector2d b) => new(Math.Max(a.x, b.x), Math.Max(a.z, b.z));

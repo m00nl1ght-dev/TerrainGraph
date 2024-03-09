@@ -616,6 +616,8 @@ public class Path
         public bool StaticAngleTenacity;
         public bool AdjustmentPriority;
 
+        public Vector2d? Target;
+
         public IGridFunction<double> AbsFollowGrid;
         public IGridFunction<double> RelFollowGrid;
         public IGridFunction<double> SwerveGrid;
@@ -636,6 +638,7 @@ public class Path
             SwerveGrid = Of(angleDelta);
 
             DiversionPoints = null;
+            Target = null;
 
             if (stable)
             {
@@ -671,7 +674,8 @@ public class Path
                 SwerveGrid = Lerp.Of(a.SwerveGrid, b.SwerveGrid, t),
                 WidthGrid = Lerp.Of(a.WidthGrid, b.WidthGrid, t),
                 SpeedGrid = Lerp.Of(a.SpeedGrid, b.SpeedGrid, t),
-                DensityGrid = Lerp.Of(a.DensityGrid, b.DensityGrid, t)
+                DensityGrid = Lerp.Of(a.DensityGrid, b.DensityGrid, t),
+                Target = a.Target ?? b.Target
             };
         }
 
@@ -693,7 +697,8 @@ public class Path
             Equals(WidthGrid, other.WidthGrid) &&
             Equals(SpeedGrid, other.SpeedGrid) &&
             Equals(DensityGrid, other.DensityGrid) &&
-            Equals(DiversionPoints, other.DiversionPoints);
+            Equals(DiversionPoints, other.DiversionPoints) &&
+            Target == other.Target;
 
         public override string ToString() =>
             $"{nameof(StepSize)}: {StepSize}, " +
@@ -713,6 +718,7 @@ public class Path
             $"{nameof(WidthGrid)}: {WidthGrid}, " +
             $"{nameof(SpeedGrid)}: {SpeedGrid}, " +
             $"{nameof(DensityGrid)}: {DensityGrid}, " +
-            $"{nameof(DiversionPoints)}: {DiversionPoints?.Count ?? 0}";
+            $"{nameof(DiversionPoints)}: {DiversionPoints?.Count ?? 0}, " +
+            $"{nameof(Target)}: {Target}";
     }
 }

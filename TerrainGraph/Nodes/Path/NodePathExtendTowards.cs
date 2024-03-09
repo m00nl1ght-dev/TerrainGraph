@@ -8,16 +8,22 @@ using UnityEngine;
 namespace TerrainGraph;
 
 [Serializable]
-[Node(false, "Path/Extend", 601)]
-public class NodePathExtend : NodeBase
+[Node(false, "Path/Extend Towards", 602)]
+public class NodePathExtendTowards : NodeBase
 {
-    public const string ID = "pathExtend";
+    public const string ID = "pathExtendTowards";
     public override string GetID => ID;
 
-    public override string Title => "Path: Extend";
+    public override string Title => "Path: Extend Towards";
 
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
+
+    [ValueConnectionKnob("Target X", Direction.In, ValueFunctionConnection.Id)]
+    public ValueConnectionKnob TargetXKnob;
+
+    [ValueConnectionKnob("Target Z", Direction.In, ValueFunctionConnection.Id)]
+    public ValueConnectionKnob TargetZKnob;
 
     [ValueConnectionKnob("Length", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob LengthKnob;
@@ -31,6 +37,8 @@ public class NodePathExtend : NodeBase
     [ValueConnectionKnob("Output", Direction.Out, PathFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
 
+    public double TargetX;
+    public double TargetZ;
     public double Length = 100;
     public double StepSize = 5;
     public double Tenacity;
@@ -46,6 +54,8 @@ public class NodePathExtend : NodeBase
         GUILayout.Label("Input", BoxLayout);
         GUILayout.EndHorizontal();
 
+        KnobValueField(TargetXKnob, ref TargetX);
+        KnobValueField(TargetZKnob, ref TargetZ);
         KnobValueField(LengthKnob, ref Length);
         KnobValueField(StepSizeKnob, ref StepSize);
         KnobValueField(TenacityKnob, ref Tenacity);
@@ -58,14 +68,20 @@ public class NodePathExtend : NodeBase
 
     public override void RefreshPreview()
     {
+        var targetX = GetIfConnected<double>(TargetXKnob);
+        var targetZ = GetIfConnected<double>(TargetZKnob);
         var length = GetIfConnected<double>(LengthKnob);
         var stepSize = GetIfConnected<double>(StepSizeKnob);
         var tenacity = GetIfConnected<double>(TenacityKnob);
 
+        targetX?.ResetState();
+        targetZ?.ResetState();
         length?.ResetState();
         stepSize?.ResetState();
         tenacity?.ResetState();
 
+        if (targetX != null) TargetX = targetX.Get();
+        if (targetZ != null) TargetZ = targetZ.Get();
         if (length != null) Length = length.Get();
         if (stepSize != null) StepSize = stepSize.Get();
         if (tenacity != null) Tenacity = tenacity.Get();
@@ -75,6 +91,8 @@ public class NodePathExtend : NodeBase
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
+            SupplierOrFallback(TargetXKnob, TargetX),
+            SupplierOrFallback(TargetZKnob, TargetZ),
             SupplierOrFallback(LengthKnob, Length),
             SupplierOrFallback(StepSizeKnob, StepSize),
             SupplierOrFallback(TenacityKnob, Tenacity)
@@ -85,17 +103,23 @@ public class NodePathExtend : NodeBase
     private class Output : ISupplier<Path>
     {
         private readonly ISupplier<Path> _input;
+        private readonly ISupplier<double> _targetX;
+        private readonly ISupplier<double> _targetZ;
         private readonly ISupplier<double> _length;
         private readonly ISupplier<double> _stepSize;
         private readonly ISupplier<double> _tenacity;
 
         public Output(
             ISupplier<Path> input,
+            ISupplier<double> targetX,
+            ISupplier<double> targetZ,
             ISupplier<double> length,
             ISupplier<double> stepSize,
             ISupplier<double> tenacity)
         {
             _input = input;
+            _targetX = targetX;
+            _targetZ = targetZ;
             _length = length;
             _stepSize = stepSize;
             _tenacity = tenacity;
@@ -107,6 +131,8 @@ public class NodePathExtend : NodeBase
 
             foreach (var segment in path.Leaves.ToList())
             {
+                var targetX = _targetX.Get();
+                var targetZ = _targetZ.Get();
                 var length = _length.Get().WithMin(0);
                 var stepSize = _stepSize.Get().WithMin(1);
                 var tenacity = _tenacity.Get().InRange01();
@@ -115,6 +141,7 @@ public class NodePathExtend : NodeBase
 
                 extParams.StepSize = stepSize;
                 extParams.AngleTenacity = tenacity;
+                extParams.Target = new Vector2d(targetX, targetZ);
 
                 segment.ExtendWithParams(extParams, length);
             }
@@ -125,6 +152,8 @@ public class NodePathExtend : NodeBase
         public void ResetState()
         {
             _input.ResetState();
+            _targetX.ResetState();
+            _targetZ.ResetState();
             _length.ResetState();
             _stepSize.ResetState();
             _tenacity.ResetState();
