@@ -1,13 +1,12 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using TerrainGraph.Util;
-using UnityEngine;
 
 namespace TerrainGraph.Flow;
 
 /// <summary>
-/// Implementation of the eLIAN limited-angle pathfinding algorithm developed by Andreychuk et al.
+/// Modified (non-discrete) version of the eLIAN limited-angle pathfinding
+/// algorithm developed by Andreychuk et al.
 /// https://arxiv.org/abs/1811.00797
 /// </summary>
 [HotSwappable]
@@ -18,31 +17,32 @@ public class PathFinder
     public double ObstacleThreshold = 1d;
     public double AngleDeltaLimit = 10d;
 
+    public double FullStepDistance = 1d;
+
     public float HeuristicCostWeight = 2;
     public float HeuristicCurvatureWeight = 0;
 
     public int StepsUntilKernelRollback = 2;
     public int ClosedNodeMaxLimit = 10000;
 
-    public readonly IReadOnlyList<GridKernel> Kernels;
-
-    private readonly float _maxKernelSize;
+    private readonly ArcKernel _kernel;
 
     private readonly HashSet<NodeKey> _closed = new(100);
     private readonly FastPriorityQueue<Node> _open = new(100);
 
-    public PathFinder(IReadOnlyList<GridKernel> kernels)
+    public PathFinder(ArcKernel kernel)
     {
-        Kernels = kernels;
-        _maxKernelSize = (float) kernels.Max(k => k.Size * k.Extend);
+        _kernel = kernel;
     }
 
-    public List<Node> FindPath(Vector2Int startPos, double startAngle, Vector2Int targetPos)
+    public List<Node> FindPath(Vector2d startPos, Vector2d startDirection, Vector2d targetPos)
     {
         _open.Clear();
         _closed.Clear();
 
-        _open.Enqueue(new Node(startPos, startAngle), HeuristicCostWeight * Vector2Int.Distance(startPos, targetPos));
+        var totalDistance = Vector2d.Distance(startPos, targetPos);
+
+        _open.Enqueue(new Node(startPos, startDirection, 0, _kernel.MaxSplitIdx), HeuristicCostWeight * (float) totalDistance);
 
         while (_open.Count > 0 && _closed.Count < ClosedNodeMaxLimit)
         {
@@ -54,56 +54,116 @@ public class PathFinder
                 return WeavePath(curNode);
             }
 
-            while (!Expand(curNode, targetPos) && curNode.Kernel + 1 < Kernels.Count)
+            while (!Expand(curNode, targetPos) && curNode.KernelSplit > 0)
             {
-                curNode.Kernel++;
+                curNode.KernelSplit--;
             }
         }
 
         return null;
     }
 
-    private bool Expand(Node curNode, Vector2Int target)
+    private bool Expand(Node curNode, Vector2d target)
     {
         var anyNewNodes = false;
 
-        var kernel = Kernels[curNode.Kernel];
+        var splitDistance = FullStepDistance / _kernel.SplitCount;
+        var possibleDirCount = _kernel.ArcCount * _kernel.SplitCount;
 
-        for (int i = 0; i < kernel.PointCount; i++)
+        for (int i = 0; i <= _kernel.ArcCount * 2; i++)
         {
-            var angleDelta = MathUtil.AngleDeltaAbs(curNode.Angle, kernel.Angles[i]);
-            if (angleDelta > AngleDeltaLimit * kernel.Distances[i]) continue;
+            int dirIdxDelta = i % 2 == 1 ? i / 2 + 1 : -i / 2;
+            int kernelArcIdx = Math.Abs(dirIdxDelta) - 1;
 
-            var offset = kernel.Offsets[i];
+            var newPos = curNode.Position;
+            var newDir = curNode.Direction;
 
-            var newX = curNode.Position.x + offset.x;
-            var newY = curNode.Position.y + offset.z;
+            var totalCost = 0d;
+            var angleDelta = 0d;
+            var hitObstacle = false;
 
-            if (Grid.ValueAt(newX, newY) >= ObstacleThreshold) continue;
-
-            var newPos = new Vector2Int((int) newX, (int) newY);
-
-            if (!CheckLineOfSight(curNode.Position, newPos)) continue;
-            if (_closed.Contains(new NodeKey(curNode.Position, newPos))) continue;
-
-            var newNode = new Node(newPos, kernel.Angles[i], curNode)
+            if (kernelArcIdx >= 0)
             {
-                TotalCost = curNode.TotalCost + CalculateCost(curNode.Position, newPos)
-            };
+                angleDelta = _kernel.AngleData[kernelArcIdx] / splitDistance;
+                if (angleDelta > AngleDeltaLimit) break;
 
-            var priority = newNode.TotalCost + HeuristicCostWeight * Vector2Int.Distance(newPos, target);
+                var sin = _kernel.SinCosData[curNode.KernelSplit, kernelArcIdx, 0];
+                var cos = _kernel.SinCosData[curNode.KernelSplit, kernelArcIdx, 1];
 
-            if (curNode.Parent != null)
+                var pivotOffset = 180d / (Math.PI * -angleDelta);
+                var pivotPoint = curNode.Position + curNode.Direction.PerpCCW * pivotOffset;
+
+                for (int s = curNode.KernelSplit; s >= 0; s--)
+                {
+                    var sDir = curNode.Direction.Rotate(i % 2 == 1 ? sin : -sin, cos);
+                    var sPos = pivotPoint - sDir.PerpCCW * pivotOffset;
+                    var sCost = Grid.ValueAt(sPos.x, sPos.z);
+
+                    if (s == curNode.KernelSplit)
+                    {
+                        newPos = sPos;
+                        newDir = sDir;
+                    }
+
+                    totalCost += sCost;
+
+                    if (sCost >= ObstacleThreshold)
+                    {
+                        hitObstacle = true;
+                        break;
+                    }
+                }
+            }
+            else
             {
-                priority += HeuristicCurvatureWeight * _maxKernelSize * (float) angleDelta;
+                for (int s = curNode.KernelSplit; s >= 0; s--)
+                {
+                    var sDist = FullStepDistance * _kernel.SplitFraction(s);
+                    var sPos = curNode.Position + curNode.Direction * sDist;
+                    var sCost = Grid.ValueAt(sPos.x, sPos.z);
+
+                    if (s == curNode.KernelSplit)
+                    {
+                        newPos = sPos;
+                    }
+
+                    totalCost += sCost;
+
+                    if (sCost >= ObstacleThreshold)
+                    {
+                        hitObstacle = true;
+                        break;
+                    }
+                }
             }
 
-            if (newNode.Kernel > 0)
+            if (hitObstacle) continue;
+
+            var newDirIdx = curNode.DirectionIdx + dirIdxDelta * (curNode.KernelSplit + 1);
+
+            if (newDirIdx > possibleDirCount) newDirIdx -= 2 * possibleDirCount;
+            else if (newDirIdx <= -possibleDirCount) newDirIdx += 2 * possibleDirCount;
+
+            if (_closed.Contains(new NodeKey(newPos, newDirIdx))) continue;
+
+            var newNode = new Node(newPos, newDir, newDirIdx, curNode.KernelSplit, curNode)
+            {
+                TotalCost = curNode.TotalCost + (float) totalCost
+            };
+
+            var priority = newNode.TotalCost + HeuristicCostWeight * (float) Vector2d.Distance(newPos, target);
+
+            if (kernelArcIdx >= 0)
+            {
+                priority += HeuristicCurvatureWeight * (float) angleDelta;
+            }
+
+            if (newNode.KernelSplit < _kernel.MaxSplitIdx)
             {
                 var steps = 1;
                 var node = curNode.Parent;
 
-                while (steps < StepsUntilKernelRollback && node != null && node.Kernel == newNode.Kernel)
+                while (steps < StepsUntilKernelRollback && node != null && node.KernelSplit == newNode.KernelSplit)
                 {
                     node = node.Parent;
                     steps++;
@@ -111,7 +171,7 @@ public class PathFinder
 
                 if (steps == StepsUntilKernelRollback)
                 {
-                    newNode.Kernel--;
+                    newNode.KernelSplit++;
                 }
             }
 
@@ -119,45 +179,95 @@ public class PathFinder
             anyNewNodes = true;
         }
 
-        var distToTarget = Vector2Int.Distance(curNode.Position, target);
+        var distToTarget = Vector2d.Distance(curNode.Position, target);
 
-        if (distToTarget <= _maxKernelSize)
+        if (distToTarget <= FullStepDistance)
         {
-            var angle = -Vector2d.SignedAngle(Vector2d.AxisX, target - curNode.Position);
-            var angleDelta = MathUtil.AngleDeltaAbs(curNode.Angle, angle);
+            var cordVec = target - curNode.Position;
+            var cordMid = curNode.Position + cordVec * 0.5;
+            var cordNrm = cordVec.Normalized.PerpCW;
+            var nodeNrm = curNode.Direction.PerpCW;
 
-            if (angleDelta <= AngleDeltaLimit * distToTarget)
+            if (distToTarget > 0 && Vector2d.TryIntersect(curNode.Position, cordMid, nodeNrm, cordNrm, out var center, out var scalarA, 0.01))
             {
-                if (CheckLineOfSight(curNode.Position, target))
+                var scalarB = Vector2d.PerpDot(nodeNrm, curNode.Position - cordMid) / Vector2d.PerpDot(nodeNrm, cordNrm);
+
+                if (Math.Sign(scalarA) == Math.Sign(scalarB))
                 {
-                    if (!_closed.Contains(new NodeKey(curNode.Position, target)))
+                    var newDir = ((target - center).PerpCW * Math.Sign(scalarA)).Normalized;
+                    var angleDelta = Vector2d.Angle(curNode.Direction, newDir) / distToTarget;
+
+                    if (angleDelta <= AngleDeltaLimit)
                     {
-                        var newNode = new Node(target, angle, curNode)
-                        {
-                            TotalCost = curNode.TotalCost + CalculateCost(curNode.Position, target)
-                        };
+                        var totalCost = 0d;
+                        var hitObstacle = false;
 
-                        var priority = newNode.TotalCost;
-
-                        if (curNode.Parent != null)
+                        for (double p = 0; p < distToTarget; p += splitDistance)
                         {
-                            priority += HeuristicCurvatureWeight * _maxKernelSize * (float) angleDelta;
+                            var sRad = (angleDelta * p * Math.Sign(scalarA)).ToRad();
+                            var sDir = curNode.Direction.Rotate(Math.Sin(sRad), Math.Cos(sRad));
+                            var sPos = center + sDir.PerpCCW * scalarA;
+                            var sCost = Grid.ValueAt(sPos.x, sPos.z);
+
+                            totalCost += sCost;
+
+                            if (sCost >= ObstacleThreshold)
+                            {
+                                hitObstacle = true;
+                                break;
+                            }
                         }
 
-                        _open.Enqueue(newNode, priority);
-                        anyNewNodes = true;
+                        if (!hitObstacle)
+                        {
+                            var newNode = new Node(target, newDir, curNode.DirectionIdx, curNode.KernelSplit, curNode)
+                            {
+                                TotalCost = curNode.TotalCost + (float) totalCost
+                            };
+
+                            var priority = newNode.TotalCost + HeuristicCurvatureWeight * (float) angleDelta;
+
+                            _open.Enqueue(newNode, priority);
+                            anyNewNodes = true;
+                        }
+                    }
+                }
+            }
+            else if (Vector2d.Dot(curNode.Direction, target - curNode.Position) >= 0)
+            {
+                var totalCost = 0d;
+                var hitObstacle = false;
+
+                for (double p = 0; p < distToTarget; p += splitDistance)
+                {
+                    var sPos = curNode.Position + p * curNode.Direction;
+                    var sCost = Grid.ValueAt(sPos.x, sPos.z);
+
+                    totalCost += sCost;
+
+                    if (sCost >= ObstacleThreshold)
+                    {
+                        hitObstacle = true;
+                        break;
                     }
                 }
 
+                if (!hitObstacle)
+                {
+                    var newNode = new Node(target, curNode.Direction, curNode.DirectionIdx, curNode.KernelSplit, curNode)
+                    {
+                        TotalCost = curNode.TotalCost + (float) totalCost
+                    };
+
+                    var priority = newNode.TotalCost;
+
+                    _open.Enqueue(newNode, priority);
+                    anyNewNodes = true;
+                }
             }
         }
 
         return anyNewNodes;
-    }
-
-    private float CalculateCost(Vector2Int from, Vector2Int to)
-    {
-        return Vector2Int.Distance(from, to);
     }
 
     private List<Node> WeavePath(Node node)
@@ -175,254 +285,96 @@ public class PathFinder
         return list;
     }
 
-    private bool CheckLineOfSight(Vector2Int a, Vector2Int b)
+    public class ArcKernel
     {
-        int x1 = a.x;
-        int x2 = b.x;
-        int y1 = a.y;
-        int y2 = b.y;
+        public readonly int ArcCount;
+        public readonly int SplitCount;
 
-        int dx, dy;
+        public readonly double[] AngleData;
+        public readonly double[,,] SinCosData;
 
-        int step = 0;
-        int rot = 0;
+        public int MaxSplitIdx => SplitCount - 1;
 
-        if (x1 > x2 && y1 > y2)
+        public double SplitFraction(int splitIdx) => (splitIdx + 1d) / SplitCount;
+
+        public ArcKernel(int arcCount, int splitCount)
         {
-            (x1, x2) = (x2, x1);
-            (y1, y2) = (y2, y1);
+            ArcCount = arcCount;
+            SplitCount = splitCount;
 
-            dx = x2 - x1;
-            dy = y2 - y1;
-        }
-        else
-        {
-            dx = x2 - x1;
-            dy = y2 - y1;
+            AngleData = new double[ArcCount];
+            SinCosData = new double[ArcCount, SplitCount, 2];
 
-            if (dx >= 0 && dy >= 0)
-            {
-                rot = 2;
-            }
-            else if (dy < 0)
-            {
-                (y1, y2) = (y2, y1);
-                dy = -dy;
-                rot = 1;
-            }
-            else if (dx < 0)
-            {
-                (x1, x2) = (x2, x1);
-                dx = -dx;
-                rot = 3;
-            }
-        }
+            var angleInterval = 180d / (SplitCount * ArcCount);
 
-        if (rot == 1)
-        {
-            if (dx >= dy)
+            for (int i = 0; i < ArcCount; i++)
             {
-                for (int x = x1; x <= x2; ++x)
+                var splitDeg = angleInterval * (i + 1);
+                var splitRad = splitDeg * (Math.PI / 180);
+
+                AngleData[i] = splitDeg;
+
+                for (int s = 0; s < SplitCount; s++)
                 {
-                    if (Grid.ValueAt(x, y2) >= ObstacleThreshold) return false;
+                    var arcRad = splitRad * (s + 1);
 
-                    step += dy;
-
-                    if (step >= dx)
-                    {
-                        step -= dx;
-                        y2--;
-                    }
-                }
-            }
-            else
-            {
-                for (int y = y1; y <= y2; ++y)
-                {
-                    if (Grid.ValueAt(x2, y) >= ObstacleThreshold) return false;
-
-                    step += dx;
-
-                    if (step >= dy)
-                    {
-                        step -= dy;
-                        x2--;
-                    }
-                }
-            }
-
-            return true;
-        }
-
-        if (rot == 2)
-        {
-            if (dx >= dy)
-            {
-                for (int x = x1; x <= x2; ++x)
-                {
-                    if (Grid.ValueAt(x, y1) >= ObstacleThreshold) return false;
-
-                    step += dy;
-
-                    if (step >= dx)
-                    {
-                        step -= dx;
-                        y1++;
-                    }
-                }
-
-                return true;
-            }
-
-            for (int y = y1; y <= y2; ++y)
-            {
-                if (Grid.ValueAt(x1, y) >= ObstacleThreshold) return false;
-
-                step += dx;
-
-                if (step >= dy)
-                {
-                    step -= dy;
-                    x1++;
-                }
-            }
-
-            return true;
-        }
-
-        if (rot == 3)
-        {
-            if (dx >= dy)
-            {
-                for (int x = x1; x <= x2; ++x)
-                {
-                    if (Grid.ValueAt(x, y2) >= ObstacleThreshold) return false;
-
-                    step += dy;
-
-                    if (step >= dx)
-                    {
-                        step -= dx;
-                        y2--;
-                    }
-                }
-            }
-            else
-            {
-                for (int y = y1; y <= y2; ++y)
-                {
-                    if (Grid.ValueAt(x2, y) >= ObstacleThreshold) return false;
-
-                    step += dx;
-
-                    if (step >= dy)
-                    {
-                        step -= dy;
-                        x2--;
-                    }
-                }
-            }
-
-            return true;
-        }
-
-        if (dx >= dy)
-        {
-            for (int x = x1; x <= x2; ++x)
-            {
-                if (Grid.ValueAt(x, y1) >= ObstacleThreshold) return false;
-
-                step += dy;
-
-                if (step >= dx)
-                {
-                    step -= dx;
-                    y1++;
+                    SinCosData[i, s, 0] = Math.Sin(arcRad);
+                    SinCosData[i, s, 1] = Math.Cos(arcRad);
                 }
             }
         }
-        else
-        {
-            for (int y = y1; y <= y2; ++y)
-            {
-                if (Grid.ValueAt(x1, y) >= ObstacleThreshold) return false;
-
-                step += dx;
-
-                if (step >= dy)
-                {
-                    step -= dy;
-                    x1++;
-                }
-            }
-        }
-
-        return true;
     }
 
     public class Node : FastPriorityQueueNode
     {
         public readonly Node Parent;
-        public readonly Vector2Int Position;
-        public readonly double Angle;
 
-        public int Kernel;
+        public readonly Vector2d Position;
+        public readonly Vector2d Direction;
+
+        public int DirectionIdx;
+        public int KernelSplit;
+
         public float TotalCost;
 
-        public Node(Vector2Int position, double angle, Node parent = null)
+        public Node(Vector2d position, Vector2d direction, int directionIdx, int kernelSplit, Node parent = null)
         {
             this.Position = position;
-            this.Angle = angle;
+            this.Direction = direction;
+            this.DirectionIdx = directionIdx;
+            this.KernelSplit = kernelSplit;
             this.Parent = parent;
-            this.Kernel = parent?.Kernel ?? 0;
         }
 
         public override string ToString() =>
             $"{nameof(Position)}: {Position}, " +
+            $"{nameof(Direction)}: {Direction}, " +
+            $"{nameof(DirectionIdx)}: {DirectionIdx}, " +
+            $"{nameof(KernelSplit)}: {KernelSplit}, " +
             $"{nameof(Parent)}: {(Parent == null ? "null" : Parent.Position)}, " +
-            $"{nameof(Angle)}: {Angle:F2}, " +
-            $"{nameof(Kernel)}: {Kernel}, " +
             $"{nameof(Priority)}: {Priority:F2}, " +
             $"{nameof(TotalCost)}: {TotalCost:F2}";
     }
 
     public readonly struct NodeKey : IEquatable<NodeKey>
     {
-        public readonly int nx;
-        public readonly int ny;
-        public readonly int px;
-        public readonly int py;
+        public readonly int x;
+        public readonly int z;
+        public readonly int d;
 
-        public NodeKey(Vector2Int parent, Vector2Int current)
+        public NodeKey(Node node) : this(node.Position, node.DirectionIdx) {}
+
+        public NodeKey(Vector2d pos, int directionIdx)
         {
-            this.px = parent.x;
-            this.py = parent.y;
-            this.nx = current.x;
-            this.ny = current.y;
+            this.x = (int) Math.Round(pos.x);
+            this.z = (int) Math.Round(pos.z);
+            this.d = directionIdx;
         }
 
-        public NodeKey(Node node) : this(node.Parent?.Position ?? node.Position, node.Position) {}
+        public bool Equals(NodeKey other) => x == other.x && z == other.z && d == other.d;
 
-        public bool Equals(NodeKey other)
-        {
-            return nx == other.nx && ny == other.ny && px == other.px && py == other.py;
-        }
+        public override bool Equals(object obj) => obj is NodeKey other && Equals(other);
 
-        public override bool Equals(object obj)
-        {
-            return obj is NodeKey other && Equals(other);
-        }
-
-        public override int GetHashCode()
-        {
-            unchecked
-            {
-                var hashCode = nx;
-                hashCode = (hashCode * 397) ^ ny;
-                hashCode = (hashCode * 397) ^ px;
-                hashCode = (hashCode * 397) ^ py;
-                return hashCode;
-            }
-        }
+        public override int GetHashCode() => unchecked((((x * 397) ^ z) * 397) ^ d);
     }
 }

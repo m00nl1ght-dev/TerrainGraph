@@ -23,7 +23,7 @@ public abstract class NodeSelectBase : NodeBase
 
     public List<double> Thresholds = [];
 
-    public bool Interpolated;
+    public bool Interpolated; // TODO fix the awkwardness of the thresholds when using interpolation
 
     public override void RefreshDynamicKnobs()
     {

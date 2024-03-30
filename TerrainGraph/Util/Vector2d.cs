@@ -52,6 +52,8 @@ public struct Vector2d
 
     public static double PerpDot(Vector2d a, Vector2d b) => a.x * b.z - a.z * b.x;
 
+    public readonly Vector2d Rotate(double sin, double cos) => new(x * cos - z * sin, x * sin + z * cos);
+
     public override string ToString() => $"[ {x:F2} | {z:F2} ]";
 
     public override int GetHashCode() => x.GetHashCode() ^ z.GetHashCode() << 2;

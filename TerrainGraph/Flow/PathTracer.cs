@@ -345,16 +345,13 @@ public class PathTracer
         {
             var grid = extParams.AbsFollowGrid ?? Zero;
 
-            var pathFinder = new PathFinder([GridKernel.DiscreteCircle((int) stepSize, 1)])
+            var pathFinder = new PathFinder(new PathFinder.ArcKernel(18, (int) stepSize))
             {
                 AngleDeltaLimit = (1 - extParams.AngleTenacity) * 180 / (initialFrame.width * Math.PI),
                 Grid = new Transform<double>(grid, GridMargin.x, GridMargin.z)
             };
 
-            pathNodes = pathFinder.FindPath(
-                initialFrame.pos.ToIntRounded(), initialFrame.angle,
-                extParams.Target.Value.ToIntRounded()
-            );
+            pathNodes = pathFinder.FindPath(initialFrame.pos, initialFrame.normal, extParams.Target.Value);
         }
 
         var a = initialFrame;
@@ -376,7 +373,7 @@ public class PathTracer
                 {
                     var node = pathNodes[_frameBuffer.Count];
 
-                    angleDelta = (node.Angle - a.angle).NormalizeDeg();
+                    angleDelta = -Vector2d.SignedAngle(a.normal, node.Direction);
 
                     var rad = angleDelta.Abs().ToRad();
                     var chord = Vector2d.Distance(a.pos, node.Position);
