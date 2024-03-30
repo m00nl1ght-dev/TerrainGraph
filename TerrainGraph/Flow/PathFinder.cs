@@ -23,38 +23,49 @@ public class PathFinder
     public float HeuristicCurvatureWeight = 0;
 
     public int StepsUntilKernelRollback = 2;
-    public int ClosedNodeMaxLimit = 10000;
+    public int NodesMaxLimit = 20000;
 
+    public bool DynamicKernelAdjustment;
+
+    public double Quantization => FullStepDistance * 0.5d;
+
+    private readonly PathTracer _tracer;
     private readonly ArcKernel _kernel;
 
-    private readonly HashSet<NodeKey> _closed = new(100);
+    private readonly Dictionary<NodeKey, Node> _nodes = new(100);
     private readonly FastPriorityQueue<Node> _open = new(100);
 
-    public PathFinder(ArcKernel kernel)
+    public PathFinder(PathTracer tracer, ArcKernel kernel)
     {
+        _tracer = tracer;
         _kernel = kernel;
     }
 
     public List<Node> FindPath(Vector2d startPos, Vector2d startDirection, Vector2d targetPos)
     {
+        _nodes.Clear();
         _open.Clear();
-        _closed.Clear();
 
         var totalDistance = Vector2d.Distance(startPos, targetPos);
+        var startNode = new Node(startPos, startDirection, 0, _kernel.MaxSplitIdx);
 
-        _open.Enqueue(new Node(startPos, startDirection, 0, _kernel.MaxSplitIdx), HeuristicCostWeight * (float) totalDistance);
+        _open.Enqueue(startNode, HeuristicCostWeight * (float) totalDistance);
+        _nodes[new NodeKey(startNode, Quantization)] = startNode;
 
-        while (_open.Count > 0 && _closed.Count < ClosedNodeMaxLimit)
+        while (_open.Count > 0 && _nodes.Count < NodesMaxLimit)
         {
             var curNode = _open.Dequeue();
-            _closed.Add(new NodeKey(curNode));
+
+            #if DEBUG
+            PathTracer.DebugOutput($"{curNode}");
+            #endif
 
             if (curNode.Position == targetPos)
             {
                 return WeavePath(curNode);
             }
 
-            while (!Expand(curNode, targetPos) && curNode.KernelSplit > 0)
+            while (Expand(curNode, targetPos) && DynamicKernelAdjustment && curNode.KernelSplit > 0)
             {
                 curNode.KernelSplit--;
             }
@@ -65,7 +76,8 @@ public class PathFinder
 
     private bool Expand(Node curNode, Vector2d target)
     {
-        var anyNewNodes = false;
+        var newNodes = 0;
+        var obstructed = 0;
 
         var splitDistance = FullStepDistance / _kernel.SplitCount;
         var possibleDirCount = _kernel.ArcCount * _kernel.SplitCount;
@@ -87,17 +99,17 @@ public class PathFinder
                 angleDelta = _kernel.AngleData[kernelArcIdx] / splitDistance;
                 if (angleDelta > AngleDeltaLimit) break;
 
-                var sin = _kernel.SinCosData[curNode.KernelSplit, kernelArcIdx, 0];
-                var cos = _kernel.SinCosData[curNode.KernelSplit, kernelArcIdx, 1];
-
-                var pivotOffset = 180d / (Math.PI * -angleDelta);
+                var pivotOffset = 180d / (Math.PI * -angleDelta) * (i % 2 == 1 ? -1 : 1);
                 var pivotPoint = curNode.Position + curNode.Direction.PerpCCW * pivotOffset;
 
                 for (int s = curNode.KernelSplit; s >= 0; s--)
                 {
+                    var sin = _kernel.SinCosData[kernelArcIdx, s, 0];
+                    var cos = _kernel.SinCosData[kernelArcIdx, s, 1];
+
                     var sDir = curNode.Direction.Rotate(i % 2 == 1 ? sin : -sin, cos);
                     var sPos = pivotPoint - sDir.PerpCCW * pivotOffset;
-                    var sCost = Grid.ValueAt(sPos.x, sPos.z);
+                    var sCost = splitDistance * (1 + Grid.ValueAt(sPos.x, sPos.z));
 
                     if (s == curNode.KernelSplit)
                     {
@@ -120,7 +132,7 @@ public class PathFinder
                 {
                     var sDist = FullStepDistance * _kernel.SplitFraction(s);
                     var sPos = curNode.Position + curNode.Direction * sDist;
-                    var sCost = Grid.ValueAt(sPos.x, sPos.z);
+                    var sCost = splitDistance * (1 + Grid.ValueAt(sPos.x, sPos.z));
 
                     if (s == curNode.KernelSplit)
                     {
@@ -137,14 +149,28 @@ public class PathFinder
                 }
             }
 
-            if (hitObstacle) continue;
+            if (hitObstacle)
+            {
+                #if DEBUG
+                PathTracer.DebugLine(new TraceDebugLine(_tracer, curNode.Position, newPos, 1));
+                #endif
+
+                obstructed++;
+                continue;
+            }
+
+            #if DEBUG
+            PathTracer.DebugLine(new TraceDebugLine(_tracer, curNode.Position, newPos));
+            #endif
 
             var newDirIdx = curNode.DirectionIdx + dirIdxDelta * (curNode.KernelSplit + 1);
 
             if (newDirIdx > possibleDirCount) newDirIdx -= 2 * possibleDirCount;
             else if (newDirIdx <= -possibleDirCount) newDirIdx += 2 * possibleDirCount;
 
-            if (_closed.Contains(new NodeKey(newPos, newDirIdx))) continue;
+            var newKey = new NodeKey(newPos, Quantization, newDirIdx);
+
+            if (_nodes.TryGetValue(newKey, out var existing) && !_open.Contains(existing)) continue;
 
             var newNode = new Node(newPos, newDir, newDirIdx, curNode.KernelSplit, curNode)
             {
@@ -175,8 +201,16 @@ public class PathFinder
                 }
             }
 
+            newNodes++;
+
+            if (existing != null)
+            {
+                if (existing.Priority <= priority) continue;
+                _open.Remove(existing);
+            }
+
             _open.Enqueue(newNode, priority);
-            anyNewNodes = true;
+            _nodes[newKey] = newNode;
         }
 
         var distToTarget = Vector2d.Distance(curNode.Position, target);
@@ -202,12 +236,16 @@ public class PathFinder
                         var totalCost = 0d;
                         var hitObstacle = false;
 
+                        #if DEBUG
+                        PathTracer.DebugLine(new TraceDebugLine(_tracer, curNode.Position, target, 2));
+                        #endif
+
                         for (double p = 0; p < distToTarget; p += splitDistance)
                         {
                             var sRad = (angleDelta * p * Math.Sign(scalarA)).ToRad();
                             var sDir = curNode.Direction.Rotate(Math.Sin(sRad), Math.Cos(sRad));
                             var sPos = center + sDir.PerpCCW * scalarA;
-                            var sCost = Grid.ValueAt(sPos.x, sPos.z);
+                            var sCost = splitDistance * (1 + Grid.ValueAt(sPos.x, sPos.z));
 
                             totalCost += sCost;
 
@@ -228,7 +266,7 @@ public class PathFinder
                             var priority = newNode.TotalCost + HeuristicCurvatureWeight * (float) angleDelta;
 
                             _open.Enqueue(newNode, priority);
-                            anyNewNodes = true;
+                            newNodes++;
                         }
                     }
                 }
@@ -238,10 +276,14 @@ public class PathFinder
                 var totalCost = 0d;
                 var hitObstacle = false;
 
+                #if DEBUG
+                PathTracer.DebugLine(new TraceDebugLine(_tracer, curNode.Position, target, 2));
+                #endif
+
                 for (double p = 0; p < distToTarget; p += splitDistance)
                 {
                     var sPos = curNode.Position + p * curNode.Direction;
-                    var sCost = Grid.ValueAt(sPos.x, sPos.z);
+                    var sCost = splitDistance * (1 + Grid.ValueAt(sPos.x, sPos.z));
 
                     totalCost += sCost;
 
@@ -262,12 +304,12 @@ public class PathFinder
                     var priority = newNode.TotalCost;
 
                     _open.Enqueue(newNode, priority);
-                    anyNewNodes = true;
+                    newNodes++;
                 }
             }
         }
 
-        return anyNewNodes;
+        return newNodes == 0 && obstructed > 0;
     }
 
     private List<Node> WeavePath(Node node)
@@ -362,12 +404,12 @@ public class PathFinder
         public readonly int z;
         public readonly int d;
 
-        public NodeKey(Node node) : this(node.Position, node.DirectionIdx) {}
+        public NodeKey(Node node, double quantization) : this(node.Position, quantization, node.DirectionIdx) {}
 
-        public NodeKey(Vector2d pos, int directionIdx)
+        public NodeKey(Vector2d pos, double quantization, int directionIdx)
         {
-            this.x = (int) Math.Round(pos.x);
-            this.z = (int) Math.Round(pos.z);
+            this.x = (int) Math.Round(pos.x / quantization);
+            this.z = (int) Math.Round(pos.z / quantization);
             this.d = directionIdx;
         }
 

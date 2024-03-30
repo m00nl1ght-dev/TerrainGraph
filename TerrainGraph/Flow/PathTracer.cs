@@ -344,14 +344,19 @@ public class PathTracer
         if (extParams.Target != null)
         {
             var grid = extParams.AbsFollowGrid ?? Zero;
+            var target = extParams.Target.Value; // + GridMargin;
 
-            var pathFinder = new PathFinder(new PathFinder.ArcKernel(18, (int) stepSize))
+            var pathFinder = new PathFinder(this, new PathFinder.ArcKernel(9, (int) stepSize))
             {
+                ObstacleThreshold = 100d,
+                FullStepDistance = stepSize,
                 AngleDeltaLimit = (1 - extParams.AngleTenacity) * 180 / (initialFrame.width * Math.PI),
-                Grid = new Transform<double>(grid, GridMargin.x, GridMargin.z)
+                Grid = new Transform<double>(grid, GridMargin.x, GridMargin.z),
+                HeuristicCurvatureWeight = 0f,
+                HeuristicCostWeight = 5f
             };
 
-            pathNodes = pathFinder.FindPath(initialFrame.pos, initialFrame.normal, extParams.Target.Value);
+            pathNodes = pathFinder.FindPath(initialFrame.pos, initialFrame.normal, target);
         }
 
         var a = initialFrame;
@@ -387,8 +392,8 @@ public class PathTracer
                     }
 
                     #if DEBUG
-                    DebugOutput($"ad {angleDelta:F2} dd {distDelta:F2} for {node}");
-                    DebugLine(new TraceDebugLine(this, node.Parent.Position, node.Position));
+                    DebugOutput($"Angle delta {angleDelta:F2} over distance {distDelta:F2} for {node}");
+                    DebugLine(new TraceDebugLine(this, node.Parent.Position, node.Position, 4));
                     #endif
                 }
                 else
@@ -719,7 +724,10 @@ public class PathTracer
 
     internal static void DebugLine(TraceDebugLine debugLine)
     {
-        DebugLines?.Add(debugLine);
+        if (DebugLines != null && (DebugLines.Count < 50000 || debugLine.Color > 1))
+        {
+            DebugLines.Add(debugLine);
+        }
     }
 
     #endif

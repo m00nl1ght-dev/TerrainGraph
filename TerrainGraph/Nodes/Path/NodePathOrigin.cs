@@ -308,7 +308,7 @@ public class NodePathOrigin : NodeBase
     }
 
     [HotSwappable]
-    private class Output_GridEdge : AbstractOutput
+    private class Output_GridEdge : AbstractOutput // TODO extract this into a separate node and make NodePathOrigin always use PositionXZ
     {
         protected readonly ISupplier<double> Angle;
         protected readonly ISupplier<double> Offset;
