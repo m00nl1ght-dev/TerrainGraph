@@ -344,7 +344,7 @@ public class PathTracer
         if (extParams.Target != null)
         {
             var grid = extParams.AbsFollowGrid ?? Zero;
-            var target = extParams.Target.Value; // + GridMargin;
+            var target = extParams.Target.Value + GridMargin;
 
             var pathFinder = new PathFinder(this, new PathFinder.ArcKernel(9, (int) stepSize))
             {

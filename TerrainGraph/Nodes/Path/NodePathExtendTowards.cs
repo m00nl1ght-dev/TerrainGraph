@@ -95,7 +95,8 @@ public class NodePathExtendTowards : NodeBase
             SupplierOrFallback(TargetZKnob, TargetZ),
             SupplierOrFallback(LengthKnob, Length),
             SupplierOrFallback(StepSizeKnob, StepSize),
-            SupplierOrFallback(TenacityKnob, Tenacity)
+            SupplierOrFallback(TenacityKnob, Tenacity),
+            TerrainCanvas.GridFullSize
         ));
         return true;
     }
@@ -108,14 +109,11 @@ public class NodePathExtendTowards : NodeBase
         private readonly ISupplier<double> _length;
         private readonly ISupplier<double> _stepSize;
         private readonly ISupplier<double> _tenacity;
+        private readonly int _gridSize;
 
         public Output(
-            ISupplier<Path> input,
-            ISupplier<double> targetX,
-            ISupplier<double> targetZ,
-            ISupplier<double> length,
-            ISupplier<double> stepSize,
-            ISupplier<double> tenacity)
+            ISupplier<Path> input, ISupplier<double> targetX, ISupplier<double> targetZ,
+            ISupplier<double> length, ISupplier<double> stepSize, ISupplier<double> tenacity, int gridSize)
         {
             _input = input;
             _targetX = targetX;
@@ -123,6 +121,7 @@ public class NodePathExtendTowards : NodeBase
             _length = length;
             _stepSize = stepSize;
             _tenacity = tenacity;
+            _gridSize = gridSize;
         }
 
         public Path Get()
@@ -141,7 +140,7 @@ public class NodePathExtendTowards : NodeBase
 
                 extParams.StepSize = stepSize;
                 extParams.AngleTenacity = tenacity;
-                extParams.Target = new Vector2d(targetX, targetZ);
+                extParams.Target = new Vector2d(targetX, targetZ) * _gridSize;
 
                 segment.ExtendWithParams(extParams, length);
             }

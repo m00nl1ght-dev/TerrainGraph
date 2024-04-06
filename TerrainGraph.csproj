@@ -132,6 +132,7 @@
         <Compile Include="TerrainGraph\Nodes\Path\PathFunctionConnection.cs" />
         <Compile Include="TerrainGraph\Nodes\Value\NodeValueCache.cs" />
         <Compile Include="TerrainGraph\Nodes\Value\NodeValueConst.cs" />
+        <Compile Include="TerrainGraph\Nodes\Value\NodeValuePolarRectPosition.cs" />
         <Compile Include="TerrainGraph\Nodes\Value\NodeValueSelectGridValue.cs" />
         <Compile Include="TerrainGraph\Nodes\Value\NodeValueSelectValue.cs" />
         <Compile Include="TerrainGraph\Flow\TraceCollisionHandler.cs" />

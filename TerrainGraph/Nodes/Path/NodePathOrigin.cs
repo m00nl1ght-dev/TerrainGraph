@@ -1,13 +1,11 @@
 using System;
 using NodeEditorFramework;
-using NodeEditorFramework.Utilities;
 using TerrainGraph.Flow;
 using TerrainGraph.Util;
 using UnityEngine;
 
 namespace TerrainGraph;
 
-[HotSwappable]
 [Serializable]
 [Node(false, "Path/Origin", 600)]
 public class NodePathOrigin : NodeBase
@@ -17,25 +15,10 @@ public class NodePathOrigin : NodeBase
 
     public override string Title => "Path: Origin";
 
-    private static readonly ValueConnectionKnobAttribute AngleAttribute = new("Angle", NodeEditorFramework.Direction.In, ValueFunctionConnection.Id);
-    private static readonly ValueConnectionKnobAttribute OffsetAttribute = new("Offset", NodeEditorFramework.Direction.In, ValueFunctionConnection.Id);
-    private static readonly ValueConnectionKnobAttribute MarginAttribute = new("Margin", NodeEditorFramework.Direction.In, ValueFunctionConnection.Id);
-    private static readonly ValueConnectionKnobAttribute PosXAttribute = new("Position x", NodeEditorFramework.Direction.In, ValueFunctionConnection.Id);
-    private static readonly ValueConnectionKnobAttribute PosZAttribute = new("Position z", NodeEditorFramework.Direction.In, ValueFunctionConnection.Id);
-
-    [NonSerialized]
-    public ValueConnectionKnob AngleKnob;
-
-    [NonSerialized]
-    public ValueConnectionKnob OffsetKnob;
-
-    [NonSerialized]
-    public ValueConnectionKnob MarginKnob;
-
-    [NonSerialized]
+    [ValueConnectionKnob("Position x", NodeEditorFramework.Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob PosXKnob;
 
-    [NonSerialized]
+    [ValueConnectionKnob("Position z", NodeEditorFramework.Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob PosZKnob;
 
     [ValueConnectionKnob("Direction", NodeEditorFramework.Direction.In, ValueFunctionConnection.Id)]
@@ -56,11 +39,6 @@ public class NodePathOrigin : NodeBase
     [ValueConnectionKnob("Output", NodeEditorFramework.Direction.Out, PathFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
 
-    public PlacementMode Mode = PlacementMode.Grid_Edge;
-
-    public double Angle;
-    public double Offset;
-    public double Margin;
     public double PosX = 0.5;
     public double PosZ = 0.5;
     public double Direction;
@@ -69,27 +47,14 @@ public class NodePathOrigin : NodeBase
     public double Density = 1;
     public double Count = 1;
 
-    public override void RefreshDynamicKnobs()
-    {
-        AngleKnob = FindDynamicKnob(AngleAttribute);
-        OffsetKnob = FindDynamicKnob(OffsetAttribute);
-        MarginKnob = FindDynamicKnob(MarginAttribute);
-        PosXKnob = FindDynamicKnob(PosXAttribute);
-        PosZKnob = FindDynamicKnob(PosZAttribute);
-    }
-
     public override void NodeGUI()
     {
         OutputKnob.SetPosition(FirstKnobPosition);
 
         GUILayout.BeginVertical(BoxStyle);
 
-        if (AngleKnob != null) KnobValueField(AngleKnob, ref Angle);
-        if (OffsetKnob != null) KnobValueField(OffsetKnob, ref Offset);
-        if (MarginKnob != null) KnobValueField(MarginKnob, ref Margin);
-        if (PosXKnob != null) KnobValueField(PosXKnob, ref PosX);
-        if (PosZKnob != null) KnobValueField(PosZKnob, ref PosZ);
-
+        KnobValueField(PosXKnob, ref PosX);
+        KnobValueField(PosZKnob, ref PosZ);
         KnobValueField(DirectionKnob, ref Direction);
         KnobValueField(WidthKnob, ref Width);
         KnobValueField(SpeedKnob, ref Speed);
@@ -102,56 +67,8 @@ public class NodePathOrigin : NodeBase
             canvas.OnNodeChange(this);
     }
 
-    public override void FillNodeActionsMenu(NodeEditorInputInfo inputInfo, GenericMenu menu)
-    {
-        base.FillNodeActionsMenu(inputInfo, menu);
-
-        menu.AddSeparator("");
-
-        SelectionMenu<PlacementMode>(menu, SetPlacementMode, "Change placement mode/");
-    }
-
-    public override void PrepareGUI()
-    {
-        UpdateDynamicKnobs();
-    }
-
-    protected void SetPlacementMode(PlacementMode mode)
-    {
-        Mode = mode;
-        UpdateDynamicKnobs();
-        canvas.OnNodeChange(this);
-    }
-
-    protected void UpdateDynamicKnobs()
-    {
-        if (Mode == PlacementMode.Grid_Edge)
-        {
-            AngleKnob ??= (ValueConnectionKnob) CreateConnectionKnob(AngleAttribute);
-            OffsetKnob ??= (ValueConnectionKnob) CreateConnectionKnob(OffsetAttribute);
-            MarginKnob ??= (ValueConnectionKnob) CreateConnectionKnob(MarginAttribute);
-
-            if (PosXKnob != null) DeleteConnectionPort(PosXKnob);
-            if (PosZKnob != null) DeleteConnectionPort(PosZKnob);
-        }
-        else
-        {
-            PosXKnob ??= (ValueConnectionKnob) CreateConnectionKnob(PosXAttribute);
-            PosZKnob ??= (ValueConnectionKnob) CreateConnectionKnob(PosZAttribute);
-
-            if (AngleKnob != null) DeleteConnectionPort(AngleKnob);
-            if (OffsetKnob != null) DeleteConnectionPort(OffsetKnob);
-            if (MarginKnob != null) DeleteConnectionPort(MarginKnob);
-        }
-
-        RefreshDynamicKnobs();
-    }
-
     public override void RefreshPreview()
     {
-        var angle = GetIfConnected<double>(AngleKnob);
-        var offset = GetIfConnected<double>(OffsetKnob);
-        var margin = GetIfConnected<double>(MarginKnob);
         var posX = GetIfConnected<double>(PosXKnob);
         var posZ = GetIfConnected<double>(PosZKnob);
         var direction = GetIfConnected<double>(DirectionKnob);
@@ -160,9 +77,6 @@ public class NodePathOrigin : NodeBase
         var density = GetIfConnected<double>(DensityKnob);
         var count = GetIfConnected<double>(CountKnob);
 
-        angle?.ResetState();
-        offset?.ResetState();
-        margin?.ResetState();
         posX?.ResetState();
         posZ?.ResetState();
         direction?.ResetState();
@@ -171,9 +85,6 @@ public class NodePathOrigin : NodeBase
         density?.ResetState();
         count?.ResetState();
 
-        if (angle != null) Angle = angle.Get();
-        if (offset != null) Offset = offset.Get();
-        if (margin != null) Margin = margin.Get();
         if (posX != null) PosX = posX.Get();
         if (posZ != null) PosZ = posZ.Get();
         if (direction != null) Direction = direction.Get();
@@ -185,113 +96,56 @@ public class NodePathOrigin : NodeBase
 
     public override bool Calculate()
     {
-        if (Mode == PlacementMode.Grid_Edge)
-        {
-            OutputKnob.SetValue<ISupplier<Path>>(new Output_GridEdge(
-                SupplierOrFallback(AngleKnob, Angle),
-                SupplierOrFallback(OffsetKnob, Offset),
-                SupplierOrFallback(MarginKnob, Margin),
-                SupplierOrFallback(DirectionKnob, Direction),
-                SupplierOrFallback(WidthKnob, Width),
-                SupplierOrFallback(SpeedKnob, Speed),
-                SupplierOrFallback(DensityKnob, Density),
-                SupplierOrFallback(CountKnob, Count),
-                TerrainCanvas.GridFullSize
-            ));
-        }
-        else
-        {
-            OutputKnob.SetValue<ISupplier<Path>>(new Output_PositionXZ(
-                SupplierOrFallback(PosXKnob, PosX),
-                SupplierOrFallback(PosZKnob, PosZ),
-                SupplierOrFallback(DirectionKnob, Direction),
-                SupplierOrFallback(WidthKnob, Width),
-                SupplierOrFallback(SpeedKnob, Speed),
-                SupplierOrFallback(DensityKnob, Density),
-                SupplierOrFallback(CountKnob, Count),
-                TerrainCanvas.GridFullSize
-            ));
-        }
+        OutputKnob.SetValue<ISupplier<Path>>(new Output(
+            SupplierOrFallback(PosXKnob, PosX),
+            SupplierOrFallback(PosZKnob, PosZ),
+            SupplierOrFallback(DirectionKnob, Direction),
+            SupplierOrFallback(WidthKnob, Width),
+            SupplierOrFallback(SpeedKnob, Speed),
+            SupplierOrFallback(DensityKnob, Density),
+            SupplierOrFallback(CountKnob, Count),
+            TerrainCanvas.GridFullSize
+        ));
 
         return true;
     }
 
-    public enum PlacementMode
+    private class Output : ISupplier<Path>
     {
-        Position_XZ, Grid_Edge
-    }
+        private readonly ISupplier<double> _posX;
+        private readonly ISupplier<double> _posZ;
+        private readonly ISupplier<double> _direction;
+        private readonly ISupplier<double> _width;
+        private readonly ISupplier<double> _speed;
+        private readonly ISupplier<double> _density;
+        private readonly ISupplier<double> _count;
+        private readonly int _gridSize;
 
-    private abstract class AbstractOutput : ISupplier<Path>
-    {
-        protected readonly ISupplier<double> Direction;
-        protected readonly ISupplier<double> Width;
-        protected readonly ISupplier<double> Speed;
-        protected readonly ISupplier<double> Density;
-        protected readonly ISupplier<double> Count;
-        protected readonly int GridSize;
-
-        protected AbstractOutput(
+        public Output(
+            ISupplier<double> posX, ISupplier<double> posZ,
             ISupplier<double> direction, ISupplier<double> width, ISupplier<double> speed,
             ISupplier<double> density, ISupplier<double> count, int gridSize)
         {
-            Direction = direction;
-            Width = width;
-            Speed = speed;
-            Density = density;
-            Count = count;
-            GridSize = gridSize;
+            _posX = posX;
+            _posZ = posZ;
+            _direction = direction;
+            _width = width;
+            _speed = speed;
+            _density = density;
+            _count = count;
+            _gridSize = gridSize;
         }
 
-        public abstract Path Get();
-
-        protected Path.Segment CreateOrigin(Path path, double posX, double posZ, double angle)
+        public Path Get()
         {
-            return new Path.Segment(path)
-            {
-                RelPosition = new Vector2d(posX, posZ) * GridSize,
-                RelAngle = (angle + Direction.Get() + 180).NormalizeDeg(),
-                RelWidth = Width.Get().WithMin(0),
-                RelSpeed = Speed.Get(),
-                RelDensity = Density.Get()
-            };
-        }
-
-        public virtual void ResetState()
-        {
-            Direction.ResetState();
-            Width.ResetState();
-            Speed.ResetState();
-            Density.ResetState();
-            Count.ResetState();
-        }
-    }
-
-    private class Output_PositionXZ : AbstractOutput
-    {
-        protected readonly ISupplier<double> PosX;
-        protected readonly ISupplier<double> PosZ;
-
-        public Output_PositionXZ(
-            ISupplier<double> posX, ISupplier<double> posZ,
-            ISupplier<double> direction, ISupplier<double> width,
-            ISupplier<double> speed, ISupplier<double> density,
-            ISupplier<double> count, int gridSize) :
-            base(direction, width, speed, density, count, gridSize)
-        {
-            PosX = posX;
-            PosZ = posZ;
-        }
-
-        public override Path Get()
-        {
-            var count = Count.Get();
+            var count = _count.Get();
 
             var path = new Path();
 
             for (int i = 0; i < count; i++)
             {
-                double posX = PosX.Get();
-                double posZ = PosZ.Get();
+                double posX = _posX.Get();
+                double posZ = _posZ.Get();
 
                 CreateOrigin(path, posX, posZ, 0);
             }
@@ -299,64 +153,27 @@ public class NodePathOrigin : NodeBase
             return path;
         }
 
-        public override void ResetState()
+        protected Path.Segment CreateOrigin(Path path, double posX, double posZ, double angle)
         {
-            PosX.ResetState();
-            PosZ.ResetState();
-            base.ResetState();
-        }
-    }
-
-    [HotSwappable]
-    private class Output_GridEdge : AbstractOutput // TODO extract this into a separate node and make NodePathOrigin always use PositionXZ
-    {
-        protected readonly ISupplier<double> Angle;
-        protected readonly ISupplier<double> Offset;
-        protected readonly ISupplier<double> Margin;
-
-        public Output_GridEdge(
-            ISupplier<double> angle, ISupplier<double> offset, ISupplier<double> margin,
-            ISupplier<double> direction, ISupplier<double> width, ISupplier<double> speed,
-            ISupplier<double> density, ISupplier<double> count, int gridSize) :
-            base(direction, width, speed, density, count, gridSize)
-        {
-            Angle = angle;
-            Offset = offset;
-            Margin = margin;
-        }
-
-        public override Path Get()
-        {
-            var count = Count.Get();
-
-            var path = new Path();
-
-            for (int i = 0; i < count; i++)
+            return new Path.Segment(path)
             {
-                var angle = Angle.Get() + 90d;
-                var offset = Offset.Get();
-                var margin = Margin.Get();
-
-                var vec = Vector2d.Direction(-angle);
-                var pivot = new Vector2d(0.5, 0.5) + offset * vec.PerpCW;
-
-                var divX = vec.x > 0 ? (1 - pivot.x) / vec.x : vec.x < 0 ? pivot.x / -vec.x : double.MaxValue;
-                var divZ = vec.z > 0 ? (1 - pivot.z) / vec.z : vec.z < 0 ? pivot.z / -vec.z : double.MaxValue;
-
-                var pos = pivot + vec * (Math.Min(divX, divZ) + margin);
-
-                CreateOrigin(path, pos.x, pos.z, angle);
-            }
-
-            return path;
+                RelPosition = new Vector2d(posX, posZ) * _gridSize,
+                RelAngle = (angle + _direction.Get() - 90).NormalizeDeg(),
+                RelWidth = _width.Get().WithMin(0),
+                RelSpeed = _speed.Get(),
+                RelDensity = _density.Get()
+            };
         }
 
-        public override void ResetState()
+        public virtual void ResetState()
         {
-            Angle.ResetState();
-            Offset.ResetState();
-            Margin.ResetState();
-            base.ResetState();
+            _posX.ResetState();
+            _posZ.ResetState();
+            _direction.ResetState();
+            _width.ResetState();
+            _speed.ResetState();
+            _density.ResetState();
+            _count.ResetState();
         }
     }
 }
