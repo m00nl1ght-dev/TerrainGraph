@@ -23,17 +23,21 @@ public class PathFinder
     public float HeuristicCurvatureWeight = 0;
 
     public int StepsUntilKernelRollback = 2;
-    public int NodesMaxLimit = 20000;
+    public int IterationLimit = 20000;
 
     public bool DynamicKernelAdjustment;
 
-    public double Quantization => FullStepDistance * 0.5d;
+    public double QtClosedLoc = 1d;
+    public double QtClosedRot = 1d;
+    public double QtOpenLoc = 1d;
+    public double QtOpenRot = 1d;
 
     private readonly PathTracer _tracer;
     private readonly ArcKernel _kernel;
 
-    private readonly Dictionary<NodeKey, Node> _nodes = new(100);
-    private readonly FastPriorityQueue<Node> _open = new(100);
+    private readonly HashSet<NodeKey> _closed = new(100);
+    private readonly Dictionary<NodeKey, Node> _open = new(100);
+    private readonly FastPriorityQueue<Node> _openQueue = new(100);
 
     public PathFinder(PathTracer tracer, ArcKernel kernel)
     {
@@ -43,18 +47,23 @@ public class PathFinder
 
     public List<Node> FindPath(Vector2d startPos, Vector2d startDirection, Vector2d targetPos)
     {
-        _nodes.Clear();
         _open.Clear();
+        _closed.Clear();
+        _openQueue.Clear();
 
         var totalDistance = Vector2d.Distance(startPos, targetPos);
         var startNode = new Node(startPos, startDirection, 0, _kernel.MaxSplitIdx);
 
-        _open.Enqueue(startNode, HeuristicCostWeight * (float) totalDistance);
-        _nodes[new NodeKey(startNode, Quantization)] = startNode;
+        _openQueue.Enqueue(startNode, HeuristicCostWeight * (float) totalDistance);
+        _open[new NodeKey(startNode, QtOpenLoc, QtOpenRot)] = startNode;
 
-        while (_open.Count > 0 && _nodes.Count < NodesMaxLimit)
+        var iterations = 0;
+
+        while (_openQueue.Count > 0 && ++iterations <= IterationLimit)
         {
-            var curNode = _open.Dequeue();
+            var curNode = _openQueue.Dequeue();
+
+            _closed.Add(new NodeKey(curNode, QtClosedLoc, QtClosedRot));
 
             #if DEBUG
             PathTracer.DebugOutput($"{curNode}");
@@ -168,9 +177,7 @@ public class PathFinder
             if (newDirIdx > possibleDirCount) newDirIdx -= 2 * possibleDirCount;
             else if (newDirIdx <= -possibleDirCount) newDirIdx += 2 * possibleDirCount;
 
-            var newKey = new NodeKey(newPos, Quantization, newDirIdx);
-
-            if (_nodes.TryGetValue(newKey, out var existing) && !_open.Contains(existing)) continue;
+            if (_closed.Contains(new NodeKey(newPos, newDirIdx, QtClosedLoc, QtClosedRot))) continue;
 
             var newNode = new Node(newPos, newDir, newDirIdx, curNode.KernelSplit, curNode)
             {
@@ -203,14 +210,16 @@ public class PathFinder
 
             newNodes++;
 
-            if (existing != null)
+            var newKey = new NodeKey(newPos, newDirIdx, QtOpenLoc, QtOpenRot);
+
+            if (_open.TryGetValue(newKey, out var existing))
             {
                 if (existing.Priority <= priority) continue;
-                _open.Remove(existing);
+                _openQueue.Remove(existing);
             }
 
-            _open.Enqueue(newNode, priority);
-            _nodes[newKey] = newNode;
+            _openQueue.Enqueue(newNode, priority);
+            _open[newKey] = newNode;
         }
 
         var distToTarget = Vector2d.Distance(curNode.Position, target);
@@ -265,7 +274,7 @@ public class PathFinder
 
                             var priority = newNode.TotalCost + HeuristicCurvatureWeight * (float) angleDelta;
 
-                            _open.Enqueue(newNode, priority);
+                            _openQueue.Enqueue(newNode, priority);
                             newNodes++;
                         }
                     }
@@ -303,7 +312,7 @@ public class PathFinder
 
                     var priority = newNode.TotalCost;
 
-                    _open.Enqueue(newNode, priority);
+                    _openQueue.Enqueue(newNode, priority);
                     newNodes++;
                 }
             }
@@ -400,17 +409,18 @@ public class PathFinder
 
     public readonly struct NodeKey : IEquatable<NodeKey>
     {
-        public readonly int x;
-        public readonly int z;
-        public readonly int d;
+        public readonly short x;
+        public readonly short z;
+        public readonly short d;
 
-        public NodeKey(Node node, double quantization) : this(node.Position, quantization, node.DirectionIdx) {}
+        public NodeKey(Node node, double qtLoc, double qtRot) :
+            this(node.Position, node.DirectionIdx, qtLoc, qtRot) {}
 
-        public NodeKey(Vector2d pos, double quantization, int directionIdx)
+        public NodeKey(Vector2d pos, int rotIdx, double qtLoc, double qtRot)
         {
-            this.x = (int) Math.Round(pos.x / quantization);
-            this.z = (int) Math.Round(pos.z / quantization);
-            this.d = directionIdx;
+            this.x = (short) Math.Floor(pos.x / qtLoc);
+            this.z = (short) Math.Floor(pos.z / qtLoc);
+            this.d = (short) (rotIdx / qtRot);
         }
 
         public bool Equals(NodeKey other) => x == other.x && z == other.z && d == other.d;

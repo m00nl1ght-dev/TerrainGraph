@@ -350,10 +350,11 @@ public class PathTracer
             {
                 ObstacleThreshold = 100d,
                 FullStepDistance = stepSize,
+                QtClosedLoc = 0.5 * stepSize,
                 AngleDeltaLimit = (1 - extParams.AngleTenacity) * 180 / (initialFrame.width * Math.PI),
                 Grid = new Transform<double>(grid, GridMargin.x, GridMargin.z),
                 HeuristicCurvatureWeight = 0f,
-                HeuristicCostWeight = 5f
+                HeuristicCostWeight = 2f
             };
 
             pathNodes = pathFinder.FindPath(initialFrame.pos, initialFrame.normal, target);
