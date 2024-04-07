@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using static TerrainGraph.GridFunction;
 
 namespace TerrainGraph.Util;
 
@@ -112,17 +111,11 @@ public class GridKernel
         Angles = angles;
     }
 
-    public Vector2d CalculateAt(
-        Vector2d axisX, Vector2d axisZ,
-        IGridFunction<double> absFunc, IGridFunction<double> relFunc,
-        Vector2d absPos, Vector2d relPos, double relAngle)
+    public Vector2d CalculateAt(Vector2d axisX, Vector2d axisZ, IGridFunction<double> grid, Vector2d pos)
     {
         var result = Vector2d.Zero;
 
-        var valHere = 0d;
-
-        if (absFunc != null) valHere += absFunc.ValueAt(absPos);
-        if (relFunc != null) valHere += Rotate<double>.Calculate(relFunc, relPos.x, relPos.z, 0, 0, relAngle);
+        var valHere = grid.ValueAt(pos);
 
         for (var i = 0; i < Offsets.Count; i++)
         {
@@ -132,15 +125,10 @@ public class GridKernel
             var offsetT = offset.x * axisX + offset.z * axisZ;
             var directionT = direction.x * axisX + direction.z * axisZ;
 
-            var absThere = absPos + offsetT;
-            var relThere = relPos + offsetT;
+            var posThere = pos + offsetT;
+            var valThere = grid.ValueAt(posThere);
 
-            var valThere = 0d;
-
-            if (absFunc != null) valThere += absFunc.ValueAt(absThere);
-            if (relFunc != null) valThere += Rotate<double>.Calculate(relFunc, relThere.x, relThere.z, 0, 0, relAngle);
-
-            result += directionT * (valThere - valHere);
+            result -= directionT * (valThere - valHere);
         }
 
         return result / PointCount;

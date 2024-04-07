@@ -98,7 +98,7 @@ public class PathTracer
         if (TraceOuterMargin > 0)
         {
             _overlapAvoidanceGrid = new ScaleWithBias(
-                new Cache<double>(_distanceGrid, TraceOuterMargin), 1 / TraceOuterMargin, -1
+                new Cache<double>(_distanceGrid, TraceOuterMargin), -1 / TraceOuterMargin, 1
             );
         }
 
@@ -250,7 +250,7 @@ public class PathTracer
         {
             if (rootSegment.RelWidth > 0)
             {
-                Enqueue(rootSegment, originFrame, false);
+                Enqueue(rootSegment, originFrame, 0, false);
             }
         }
 
@@ -272,7 +272,7 @@ public class PathTracer
                     {
                         if (branch.ParentCount <= 1)
                         {
-                            Enqueue(branch, result.finalFrame, result.everInBounds);
+                            Enqueue(branch, result.finalFrame, task.distFromRoot + result.finalFrame.dist, result.everInBounds);
                         }
                         else
                         {
@@ -282,13 +282,15 @@ public class PathTracer
 
                             if (parentResults.Any(r => r.collision != null)) continue;
 
+                            var maxDistFromRoot = task.distFromRoot + parentResults.Max(r => r.finalFrame.dist);
+
                             var mergedFrame = new TraceFrame(parentResults);
 
                             #if DEBUG
                             DebugOutput($"Merged frames {string.Join(" + ", branch.Parents.Select(b => b.Id))} into {branch.Id}");
                             #endif
 
-                            Enqueue(branch, mergedFrame, parentResults.Any(r => r.everInBounds));
+                            Enqueue(branch, mergedFrame, maxDistFromRoot, parentResults.Any(r => r.everInBounds));
                         }
                     }
                 }
@@ -303,7 +305,7 @@ public class PathTracer
 
         return;
 
-        void Enqueue(Segment branch, TraceFrame baseFrame, bool everInBounds)
+        void Enqueue(Segment branch, TraceFrame baseFrame, double distFromRoot, bool everInBounds)
         {
             if (_traceResults.ContainsKey(branch) || taskQueue.Any(t => t.segment == branch)) return;
 
@@ -314,7 +316,9 @@ public class PathTracer
             var marginHead = branch.IsLeaf ? TraceInnerMargin : 0;
             var marginTail = branch.IsRoot ? TraceInnerMargin : 0;
 
-            taskQueue.Enqueue(new TraceTask(branch, baseFrame, collisionList, marginHead, marginTail, everInBounds));
+            taskQueue.Enqueue(new TraceTask(
+                branch, baseFrame, collisionList, marginHead, marginTail, distFromRoot, everInBounds
+            ));
         }
     }
 
@@ -343,21 +347,37 @@ public class PathTracer
 
         if (extParams.Target != null)
         {
-            var grid = extParams.AbsFollowGrid ?? Zero;
             var target = extParams.Target.Value + GridMargin;
 
-            var pathFinder = new PathFinder(this, new PathFinder.ArcKernel(9, (int) stepSize))
+            var grid = Zero;
+
+            if (extParams.CostGrid != null)
             {
+                grid = new Transform<double>(extParams.CostGrid, GridMargin.x, GridMargin.z);
+            }
+
+            if (extParams.AvoidOverlap > 0)
+            {
+                grid = new Add(grid, new Multiply(Of(extParams.AvoidOverlap), _overlapAvoidanceGrid));
+            }
+
+            var pathFinder = new PathFinder(this, new PathFinder.ArcKernel(7, (int) stepSize))
+            {
+                Grid = grid,
                 ObstacleThreshold = 100d,
                 FullStepDistance = stepSize,
-                QtClosedLoc = 0.5 * stepSize,
+                QtClosedLoc = 0.5d * stepSize,
+                QtOpenLoc = 0.5d * stepSize,
                 AngleDeltaLimit = (1 - extParams.AngleTenacity) * 180 / (initialFrame.width * Math.PI),
-                Grid = new Transform<double>(grid, GridMargin.x, GridMargin.z),
-                HeuristicCurvatureWeight = 0f,
-                HeuristicCostWeight = 2f
+                IterationLimit = 10000
             };
 
-            pathNodes = pathFinder.FindPath(initialFrame.pos, initialFrame.normal, target);
+            for (int i = 0; i <= 3; i++)
+            {
+                pathFinder.HeuristicDistanceWeight = 1f + (float) Math.Pow(2, i);
+                pathNodes = pathFinder.FindPath(initialFrame.pos, initialFrame.normal, target);
+                if (pathNodes != null) break;
+            }
         }
 
         var a = initialFrame;
@@ -403,24 +423,17 @@ public class PathTracer
 
                     var followVec = Vector2d.Zero;
 
-                    if (extParams.AbsFollowGrid != null || extParams.RelFollowGrid != null)
+                    if (extParams.CostGrid != null)
                     {
                         followVec = _followGridKernel.CalculateAt(
-                            new(1, 0), new(0, 1),
-                            extParams.AbsFollowGrid,
-                            extParams.RelFollowGrid,
-                            a.pos - GridMargin,
-                            a.pos - initialFrame.pos,
-                            initialFrame.angle - 90
+                            new(1, 0), new(0, 1), extParams.CostGrid, a.pos - GridMargin
                         );
                     }
 
                     if (extParams.AvoidOverlap > 0)
                     {
                         followVec += extParams.AvoidOverlap * _avoidGridKernel.CalculateAt(
-                            a.normal, a.perpCW,
-                            _overlapAvoidanceGrid, null,
-                            a.pos, Vector2d.Zero, 0
+                            a.normal, a.perpCW, _overlapAvoidanceGrid, a.pos
                         );
                     }
 
@@ -442,9 +455,9 @@ public class PathTracer
                         angleDelta -= Vector2d.SignedAngle(a.normal, a.normal + followVec);
                     }
 
-                    if (extParams.SwerveGrid != null)
+                    if (extParams.SwerveFunc != null)
                     {
-                        angleDelta += extParams.SwerveGrid.ValueAt(a.pos - GridMargin);
+                        angleDelta += extParams.SwerveFunc.ValueAt(task.distFromRoot + a.dist, a.width);
                     }
 
                     if (a.dist < task.segment.AngleDeltaPosLockLength && angleDelta > 0) angleDelta = 0;

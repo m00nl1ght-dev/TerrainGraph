@@ -123,7 +123,7 @@
         <Compile Include="TerrainGraph\Nodes\Path\NodePathExtendTowards.cs" />
         <Compile Include="TerrainGraph\Nodes\Path\NodePathPreview.cs" />
         <Compile Include="TerrainGraph\Nodes\Path\NodePathOrigin.cs" />
-        <Compile Include="TerrainGraph\Nodes\Path\NodePathFollow.cs" />
+        <Compile Include="TerrainGraph\Nodes\Path\NodePathCost.cs" />
         <Compile Include="TerrainGraph\Nodes\Path\NodePathSpeed.cs" />
         <Compile Include="TerrainGraph\Nodes\Path\NodePathSplit.cs" />
         <Compile Include="TerrainGraph\Nodes\Path\NodePathSwerve.cs" />

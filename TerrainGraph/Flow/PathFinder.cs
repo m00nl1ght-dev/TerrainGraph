@@ -19,13 +19,10 @@ public class PathFinder
 
     public double FullStepDistance = 1d;
 
-    public float HeuristicCostWeight = 2;
+    public float HeuristicDistanceWeight = 2;
     public float HeuristicCurvatureWeight = 0;
 
-    public int StepsUntilKernelRollback = 2;
     public int IterationLimit = 20000;
-
-    public bool DynamicKernelAdjustment;
 
     public double QtClosedLoc = 1d;
     public double QtClosedRot = 1d;
@@ -52,9 +49,13 @@ public class PathFinder
         _openQueue.Clear();
 
         var totalDistance = Vector2d.Distance(startPos, targetPos);
-        var startNode = new Node(startPos, startDirection, 0, _kernel.MaxSplitIdx);
+        var startNode = new Node(startPos, startDirection, 0);
 
-        _openQueue.Enqueue(startNode, HeuristicCostWeight * (float) totalDistance);
+        #if DEBUG
+        PathTracer.DebugOutput($"Attempting to find path to {targetPos} with hwDist {HeuristicDistanceWeight:F2}");
+        #endif
+
+        _openQueue.Enqueue(startNode, HeuristicDistanceWeight * (float) totalDistance);
         _open[new NodeKey(startNode, QtOpenLoc, QtOpenRot)] = startNode;
 
         var iterations = 0;
@@ -65,20 +66,21 @@ public class PathFinder
 
             _closed.Add(new NodeKey(curNode, QtClosedLoc, QtClosedRot));
 
-            #if DEBUG
-            PathTracer.DebugOutput($"{curNode}");
-            #endif
-
             if (curNode.Position == targetPos)
             {
+                #if DEBUG
+                PathTracer.DebugOutput($"Found path after {iterations} iterations");
+                #endif
+
                 return WeavePath(curNode);
             }
 
-            while (Expand(curNode, targetPos) && DynamicKernelAdjustment && curNode.KernelSplit > 0)
-            {
-                curNode.KernelSplit--;
-            }
+            Expand(curNode, targetPos);
         }
+
+        #if DEBUG
+        PathTracer.DebugOutput($"Failed to find path after {iterations} iterations");
+        #endif
 
         return null;
     }
@@ -89,7 +91,6 @@ public class PathFinder
         var obstructed = 0;
 
         var splitDistance = FullStepDistance / _kernel.SplitCount;
-        var possibleDirCount = _kernel.ArcCount * _kernel.SplitCount;
 
         for (int i = 0; i <= _kernel.ArcCount * 2; i++)
         {
@@ -111,7 +112,7 @@ public class PathFinder
                 var pivotOffset = 180d / (Math.PI * -angleDelta) * (i % 2 == 1 ? -1 : 1);
                 var pivotPoint = curNode.Position + curNode.Direction.PerpCCW * pivotOffset;
 
-                for (int s = curNode.KernelSplit; s >= 0; s--)
+                for (int s = _kernel.MaxSplitIdx; s >= 0; s--)
                 {
                     var sin = _kernel.SinCosData[kernelArcIdx, s, 0];
                     var cos = _kernel.SinCosData[kernelArcIdx, s, 1];
@@ -120,7 +121,7 @@ public class PathFinder
                     var sPos = pivotPoint - sDir.PerpCCW * pivotOffset;
                     var sCost = splitDistance * (1 + Grid.ValueAt(sPos.x, sPos.z));
 
-                    if (s == curNode.KernelSplit)
+                    if (s == _kernel.MaxSplitIdx)
                     {
                         newPos = sPos;
                         newDir = sDir;
@@ -137,13 +138,13 @@ public class PathFinder
             }
             else
             {
-                for (int s = curNode.KernelSplit; s >= 0; s--)
+                for (int s = _kernel.MaxSplitIdx; s >= 0; s--)
                 {
                     var sDist = FullStepDistance * _kernel.SplitFraction(s);
                     var sPos = curNode.Position + curNode.Direction * sDist;
                     var sCost = splitDistance * (1 + Grid.ValueAt(sPos.x, sPos.z));
 
-                    if (s == curNode.KernelSplit)
+                    if (s == _kernel.MaxSplitIdx)
                     {
                         newPos = sPos;
                     }
@@ -172,40 +173,23 @@ public class PathFinder
             PathTracer.DebugLine(new TraceDebugLine(_tracer, curNode.Position, newPos));
             #endif
 
-            var newDirIdx = curNode.DirectionIdx + dirIdxDelta * (curNode.KernelSplit + 1);
+            var newDirIdx = curNode.DirectionIdx + dirIdxDelta;
 
-            if (newDirIdx > possibleDirCount) newDirIdx -= 2 * possibleDirCount;
-            else if (newDirIdx <= -possibleDirCount) newDirIdx += 2 * possibleDirCount;
+            if (newDirIdx > _kernel.ArcCount) newDirIdx -= 2 * _kernel.ArcCount;
+            else if (newDirIdx <= -_kernel.ArcCount) newDirIdx += 2 * _kernel.ArcCount;
 
             if (_closed.Contains(new NodeKey(newPos, newDirIdx, QtClosedLoc, QtClosedRot))) continue;
 
-            var newNode = new Node(newPos, newDir, newDirIdx, curNode.KernelSplit, curNode)
+            var newNode = new Node(newPos, newDir, newDirIdx, curNode)
             {
                 TotalCost = curNode.TotalCost + (float) totalCost
             };
 
-            var priority = newNode.TotalCost + HeuristicCostWeight * (float) Vector2d.Distance(newPos, target);
+            var priority = newNode.TotalCost + HeuristicDistanceWeight * (float) Vector2d.Distance(newPos, target);
 
             if (kernelArcIdx >= 0)
             {
                 priority += HeuristicCurvatureWeight * (float) angleDelta;
-            }
-
-            if (newNode.KernelSplit < _kernel.MaxSplitIdx)
-            {
-                var steps = 1;
-                var node = curNode.Parent;
-
-                while (steps < StepsUntilKernelRollback && node != null && node.KernelSplit == newNode.KernelSplit)
-                {
-                    node = node.Parent;
-                    steps++;
-                }
-
-                if (steps == StepsUntilKernelRollback)
-                {
-                    newNode.KernelSplit++;
-                }
             }
 
             newNodes++;
@@ -267,7 +251,7 @@ public class PathFinder
 
                         if (!hitObstacle)
                         {
-                            var newNode = new Node(target, newDir, curNode.DirectionIdx, curNode.KernelSplit, curNode)
+                            var newNode = new Node(target, newDir, curNode.DirectionIdx, curNode)
                             {
                                 TotalCost = curNode.TotalCost + (float) totalCost
                             };
@@ -305,7 +289,7 @@ public class PathFinder
 
                 if (!hitObstacle)
                 {
-                    var newNode = new Node(target, curNode.Direction, curNode.DirectionIdx, curNode.KernelSplit, curNode)
+                    var newNode = new Node(target, curNode.Direction, curNode.DirectionIdx, curNode)
                     {
                         TotalCost = curNode.TotalCost + (float) totalCost
                     };
@@ -383,17 +367,14 @@ public class PathFinder
         public readonly Vector2d Position;
         public readonly Vector2d Direction;
 
-        public int DirectionIdx;
-        public int KernelSplit;
-
+        public short DirectionIdx;
         public float TotalCost;
 
-        public Node(Vector2d position, Vector2d direction, int directionIdx, int kernelSplit, Node parent = null)
+        public Node(Vector2d position, Vector2d direction, int directionIdx, Node parent = null)
         {
             this.Position = position;
             this.Direction = direction;
-            this.DirectionIdx = directionIdx;
-            this.KernelSplit = kernelSplit;
+            this.DirectionIdx = (short) directionIdx;
             this.Parent = parent;
         }
 
@@ -401,7 +382,6 @@ public class PathFinder
             $"{nameof(Position)}: {Position}, " +
             $"{nameof(Direction)}: {Direction}, " +
             $"{nameof(DirectionIdx)}: {DirectionIdx}, " +
-            $"{nameof(KernelSplit)}: {KernelSplit}, " +
             $"{nameof(Parent)}: {(Parent == null ? "null" : Parent.Position)}, " +
             $"{nameof(Priority)}: {Priority:F2}, " +
             $"{nameof(TotalCost)}: {TotalCost:F2}";
@@ -416,11 +396,11 @@ public class PathFinder
         public NodeKey(Node node, double qtLoc, double qtRot) :
             this(node.Position, node.DirectionIdx, qtLoc, qtRot) {}
 
-        public NodeKey(Vector2d pos, int rotIdx, double qtLoc, double qtRot)
+        public NodeKey(Vector2d pos, int dirIdx, double qtLoc, double qtRot)
         {
             this.x = (short) Math.Floor(pos.x / qtLoc);
             this.z = (short) Math.Floor(pos.z / qtLoc);
-            this.d = (short) (rotIdx / qtRot);
+            this.d = (short) (dirIdx / qtRot);
         }
 
         public bool Equals(NodeKey other) => x == other.x && z == other.z && d == other.d;

@@ -18,8 +18,8 @@ public class NodePathSwerve : NodeBase
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
-    [ValueConnectionKnob("Angle Change", Direction.In, GridFunctionConnection.Id)]
-    public ValueConnectionKnob AngleGridKnob;
+    [ValueConnectionKnob("Angle func", Direction.In, GridFunctionConnection.Id)]
+    public ValueConnectionKnob AngleFuncKnob;
 
     [ValueConnectionKnob("Output", Direction.Out, PathFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
@@ -36,10 +36,10 @@ public class NodePathSwerve : NodeBase
         GUILayout.EndHorizontal();
 
         GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Angle Change", BoxLayout);
+        GUILayout.Label("Angle func", BoxLayout);
         GUILayout.EndHorizontal();
 
-        AngleGridKnob.SetPosition();
+        AngleFuncKnob.SetPosition();
 
         GUILayout.EndVertical();
 
@@ -51,7 +51,7 @@ public class NodePathSwerve : NodeBase
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
-            SupplierOrFallback(AngleGridKnob, GridFunction.Zero)
+            SupplierOrFallback(AngleFuncKnob, GridFunction.Zero)
         ));
         return true;
     }
@@ -59,12 +59,12 @@ public class NodePathSwerve : NodeBase
     private class Output : ISupplier<Path>
     {
         private readonly ISupplier<Path> _input;
-        private readonly ISupplier<IGridFunction<double>> _angleGrid;
+        private readonly ISupplier<IGridFunction<double>> _angleFunc;
 
-        public Output(ISupplier<Path> input, ISupplier<IGridFunction<double>> angleGrid)
+        public Output(ISupplier<Path> input, ISupplier<IGridFunction<double>> angleFunc)
         {
             _input = input;
-            _angleGrid = angleGrid;
+            _angleFunc = angleFunc;
         }
 
         public Path Get()
@@ -75,7 +75,7 @@ public class NodePathSwerve : NodeBase
             {
                 var extParams = segment.TraceParams;
 
-                extParams.SwerveGrid = _angleGrid.Get();
+                extParams.SwerveFunc = _angleFunc.Get();
 
                 segment.ExtendWithParams(extParams);
             }
@@ -86,7 +86,7 @@ public class NodePathSwerve : NodeBase
         public void ResetState()
         {
             _input.ResetState();
-            _angleGrid.ResetState();
+            _angleFunc.ResetState();
         }
     }
 }

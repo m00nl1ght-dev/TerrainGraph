@@ -30,19 +30,25 @@ internal readonly struct TraceTask
     public readonly double marginTail;
 
     /// <summary>
+    /// The total distance of the base frame from the origin of the path.
+    /// </summary>
+    public readonly double distFromRoot;
+
+    /// <summary>
     /// Whether any previous segment has any frames fully within the bounds of the outer grid.
     /// </summary>
     public readonly bool everInBounds;
 
     public TraceTask(
         Path.Segment segment, TraceFrame baseFrame, IEnumerable<TraceCollision> simulated,
-        double marginHead, double marginTail, bool everInBounds)
+        double marginHead, double marginTail, double distFromRoot, bool everInBounds)
     {
         this.segment = segment;
         this.baseFrame = baseFrame;
         this.simulated = simulated;
         this.marginHead = marginHead;
         this.marginTail = marginTail;
+        this.distFromRoot = distFromRoot;
         this.everInBounds = everInBounds;
     }
 }

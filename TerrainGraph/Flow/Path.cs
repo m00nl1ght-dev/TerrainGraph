@@ -618,9 +618,8 @@ public class Path
 
         public Vector2d? Target;
 
-        public IGridFunction<double> AbsFollowGrid;
-        public IGridFunction<double> RelFollowGrid;
-        public IGridFunction<double> SwerveGrid;
+        public IGridFunction<double> CostGrid;
+        public IGridFunction<double> SwerveFunc;
         public IGridFunction<double> WidthGrid;
         public IGridFunction<double> SpeedGrid;
         public IGridFunction<double> DensityGrid;
@@ -632,10 +631,8 @@ public class Path
             AvoidOverlap = 0;
             AngleTenacity = 0;
 
-            AbsFollowGrid = null;
-            RelFollowGrid = null;
-
-            SwerveGrid = Of(angleDelta);
+            CostGrid = null;
+            SwerveFunc = Of(angleDelta);
 
             DiversionPoints = null;
             Target = null;
@@ -669,9 +666,8 @@ public class Path
                 ArcStableRange = t.Lerp(a.ArcStableRange, b.ArcStableRange),
                 StaticAngleTenacity = a.StaticAngleTenacity || b.StaticAngleTenacity,
                 AdjustmentPriority = a.AdjustmentPriority || b.AdjustmentPriority,
-                AbsFollowGrid = Lerp.Of(a.AbsFollowGrid, b.AbsFollowGrid, t),
-                RelFollowGrid = Lerp.Of(a.RelFollowGrid, b.RelFollowGrid, t),
-                SwerveGrid = Lerp.Of(a.SwerveGrid, b.SwerveGrid, t),
+                CostGrid = Lerp.Of(a.CostGrid, b.CostGrid, t),
+                SwerveFunc = Lerp.Of(a.SwerveFunc, b.SwerveFunc, t),
                 WidthGrid = Lerp.Of(a.WidthGrid, b.WidthGrid, t),
                 SpeedGrid = Lerp.Of(a.SpeedGrid, b.SpeedGrid, t),
                 DensityGrid = Lerp.Of(a.DensityGrid, b.DensityGrid, t),
@@ -691,9 +687,8 @@ public class Path
             ArcStableRange.Equals(other.ArcStableRange) &&
             StaticAngleTenacity == other.StaticAngleTenacity &&
             AdjustmentPriority == other.AdjustmentPriority &&
-            Equals(AbsFollowGrid, other.AbsFollowGrid) &&
-            Equals(RelFollowGrid, other.RelFollowGrid) &&
-            Equals(SwerveGrid, other.SwerveGrid) &&
+            Equals(CostGrid, other.CostGrid) &&
+            Equals(SwerveFunc, other.SwerveFunc) &&
             Equals(WidthGrid, other.WidthGrid) &&
             Equals(SpeedGrid, other.SpeedGrid) &&
             Equals(DensityGrid, other.DensityGrid) &&
@@ -712,9 +707,8 @@ public class Path
             $"{nameof(ArcStableRange)}: {ArcStableRange:F2}, " +
             $"{nameof(StaticAngleTenacity)}: {StaticAngleTenacity}, " +
             $"{nameof(AdjustmentPriority)}: {AdjustmentPriority}, " +
-            $"{nameof(AbsFollowGrid)}: {AbsFollowGrid}, " +
-            $"{nameof(RelFollowGrid)}: {RelFollowGrid}, " +
-            $"{nameof(SwerveGrid)}: {SwerveGrid}, " +
+            $"{nameof(CostGrid)}: {CostGrid}, " +
+            $"{nameof(SwerveFunc)}: {SwerveFunc}, " +
             $"{nameof(WidthGrid)}: {WidthGrid}, " +
             $"{nameof(SpeedGrid)}: {SpeedGrid}, " +
             $"{nameof(DensityGrid)}: {DensityGrid}, " +

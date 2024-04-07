@@ -7,22 +7,19 @@ using UnityEngine;
 namespace TerrainGraph;
 
 [Serializable]
-[Node(false, "Path/Follow", 607)]
-public class NodePathFollow : NodeBase
+[Node(false, "Path/Cost", 607)]
+public class NodePathCost : NodeBase
 {
-    public const string ID = "pathFollow";
+    public const string ID = "pathCost";
     public override string GetID => ID;
 
-    public override string Title => "Path: Follow";
+    public override string Title => "Path: Cost";
 
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
-    [ValueConnectionKnob("Absolute Grid", Direction.In, GridFunctionConnection.Id)]
-    public ValueConnectionKnob AbsGridKnob;
-
-    [ValueConnectionKnob("Relative Grid", Direction.In, GridFunctionConnection.Id)]
-    public ValueConnectionKnob RelGridKnob;
+    [ValueConnectionKnob("Cost Grid", Direction.In, GridFunctionConnection.Id)]
+    public ValueConnectionKnob CostGridKnob;
 
     [ValueConnectionKnob("Avoid Overlap", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob AvoidOverlapKnob;
@@ -44,16 +41,10 @@ public class NodePathFollow : NodeBase
         GUILayout.EndHorizontal();
 
         GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Absolute Grid", BoxLayout);
+        GUILayout.Label("Cost Grid", BoxLayout);
         GUILayout.EndHorizontal();
 
-        AbsGridKnob.SetPosition();
-
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Relative Grid", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        RelGridKnob.SetPosition();
+        CostGridKnob.SetPosition();
 
         KnobValueField(AvoidOverlapKnob, ref AvoidOverlap);
 
@@ -76,8 +67,7 @@ public class NodePathFollow : NodeBase
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
-            SupplierOrFallback(AbsGridKnob, GridFunction.Zero),
-            SupplierOrFallback(RelGridKnob, GridFunction.Zero),
+            SupplierOrFallback(CostGridKnob, GridFunction.Zero),
             SupplierOrFallback(AvoidOverlapKnob, AvoidOverlap)
         ));
         return true;
@@ -86,19 +76,16 @@ public class NodePathFollow : NodeBase
     private class Output : ISupplier<Path>
     {
         private readonly ISupplier<Path> _input;
-        private readonly ISupplier<IGridFunction<double>> _absGrid;
-        private readonly ISupplier<IGridFunction<double>> _relGrid;
+        private readonly ISupplier<IGridFunction<double>> _costGrid;
         private readonly ISupplier<double> _avoidOverlap;
 
         public Output(
             ISupplier<Path> input,
-            ISupplier<IGridFunction<double>> absGrid,
-            ISupplier<IGridFunction<double>> relGrid,
+            ISupplier<IGridFunction<double>> costGrid,
             ISupplier<double> avoidOverlap)
         {
             _input = input;
-            _absGrid = absGrid;
-            _relGrid = relGrid;
+            _costGrid = costGrid;
             _avoidOverlap = avoidOverlap;
         }
 
@@ -110,8 +97,7 @@ public class NodePathFollow : NodeBase
             {
                 var extParams = segment.TraceParams;
 
-                extParams.AbsFollowGrid = _absGrid.Get();
-                extParams.RelFollowGrid = _relGrid.Get();
+                extParams.CostGrid = _costGrid.Get();
                 extParams.AvoidOverlap = _avoidOverlap.Get();
 
                 segment.ExtendWithParams(extParams);
@@ -123,8 +109,7 @@ public class NodePathFollow : NodeBase
         public void ResetState()
         {
             _input.ResetState();
-            _absGrid.ResetState();
-            _relGrid.ResetState();
+            _costGrid.ResetState();
             _avoidOverlap.ResetState();
         }
     }
