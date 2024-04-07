@@ -349,21 +349,23 @@ public class PathTracer
         {
             var target = extParams.Target.Value + GridMargin;
 
-            var grid = Zero;
+            var costGrid = Zero;
 
             if (extParams.CostGrid != null)
             {
-                grid = new Transform<double>(extParams.CostGrid, GridMargin.x, GridMargin.z);
+                costGrid = new Transform<double>(extParams.CostGrid, GridMargin.x, GridMargin.z);
             }
 
             if (extParams.AvoidOverlap > 0)
             {
-                grid = new Add(grid, new Multiply(Of(extParams.AvoidOverlap), _overlapAvoidanceGrid));
+                costGrid = new Add(costGrid, new Multiply(Of(extParams.AvoidOverlap), _overlapAvoidanceGrid));
             }
+
+            // TODO dynamic arc count and spread based on AngleDeltaLimit
 
             var pathFinder = new PathFinder(this, new PathFinder.ArcKernel(7, (int) stepSize))
             {
-                Grid = grid,
+                Grid = costGrid,
                 ObstacleThreshold = 100d,
                 FullStepDistance = stepSize,
                 QtClosedLoc = 0.5d * stepSize,
@@ -371,6 +373,13 @@ public class PathTracer
                 AngleDeltaLimit = (1 - extParams.AngleTenacity) * 180 / (initialFrame.width * Math.PI),
                 IterationLimit = 10000
             };
+
+            if (extParams.SwerveFunc != null)
+            {
+                var baseDist = task.distFromRoot;
+                var swerveFunc = extParams.SwerveFunc;
+                pathFinder.DirectionBias = (d, c) => swerveFunc.ValueAt(baseDist + d, c);
+            }
 
             for (int i = 0; i <= 3; i++)
             {
@@ -421,19 +430,20 @@ public class PathTracer
                 {
                     distDelta = Math.Min(stepSize, length + task.marginHead - a.dist);
 
+                    var costAtFrame = 0d;
                     var followVec = Vector2d.Zero;
 
                     if (extParams.CostGrid != null)
                     {
                         followVec = _followGridKernel.CalculateAt(
-                            new(1, 0), new(0, 1), extParams.CostGrid, a.pos - GridMargin
+                            new(1, 0), new(0, 1), extParams.CostGrid, a.pos - GridMargin, ref costAtFrame
                         );
                     }
 
                     if (extParams.AvoidOverlap > 0)
                     {
                         followVec += extParams.AvoidOverlap * _avoidGridKernel.CalculateAt(
-                            a.normal, a.perpCW, _overlapAvoidanceGrid, a.pos
+                            a.normal, a.perpCW, _overlapAvoidanceGrid, a.pos, ref costAtFrame
                         );
                     }
 
@@ -457,7 +467,7 @@ public class PathTracer
 
                     if (extParams.SwerveFunc != null)
                     {
-                        angleDelta += extParams.SwerveFunc.ValueAt(task.distFromRoot + a.dist, a.width);
+                        angleDelta += extParams.SwerveFunc.ValueAt(task.distFromRoot + a.dist, costAtFrame);
                     }
 
                     if (a.dist < task.segment.AngleDeltaPosLockLength && angleDelta > 0) angleDelta = 0;

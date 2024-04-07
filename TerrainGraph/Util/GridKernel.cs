@@ -111,11 +111,13 @@ public class GridKernel
         Angles = angles;
     }
 
-    public Vector2d CalculateAt(Vector2d axisX, Vector2d axisZ, IGridFunction<double> grid, Vector2d pos)
+    public Vector2d CalculateAt(Vector2d axisX, Vector2d axisZ, IGridFunction<double> grid, Vector2d pos, ref double totalHere)
     {
         var result = Vector2d.Zero;
 
         var valHere = grid.ValueAt(pos);
+
+        totalHere += valHere;
 
         for (var i = 0; i < Offsets.Count; i++)
         {

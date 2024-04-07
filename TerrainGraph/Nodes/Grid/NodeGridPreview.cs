@@ -164,6 +164,8 @@ public class NodeGridPreview : NodeBase
     public static readonly IPreviewTransform DefaultTransformQuad = new DefaultPreviewTransform(1f, -0.5f);
     public static readonly IPreviewTransform LargeTransform = new DefaultPreviewTransform(2f, -0.5f);
     public static readonly IPreviewTransform LargeTransformQuad = new DefaultPreviewTransform(2f, -1f);
+    public static readonly IPreviewTransform FixedTransform1X100 = new FixedPreviewTransform(new Vector2(1f, 100f));
+    public static readonly IPreviewTransform FixedTransform100X1 = new FixedPreviewTransform(new Vector2(100f, 1f));
 
     public static void RegisterPreviewModel(IPreviewModel model, string id)
     {
@@ -195,6 +197,8 @@ public class NodeGridPreview : NodeBase
         RegisterPreviewRange(DefaultTransformQuad, "Default Quad");
         RegisterPreviewRange(LargeTransform, "Large");
         RegisterPreviewRange(LargeTransformQuad, "Large Quad");
+        RegisterPreviewRange(FixedTransform1X100, "Fixed 1 x 100");
+        RegisterPreviewRange(FixedTransform100X1, "Fixed 100 x 1");
     }
 
     public interface IPreviewModel
@@ -257,6 +261,32 @@ public class NodeGridPreview : NodeBase
             var f = canvas.GridFullSize / (float) canvas.GridPreviewSize;
             var x = pos.x * f * Scale + canvas.GridFullSize * Offset;
             var y = pos.y * f * Scale + canvas.GridFullSize * Offset;
+            return new Vector2(x, y);
+        }
+    }
+
+    private class FixedPreviewTransform : IPreviewTransform
+    {
+        public readonly Vector2 Size;
+        public readonly Vector2 Offset;
+
+        public FixedPreviewTransform(Vector2 size, Vector2 offset = default)
+        {
+            Size = size;
+            Offset = offset;
+        }
+
+        public Vector2Int CanvasToPreviewSpace(TerrainCanvas canvas, Vector2 pos)
+        {
+            var x = (pos.x / Size.x - Offset.x * Size.x) * canvas.GridPreviewSize;
+            var y = (pos.y / Size.y - Offset.y * Size.y) * canvas.GridPreviewSize;
+            return new Vector2Int((int) x, (int) y);
+        }
+
+        public Vector2 PreviewToCanvasSpace(TerrainCanvas canvas, Vector2Int pos)
+        {
+            var x = (pos.x / (float) canvas.GridPreviewSize + Offset.x) * Size.x;
+            var y = (pos.y / (float) canvas.GridPreviewSize + Offset.y) * Size.y;
             return new Vector2(x, y);
         }
     }

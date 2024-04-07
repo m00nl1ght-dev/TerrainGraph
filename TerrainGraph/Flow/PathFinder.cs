@@ -29,12 +29,16 @@ public class PathFinder
     public double QtOpenLoc = 1d;
     public double QtOpenRot = 1d;
 
+    public DirectionBiasFunc DirectionBias = (_,_) => 0d;
+
     private readonly PathTracer _tracer;
     private readonly ArcKernel _kernel;
 
     private readonly HashSet<NodeKey> _closed = new(100);
     private readonly Dictionary<NodeKey, Node> _open = new(100);
     private readonly FastPriorityQueue<Node> _openQueue = new(100);
+
+    public delegate double DirectionBiasFunc(double distance, double cost);
 
     public PathFinder(PathTracer tracer, ArcKernel kernel)
     {
@@ -49,7 +53,7 @@ public class PathFinder
         _openQueue.Clear();
 
         var totalDistance = Vector2d.Distance(startPos, targetPos);
-        var startNode = new Node(startPos, startDirection, 0);
+        var startNode = new Node(startPos, startDirection, 0, 0);
 
         #if DEBUG
         PathTracer.DebugOutput($"Attempting to find path to {targetPos} with hwDist {HeuristicDistanceWeight:F2}");
@@ -169,10 +173,6 @@ public class PathFinder
                 continue;
             }
 
-            #if DEBUG
-            PathTracer.DebugLine(new TraceDebugLine(_tracer, curNode.Position, newPos));
-            #endif
-
             var newDirIdx = curNode.DirectionIdx + dirIdxDelta;
 
             if (newDirIdx > _kernel.ArcCount) newDirIdx -= 2 * _kernel.ArcCount;
@@ -180,7 +180,7 @@ public class PathFinder
 
             if (_closed.Contains(new NodeKey(newPos, newDirIdx, QtClosedLoc, QtClosedRot))) continue;
 
-            var newNode = new Node(newPos, newDir, newDirIdx, curNode)
+            var newNode = new Node(newPos, newDir, newDirIdx, curNode.PathDepth + 1, curNode)
             {
                 TotalCost = curNode.TotalCost + (float) totalCost
             };
@@ -192,7 +192,18 @@ public class PathFinder
                 priority += HeuristicCurvatureWeight * (float) angleDelta;
             }
 
+            var directionBias = DirectionBias(curNode.PathDepth * FullStepDistance, totalCost / _kernel.SplitCount - 1);
+
+            if (directionBias != 0)
+            {
+                priority += (float) (directionBias - angleDelta * (i % 2 == 1 ? -1 : 1)).Abs();
+            }
+
             newNodes++;
+
+            #if DEBUG
+            PathTracer.DebugLine(new TraceDebugLine(_tracer, curNode.Position, newPos, directionBias != 0 ? 2 : 0));
+            #endif
 
             var newKey = new NodeKey(newPos, newDirIdx, QtOpenLoc, QtOpenRot);
 
@@ -251,7 +262,7 @@ public class PathFinder
 
                         if (!hitObstacle)
                         {
-                            var newNode = new Node(target, newDir, curNode.DirectionIdx, curNode)
+                            var newNode = new Node(target, newDir, curNode.DirectionIdx, curNode.PathDepth + 1, curNode)
                             {
                                 TotalCost = curNode.TotalCost + (float) totalCost
                             };
@@ -289,7 +300,7 @@ public class PathFinder
 
                 if (!hitObstacle)
                 {
-                    var newNode = new Node(target, curNode.Direction, curNode.DirectionIdx, curNode)
+                    var newNode = new Node(target, curNode.Direction, curNode.DirectionIdx, curNode.PathDepth + 1, curNode)
                     {
                         TotalCost = curNode.TotalCost + (float) totalCost
                     };
@@ -368,13 +379,15 @@ public class PathFinder
         public readonly Vector2d Direction;
 
         public short DirectionIdx;
+        public ushort PathDepth;
         public float TotalCost;
 
-        public Node(Vector2d position, Vector2d direction, int directionIdx, Node parent = null)
+        public Node(Vector2d position, Vector2d direction, int directionIdx, int pathDepth, Node parent = null)
         {
             this.Position = position;
             this.Direction = direction;
             this.DirectionIdx = (short) directionIdx;
+            this.PathDepth = (ushort) pathDepth;
             this.Parent = parent;
         }
 
@@ -382,6 +395,7 @@ public class PathFinder
             $"{nameof(Position)}: {Position}, " +
             $"{nameof(Direction)}: {Direction}, " +
             $"{nameof(DirectionIdx)}: {DirectionIdx}, " +
+            $"{nameof(PathDepth)}: {PathDepth}, " +
             $"{nameof(Parent)}: {(Parent == null ? "null" : Parent.Position)}, " +
             $"{nameof(Priority)}: {Priority:F2}, " +
             $"{nameof(TotalCost)}: {TotalCost:F2}";
