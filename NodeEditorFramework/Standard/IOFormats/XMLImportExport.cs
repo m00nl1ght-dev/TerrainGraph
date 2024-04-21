@@ -370,8 +370,7 @@ namespace NodeEditorFramework.IO
 			}
 			catch (Exception e)
 			{
-				Debug.Log("Could not serialize " + obj + " (" + debugHint + ")");
-				Debug.LogException(e);
+				Debug.Log($"Could not serialize {obj} ({debugHint})\n{e}");
 				return null;
 			}
 		}
@@ -465,3 +464,4 @@ namespace NodeEditorFramework.IO
 		#endregion
 	}
 }
+
