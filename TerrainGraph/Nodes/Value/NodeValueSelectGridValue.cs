@@ -1,15 +1,13 @@
 using System;
 using System.Collections.Generic;
 using NodeEditorFramework;
-using NodeEditorFramework.Utilities;
-using UnityEngine;
 using static TerrainGraph.GridFunction;
 
 namespace TerrainGraph;
 
 [Serializable]
 [Node(false, "Value/Select/Grid", 101)]
-public class NodeValueSelectGridValue : NodeSelectBase
+public class NodeValueSelectGridValue : NodeSelectBase<double, double>
 {
     public const string ID = "valueSelectGridValue";
     public override string GetID => ID;
@@ -23,38 +21,13 @@ public class NodeValueSelectGridValue : NodeSelectBase
     public override ValueConnectionKnob InputKnobRef => InputKnob;
     public override ValueConnectionKnob OutputKnobRef => OutputKnob;
 
+    protected override string OptionConnectionTypeId => GridFunctionConnection.Id;
+
     public override bool SupportsInterpolation => true;
 
-    public List<double> Values = [];
+    protected override void DrawOptionKey(int i) => DrawDoubleOptionKey(Thresholds, i);
 
-    public override void NodeGUI()
-    {
-        while (OptionKnobs.Count < 2) CreateNewOptionKnob();
-
-        while (Values.Count < OptionKnobs.Count) Values.Add(0f);
-        while (Values.Count > OptionKnobs.Count) Values.RemoveAt(Values.Count - 1);
-
-        base.NodeGUI();
-    }
-
-    protected override void DrawOption(ValueConnectionKnob knob, int i)
-    {
-        if (knob.connected())
-        {
-            GUILayout.Label("Option " + (i + 1), BoxLayout);
-        }
-        else
-        {
-            Values[i] = RTEditorGUI.FloatField(GUIContent.none, (float) Values[i], BoxLayout);
-        }
-    }
-
-    protected override void CreateNewOptionKnob()
-    {
-        CreateValueConnectionKnob(new("Option " + OptionKnobs.Count, Direction.In, GridFunctionConnection.Id));
-        RefreshDynamicKnobs();
-        canvas.OnNodeChange(this);
-    }
+    protected override void DrawOptionValue(int i) => DrawDoubleOptionValue(Values, i);
 
     public override bool Calculate()
     {
@@ -73,6 +46,7 @@ public class NodeValueSelectGridValue : NodeSelectBase
                 Interpolated ? (t, a, b) => Lerp.Of(a, b, t) : null
             )
         );
+
         return true;
     }
 }

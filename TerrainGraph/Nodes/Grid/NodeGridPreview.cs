@@ -290,4 +290,13 @@ public class NodeGridPreview : NodeBase
             return new Vector2(x, y);
         }
     }
+
+    public static IReadOnlyList<Color> FixedColors =
+    [
+        new Color(0.2f, 0.2f, 0.2f),
+        new Color(0.4f, 0.4f, 0.4f),
+        new Color(0.6f, 0.6f, 0.6f),
+        new Color(0.8f, 0.8f, 0.8f),
+        new Color(1f, 1f, 1f)
+    ];
 }

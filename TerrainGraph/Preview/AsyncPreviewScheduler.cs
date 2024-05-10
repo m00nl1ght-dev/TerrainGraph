@@ -51,7 +51,6 @@ public abstract class AsyncPreviewScheduler : IPreviewScheduler
         {
             while (_queuedTasks.Count > 0 || WaitHandle.WaitAny(waitEvents) == 0)
             {
-                Exception exception = null;
                 if (_queuedTasks.Count > 0)
                 {
                     var task = _queuedTasks.Dequeue();
@@ -64,12 +63,12 @@ public abstract class AsyncPreviewScheduler : IPreviewScheduler
                     }
                     catch (Exception e)
                     {
-                        exception = e;
+                        task.Exception = e;
                     }
 
                     RunOnMainThread(() =>
                     {
-                        if (exception == null)
+                        if (task.Exception == null)
                         {
                             if (task.Node.TerrainCanvas.HasActiveGUI)
                             {
@@ -83,7 +82,7 @@ public abstract class AsyncPreviewScheduler : IPreviewScheduler
                         }
                         else
                         {
-                            OnError(task, exception);
+                            OnError(task, task.Exception);
                         }
                     });
                 }

@@ -9,42 +9,60 @@ using static TerrainGraph.GridFunction;
 namespace TerrainGraph;
 
 [Serializable]
-public abstract class NodeSelectBase : NodeBase
+public abstract class NodeSelectBase<TKey, TVal> : NodeBase
 {
     public override string Title => Interpolated ? "Interpolate" : "Select";
 
     public abstract ValueConnectionKnob InputKnobRef { get; }
     public abstract ValueConnectionKnob OutputKnobRef { get; }
 
+    protected abstract string OptionConnectionTypeId { get; }
+
     public virtual bool SupportsInterpolation => false;
 
     [NonSerialized]
     public List<ValueConnectionKnob> OptionKnobs = [];
 
-    public List<double> Thresholds = [];
+    public List<TKey> Thresholds = [];
+    public List<TVal> Values = [];
 
-    public bool Interpolated; // TODO fix the awkwardness of the thresholds when using interpolation
+    public bool Interpolated;
 
     public override void RefreshDynamicKnobs()
     {
         OptionKnobs = dynamicConnectionPorts.Where(k => k.name.StartsWith("Option")).Cast<ValueConnectionKnob>().ToList();
-        UpdateThresholdArray();
+
+        var expectedKeyCount = Interpolated ? OptionKnobs.Count : OptionKnobs.Count - 1;
+
+        while (Thresholds.Count < expectedKeyCount) Thresholds.Add(Thresholds.Count == 0 ? default : Thresholds[Thresholds.Count - 1]);
+        while (Thresholds.Count > 0 && Thresholds.Count > expectedKeyCount) Thresholds.RemoveAt(Thresholds.Count - 1);
+
+        while (Values.Count < OptionKnobs.Count) Values.Add(default);
+        while (Values.Count > OptionKnobs.Count) Values.RemoveAt(Values.Count - 1);
     }
 
-    private void UpdateThresholdArray()
+    public override void OnCreate(bool fromGUI)
     {
-        while (Thresholds.Count < OptionKnobs.Count - 1) Thresholds.Add(Thresholds.Count == 0 ? 0 : Thresholds[Thresholds.Count - 1]);
-        while (Thresholds.Count > 0 && Thresholds.Count > OptionKnobs.Count - 1) Thresholds.RemoveAt(Thresholds.Count - 1);
+        base.OnCreate(fromGUI);
+
+        if (fromGUI)
+        {
+            CreateNewOptionKnob();
+            CreateNewOptionKnob();
+            RefreshDynamicKnobs();
+        }
+    }
+
+    private void CreateNewOptionKnob()
+    {
+        CreateValueConnectionKnob(new("Option " + OptionKnobs.Count, Direction.In, OptionConnectionTypeId));
     }
 
     public override void NodeGUI()
     {
         OutputKnobRef.SetPosition(FirstKnobPosition);
-        while (OptionKnobs.Count < 2) CreateNewOptionKnob();
 
         GUILayout.BeginVertical(BoxStyle);
-
-        UpdateThresholdArray();
 
         GUILayout.BeginHorizontal(BoxStyle);
         GUILayout.Label("Input", BoxLayout);
@@ -56,13 +74,14 @@ public abstract class NodeSelectBase : NodeBase
             var knob = OptionKnobs[i];
             GUILayout.BeginHorizontal(BoxStyle);
 
-            DrawOption(knob, i);
+            DrawOptionValue(i);
             knob.SetPosition();
 
-            if (i > 0)
+            if (i > 0 || Interpolated)
             {
                 GUILayout.FlexibleSpace();
-                Thresholds[i - 1] = RTEditorGUI.FloatField(GUIContent.none, (float) Thresholds[i - 1], BoxLayout);
+                var tIdx = Interpolated ? i : i - 1;
+                DrawOptionKey(tIdx);
             }
 
             GUILayout.EndHorizontal();
@@ -74,30 +93,79 @@ public abstract class NodeSelectBase : NodeBase
             canvas.OnNodeChange(this);
     }
 
-    protected abstract void DrawOption(ValueConnectionKnob knob, int i);
+    protected abstract void DrawOptionKey(int i);
+    protected abstract void DrawOptionValue(int i);
 
-    protected abstract void CreateNewOptionKnob();
+    protected void DrawDoubleOptionKey(List<double> keys, int i)
+    {
+        keys[i] = RTEditorGUI.FloatField(GUIContent.none, (float) keys[i], BoxLayout);
+    }
+
+    protected void DrawDoubleOptionValue(List<double> values, int i, bool preview = false)
+    {
+        if (OptionKnobs[i].connected())
+        {
+            if (preview)
+            {
+                GUI.enabled = false;
+                RTEditorGUI.FloatField(GUIContent.none, (float) Math.Round(values[i], 2), BoxLayout);
+                GUI.enabled = true;
+            }
+            else
+            {
+                GUILayout.Label("Option " + (i + 1), BoxLayout);
+            }
+        }
+        else
+        {
+            values[i] = RTEditorGUI.FloatField(GUIContent.none, (float) values[i], BoxLayout);
+        }
+    }
+
+    protected void RefreshPreview<T>(Func<T, TVal> conversion)
+    {
+        base.RefreshPreview();
+
+        List<ISupplier<T>> suppliers = [];
+
+        for (int i = 0; i < Math.Min(Values.Count, OptionKnobs.Count); i++)
+        {
+            var knob = OptionKnobs[i];
+            var supplier = GetIfConnected<T>(knob);
+            supplier?.ResetState();
+            suppliers.Add(supplier);
+        }
+
+        for (var i = 0; i < suppliers.Count; i++)
+        {
+            if (suppliers[i] != null) Values[i] = conversion(suppliers[i].Get());
+        }
+    }
 
     public override void FillNodeActionsMenu(NodeEditorInputInfo inputInfo, GenericMenu menu)
     {
         base.FillNodeActionsMenu(inputInfo, menu);
 
-        menu.AddSeparator("");
-
         if (!Interpolated && SupportsInterpolation)
         {
+            menu.AddSeparator("");
+
             menu.AddItem(new GUIContent("Add interpolation"), false, () =>
             {
                 Interpolated = true;
+                Thresholds.Insert(0, default);
                 canvas.OnNodeChange(this);
             });
         }
 
         if (Interpolated)
         {
+            menu.AddSeparator("");
+
             menu.AddItem(new GUIContent("Remove interpolation"), false, () =>
             {
                 Interpolated = false;
+                Thresholds.RemoveAt(0);
                 canvas.OnNodeChange(this);
             });
         }
@@ -106,7 +174,12 @@ public abstract class NodeSelectBase : NodeBase
 
         if (OptionKnobs.Count < 20)
         {
-            menu.AddItem(new GUIContent("Add branch"), false, CreateNewOptionKnob);
+            menu.AddItem(new GUIContent("Add branch"), false, () =>
+            {
+                CreateNewOptionKnob();
+                RefreshDynamicKnobs();
+                canvas.OnNodeChange(this);
+            });
         }
 
         if (OptionKnobs.Count > 2)
@@ -130,7 +203,8 @@ public abstract class NodeSelectBase : NodeBase
         public Output(
             ISupplier<double> input,
             List<ISupplier<T>> options,
-            List<double> thresholds, Interpolation<T> interpolation)
+            List<double> thresholds,
+            Interpolation<T> interpolation)
         {
             _input = input;
             _options = options;
@@ -142,13 +216,23 @@ public abstract class NodeSelectBase : NodeBase
         {
             var value = _input.Get();
 
-            for (int i = 0; i < Math.Min(_thresholds.Count, _options.Count - 1); i++)
+            if (_interpolation != null)
             {
-                if (value < _thresholds[i])
+                for (int i = 0; i < _options.Count; i++)
                 {
-                    if (_interpolation == null || i == 0) return _options[i].Get();
-                    var t = (value - _thresholds[i - 1]) / (_thresholds[i] - _thresholds[i - 1]);
-                    return _interpolation(t, _options[i].Get(), _options[i + 1].Get());
+                    if (value < _thresholds[i])
+                    {
+                        if (i == 0) return _options[i].Get();
+                        var t = (value - _thresholds[i - 1]) / (_thresholds[i] - _thresholds[i - 1]);
+                        return _interpolation(t, _options[i - 1].Get(), _options[i].Get());
+                    }
+                }
+            }
+            else
+            {
+                for (int i = 0; i < _options.Count - 1; i++)
+                {
+                    if (value < _thresholds[i]) return _options[i].Get();
                 }
             }
 
@@ -168,23 +252,28 @@ public abstract class NodeSelectBase : NodeBase
         private readonly List<ISupplier<IGridFunction<T>>> _options;
         private readonly List<double> _thresholds;
         private readonly Interpolation<T> _interpolation;
-        private readonly Func<T, int, T> _postProcess;
 
         public GridOutput(
             ISupplier<IGridFunction<double>> input, List<ISupplier<IGridFunction<T>>> options,
-            List<double> thresholds, Interpolation<T> interpolation, Func<T, int, T> postProcess = null)
+            List<double> thresholds, Interpolation<T> interpolation)
         {
             _input = input;
             _options = options;
             _thresholds = thresholds;
             _interpolation = interpolation;
-            _postProcess = postProcess;
         }
 
         public IGridFunction<T> Get()
         {
+            if (_interpolation != null)
+            {
+                return new Interpolate<T>(
+                    _input.Get(), _options.Select(o => o.Get()).ToList(), _thresholds, _interpolation
+                );
+            }
+
             return new Select<T>(
-                _input.Get(), _options.Select(o => o.Get()).ToList(), _thresholds, _interpolation, _postProcess
+                _input.Get(), _options.Select(o => o.Get()).ToList(), _thresholds
             );
         }
 

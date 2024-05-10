@@ -1,15 +1,13 @@
 using System;
 using System.Collections.Generic;
 using NodeEditorFramework;
-using NodeEditorFramework.Utilities;
 using TerrainGraph.Util;
-using UnityEngine;
 
 namespace TerrainGraph;
 
 [Serializable]
 [Node(false, "Grid/Select/Value", 200)]
-public class NodeGridSelectValue : NodeSelectBase
+public class NodeGridSelectValue : NodeSelectBase<double, double>
 {
     public const string ID = "gridSelectValue";
     public override string GetID => ID;
@@ -23,38 +21,13 @@ public class NodeGridSelectValue : NodeSelectBase
     public override ValueConnectionKnob InputKnobRef => InputKnob;
     public override ValueConnectionKnob OutputKnobRef => OutputKnob;
 
+    protected override string OptionConnectionTypeId => GridFunctionConnection.Id;
+
     public override bool SupportsInterpolation => true;
 
-    public List<double> Values = [];
+    protected override void DrawOptionKey(int i) => DrawDoubleOptionKey(Thresholds, i);
 
-    public override void NodeGUI()
-    {
-        while (OptionKnobs.Count < 2) CreateNewOptionKnob();
-
-        while (Values.Count < OptionKnobs.Count) Values.Add(0f);
-        while (Values.Count > OptionKnobs.Count) Values.RemoveAt(Values.Count - 1);
-
-        base.NodeGUI();
-    }
-
-    protected override void DrawOption(ValueConnectionKnob knob, int i)
-    {
-        if (knob.connected())
-        {
-            GUILayout.Label("Option " + (i + 1), BoxLayout);
-        }
-        else
-        {
-            Values[i] = RTEditorGUI.FloatField(GUIContent.none, (float) Values[i], BoxLayout);
-        }
-    }
-
-    protected override void CreateNewOptionKnob()
-    {
-        CreateValueConnectionKnob(new("Option " + OptionKnobs.Count, Direction.In, GridFunctionConnection.Id));
-        RefreshDynamicKnobs();
-        canvas.OnNodeChange(this);
-    }
+    protected override void DrawOptionValue(int i) => DrawDoubleOptionValue(Values, i);
 
     public override bool Calculate()
     {

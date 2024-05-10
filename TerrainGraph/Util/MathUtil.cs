@@ -7,6 +7,8 @@ namespace TerrainGraph.Util;
 
 public static class MathUtil
 {
+    public static readonly Func<double, double> Identity = a => a;
+
     public static long Factorial(long v) => v <= 1 ? 1 : v * Factorial(v - 1);
 
     public static long Combination(long a, long b) => a <= 1 ? 1 : Factorial(a) / (Factorial(b) * Factorial(a - b));

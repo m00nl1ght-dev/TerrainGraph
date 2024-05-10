@@ -1,16 +1,13 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using NodeEditorFramework;
-using NodeEditorFramework.Utilities;
 using TerrainGraph.Util;
-using UnityEngine;
 
 namespace TerrainGraph;
 
 [Serializable]
 [Node(false, "Value/Select/Value", 100)]
-public class NodeValueSelectValue : NodeSelectBase
+public class NodeValueSelectValue : NodeSelectBase<double, double>
 {
     public const string ID = "valueSelectValue";
     public override string GetID => ID;
@@ -24,57 +21,15 @@ public class NodeValueSelectValue : NodeSelectBase
     public override ValueConnectionKnob InputKnobRef => InputKnob;
     public override ValueConnectionKnob OutputKnobRef => OutputKnob;
 
+    protected override string OptionConnectionTypeId => ValueFunctionConnection.Id;
+
     public override bool SupportsInterpolation => true;
 
-    public List<double> Values = [];
+    public override void RefreshPreview() => RefreshPreview(MathUtil.Identity);
 
-    public override void NodeGUI()
-    {
-        while (OptionKnobs.Count < 2) CreateNewOptionKnob();
+    protected override void DrawOptionKey(int i) => DrawDoubleOptionKey(Thresholds, i);
 
-        while (Values.Count < OptionKnobs.Count) Values.Add(0f);
-        while (Values.Count > OptionKnobs.Count) Values.RemoveAt(Values.Count - 1);
-
-        base.NodeGUI();
-    }
-
-    protected override void DrawOption(ValueConnectionKnob knob, int i)
-    {
-        if (knob.connected())
-        {
-            GUILayout.Label(Math.Round(Values[i], 2).ToString(CultureInfo.InvariantCulture), BoxLayout);
-        }
-        else
-        {
-            Values[i] = RTEditorGUI.FloatField(GUIContent.none, (float) Values[i], BoxLayout);
-        }
-    }
-
-    protected override void CreateNewOptionKnob()
-    {
-        CreateValueConnectionKnob(new("Option " + OptionKnobs.Count, Direction.In, ValueFunctionConnection.Id));
-        RefreshDynamicKnobs();
-        canvas.OnNodeChange(this);
-    }
-
-    public override void RefreshPreview()
-    {
-        base.RefreshPreview();
-        List<ISupplier<double>> suppliers = [];
-
-        for (int i = 0; i < Math.Min(Values.Count, OptionKnobs.Count); i++)
-        {
-            var knob = OptionKnobs[i];
-            var supplier = GetIfConnected<double>(knob);
-            supplier?.ResetState();
-            suppliers.Add(supplier);
-        }
-
-        for (var i = 0; i < suppliers.Count; i++)
-        {
-            if (suppliers[i] != null) Values[i] = suppliers[i].Get();
-        }
-    }
+    protected override void DrawOptionValue(int i) => DrawDoubleOptionValue(Values, i, true);
 
     public override bool Calculate()
     {

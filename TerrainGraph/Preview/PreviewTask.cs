@@ -14,6 +14,8 @@ public class PreviewTask
     public float TimeSinceCreated => Time.time - CreatedAt;
     public readonly bool WasIdleBefore;
 
+    public Exception Exception;
+
     public PreviewTask(NodeBase node, Action task, Action onFinished)
     {
         Node = node;

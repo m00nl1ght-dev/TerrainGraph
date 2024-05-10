@@ -51,21 +51,15 @@ public static class GridFunction
         public readonly IGridFunction<double> Input;
         public readonly List<IGridFunction<T>> Options;
         public readonly List<double> Thresholds;
-        public readonly Interpolation<T> Interpolation;
-        public readonly Func<T, int, T> PostProcess;
 
         public Select(
             IGridFunction<double> input,
             List<IGridFunction<T>> options,
-            List<double> thresholds,
-            Interpolation<T> interpolation,
-            Func<T, int, T> postProcess = null)
+            List<double> thresholds)
         {
             Input = input;
             Options = options;
             Thresholds = thresholds;
-            Interpolation = interpolation;
-            PostProcess = postProcess ?? ((v, _) => v);
         }
 
         public T ValueAt(double x, double z)
@@ -74,17 +68,10 @@ public static class GridFunction
 
             for (int i = 0; i < Math.Min(Thresholds.Count, Options.Count - 1); i++)
             {
-                if (value < Thresholds[i])
-                {
-                    var a = PostProcess(Options[i].ValueAt(x, z), i);
-                    if (Interpolation == null || i == 0) return a;
-                    var t = (value - Thresholds[i - 1]) / (Thresholds[i] - Thresholds[i - 1]);
-                    var b = PostProcess(Options[i + 1].ValueAt(x, z), i + 1);
-                    return Interpolation(t, a, b);
-                }
+                if (value < Thresholds[i]) return Options[i].ValueAt(x, z);
             }
 
-            return PostProcess(Options[Options.Count - 1].ValueAt(x, z), Options.Count - 1);
+            return Options[Options.Count - 1].ValueAt(x, z);
         }
 
         protected bool Equals(Select<T> other) =>
@@ -105,7 +92,65 @@ public static class GridFunction
             $"{nameof(Input)}: {Input}, " +
             $"{nameof(Options)}: {Options}, " +
             $"{nameof(Thresholds)}: {Thresholds}, " +
-            $"{nameof(PostProcess)}: {(PostProcess == null ? "No" : "Yes")}" +
+            "}";
+    }
+
+    public class Interpolate<T> : IGridFunction<T>
+    {
+        public readonly IGridFunction<double> Input;
+        public readonly List<IGridFunction<T>> Options;
+        public readonly List<double> Thresholds;
+        public readonly Interpolation<T> Interpolation;
+
+        public Interpolate(
+            IGridFunction<double> input,
+            List<IGridFunction<T>> options,
+            List<double> thresholds,
+            Interpolation<T> interpolation)
+        {
+            Input = input;
+            Options = options;
+            Thresholds = thresholds;
+            Interpolation = interpolation;
+        }
+
+        public T ValueAt(double x, double z)
+        {
+            var value = Input.ValueAt(x, z);
+
+            for (int i = 0; i < Math.Min(Thresholds.Count, Options.Count); i++)
+            {
+                if (value < Thresholds[i])
+                {
+                    var a = Options[i - 1].ValueAt(x, z);
+                    if (i == 0) return a;
+                    var t = (value - Thresholds[i - 1]) / (Thresholds[i] - Thresholds[i - 1]);
+                    var b = Options[i].ValueAt(x, z);
+                    return Interpolation(t, a, b);
+                }
+            }
+
+            return Options[Options.Count - 1].ValueAt(x, z);
+        }
+
+        protected bool Equals(Select<T> other) =>
+            Input.Equals(other.Input) &&
+            Options.SequenceEqual(other.Options) &&
+            Thresholds.SequenceEqual(other.Thresholds);
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((Select<T>) obj);
+        }
+
+        public override string ToString() =>
+            "INTERPOLATE { " +
+            $"{nameof(Input)}: {Input}, " +
+            $"{nameof(Options)}: {Options}, " +
+            $"{nameof(Thresholds)}: {Thresholds}, " +
             "}";
     }
 
