@@ -231,10 +231,19 @@ namespace NodeEditorFramework.IO
 						if (variable.Name != "Variable" && variable.Name != "Port")
 						{
 							string varName = variable.GetAttribute("name");
-							object varValue = DeserializeFieldFromXML(variable, node.type, null);
-							VariableData varData = new VariableData(varName);
-							varData.value = varValue;
-							node.variables.Add(varData);
+
+							try
+							{
+								object varValue = DeserializeFieldFromXML(variable, node.type, null);
+								VariableData varData = new VariableData(varName);
+								varData.value = varValue;
+								node.variables.Add(varData);
+							}
+							catch (Exception)
+							{
+								Debug.Log($"Exception while trying to load field {varName} in {typeID}");
+								throw;
+							}
 						}
 					}
 

@@ -122,11 +122,11 @@ public static class GridFunction
             {
                 if (value < Thresholds[i])
                 {
-                    var a = Options[i - 1].ValueAt(x, z);
-                    if (i == 0) return a;
+                    var c = Options[i].ValueAt(x, z);
+                    if (i == 0) return c;
                     var t = (value - Thresholds[i - 1]) / (Thresholds[i] - Thresholds[i - 1]);
-                    var b = Options[i].ValueAt(x, z);
-                    return Interpolation(t, a, b);
+                    var p = Options[i - 1].ValueAt(x, z);
+                    return Interpolation(t, p, c);
                 }
             }
 
