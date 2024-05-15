@@ -6,9 +6,14 @@ namespace TerrainGraph.Flow;
 internal readonly struct TraceFactors
 {
     /// <summary>
-    /// Local width multiplier at the current frame position.
+    /// Local multiplier for the left extent at the current frame position.
     /// </summary>
-    public readonly double width = 1;
+    public readonly double extentLeft = 1;
+
+    /// <summary>
+    /// Local multiplier for the right extent at the current frame position.
+    /// </summary>
+    public readonly double extentRight = 1;
 
     /// <summary>
     /// Local speed multiplier at the current frame position.
@@ -16,9 +21,14 @@ internal readonly struct TraceFactors
     public readonly double speed = 1;
 
     /// <summary>
-    /// Local density multiplier at the current frame position.
+    /// Local multiplier for the left density at the current frame position.
     /// </summary>
-    public readonly double density = 1;
+    public readonly double densityLeft = 1;
+
+    /// <summary>
+    /// Local multiplier for the right density at the current frame position.
+    /// </summary>
+    public readonly double densityRight = 1;
 
     /// <summary>
     /// Scalar applied to all local multipliers.
@@ -29,9 +39,11 @@ internal readonly struct TraceFactors
 
     public TraceFactors(Path.Segment segment, Vector2d pos, double dist)
     {
-        width = segment.TraceParams.WidthGrid?.ValueAt(pos) ?? 1;
+        extentLeft = segment.TraceParams.ExtentLeftGrid?.ValueAt(pos) ?? 1;
+        extentRight = segment.TraceParams.ExtentRightGrid?.ValueAt(pos) ?? 1;
         speed = segment.TraceParams.SpeedGrid?.ValueAt(pos) ?? 1;
-        density = segment.TraceParams.DensityGrid?.ValueAt(pos) ?? 1;
+        densityLeft = segment.TraceParams.DensityLeftGrid?.ValueAt(pos) ?? 1;
+        densityRight = segment.TraceParams.DensityRightGrid?.ValueAt(pos) ?? 1;
 
         var progress = segment.Length <= 0 ? 0 : (dist / segment.Length).InRange01();
 
@@ -39,8 +51,10 @@ internal readonly struct TraceFactors
     }
 
     public override string ToString() =>
-        $"{nameof(width)}: {width}, " +
+        $"{nameof(extentLeft)}: {extentLeft}, " +
+        $"{nameof(extentRight)}: {extentRight}, " +
         $"{nameof(speed)}: {speed}, " +
-        $"{nameof(density)}: {density}, " +
+        $"{nameof(densityLeft)}: {densityLeft}, " +
+        $"{nameof(densityRight)}: {densityRight}, " +
         $"{nameof(scalar)}: {scalar}";
 }

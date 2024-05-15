@@ -536,15 +536,14 @@ public class PathTracer
                 Math.Abs(angleDelta) >= RadialThreshold
             );
 
-            var extendA = a.widthMul / 2;
-            var extendB = b.widthMul / 2;
+            var extentLeftA = a.extentLeftMul;
+            var extentRightA = a.extentRightMul;
+            var extentLeftB = b.extentLeftMul;
+            var extentRightB = b.extentRightMul;
 
-            var boundIa = extendA + TraceInnerMargin;
-            var boundIb = extendB + TraceInnerMargin;
-            var boundOa = extendA + TraceOuterMargin;
-            var boundOb = extendB + TraceOuterMargin;
+            var extentMax = Math.Max(Math.Max(extentLeftA, extentRightA), Math.Max(extentLeftB, extentRightB));
 
-            if (extendA < 1 && a.dist >= 0)
+            if (extentLeftA < 1 && extentRightA < 1 && a.dist >= 0)
             {
                 length = Math.Min(length, b.dist);
 
@@ -569,10 +568,10 @@ public class PathTracer
                 everFullyInBounds = true;
             }
 
-            var boundP1 = a.pos + a.perpCCW * boundOa;
-            var boundP2 = a.pos + a.perpCW * boundOa;
-            var boundP3 = b.pos + b.perpCCW * boundOb;
-            var boundP4 = b.pos + b.perpCW * boundOb;
+            var boundP1 = a.pos + a.perpCCW * (extentLeftA + TraceOuterMargin);
+            var boundP2 = a.pos + a.perpCW * (extentRightA + TraceOuterMargin);
+            var boundP3 = b.pos + b.perpCCW * (extentLeftB + TraceOuterMargin);
+            var boundP4 = b.pos + b.perpCW * (extentRightB + TraceOuterMargin);
 
             var boundMin = Vector2d.Min(Vector2d.Min(boundP1, boundP2), Vector2d.Min(boundP3, boundP4));
             var boundMax = Vector2d.Max(Vector2d.Max(boundP1, boundP2), Vector2d.Max(boundP3, boundP4));
@@ -606,7 +605,7 @@ public class PathTracer
                             shift = Math.Sign(-angleDelta) * (pivotVec.Magnitude - Math.Abs(pivotOffset));
                             shiftAbs = Math.Abs(shift);
 
-                            if (shiftAbs <= boundIa || shiftAbs <= boundIb)
+                            if (shiftAbs <= extentMax + TraceInnerMargin)
                             {
                                 progress = Vector2d.Angle(a.pos - pivotPoint, pivotVec) / Math.Abs(angleDelta);
                             }
@@ -619,9 +618,11 @@ public class PathTracer
                             progress = dotA / distDelta;
                         }
 
-                        var extend = progress.Lerp(extendA, extendB);
+                        var extent = shift < 0 ?
+                            progress.Lerp(extentLeftA, extentLeftB) :
+                            progress.Lerp(extentRightA, extentRightB);
 
-                        var nowDist = shiftAbs - extend;
+                        var nowDist = shiftAbs - extent;
 
                         if (nowDist <= TraceOuterMargin)
                         {
@@ -637,7 +638,9 @@ public class PathTracer
                                 var dist = a.dist + distDelta * progress;
 
                                 var value = progress.Lerp(a.value, b.value);
-                                var density = progress.Lerp(a.densityMul, b.densityMul);
+                                var densityA = shift < 0 ? a.densityLeftMul : a.densityRightMul;
+                                var densityB = shift < 0 ? b.densityLeftMul : b.densityRightMul;
+                                var density = progress.Lerp(densityA, densityB);
                                 var offset = progress.Lerp(a.offset, b.offset) + shift * density;
 
                                 if (nowDist <= CollisionCheckMargin && dist >= 0 && dist <= length)
@@ -685,7 +688,7 @@ public class PathTracer
 
                                     if (nowDist <= 0)
                                     {
-                                        _mainGrid[x, z] = extend;
+                                        _mainGrid[x, z] = extent;
 
                                         #if DEBUG
                                         _debugGrid[x, z] = task.segment.Id;

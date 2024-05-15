@@ -18,8 +18,11 @@ public class NodePathWidth : NodeBase
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
-    [ValueConnectionKnob("Width Grid", Direction.In, GridFunctionConnection.Id)]
-    public ValueConnectionKnob WidthGridKnob;
+    [ValueConnectionKnob("Extent Left", Direction.In, GridFunctionConnection.Id)]
+    public ValueConnectionKnob ExtentLeftGridKnob;
+
+    [ValueConnectionKnob("Extent Right", Direction.In, GridFunctionConnection.Id)]
+    public ValueConnectionKnob ExtentRightGridKnob;
 
     [ValueConnectionKnob("Width Loss", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob WidthLossKnob;
@@ -41,10 +44,16 @@ public class NodePathWidth : NodeBase
         GUILayout.EndHorizontal();
 
         GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Width Grid", BoxLayout);
+        GUILayout.Label("Extent Left", BoxLayout);
         GUILayout.EndHorizontal();
 
-        WidthGridKnob.SetPosition();
+        ExtentLeftGridKnob.SetPosition();
+
+        GUILayout.BeginHorizontal(BoxStyle);
+        GUILayout.Label("Extent Right", BoxLayout);
+        GUILayout.EndHorizontal();
+
+        ExtentRightGridKnob.SetPosition();
 
         KnobValueField(WidthLossKnob, ref WidthLoss);
 
@@ -67,7 +76,8 @@ public class NodePathWidth : NodeBase
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
-            SupplierOrFallback(WidthGridKnob, GridFunction.One),
+            SupplierOrFallback(ExtentLeftGridKnob, GridFunction.One),
+            SupplierOrFallback(ExtentRightGridKnob, GridFunction.One),
             SupplierOrFallback(WidthLossKnob, WidthLoss)
         ));
         return true;
@@ -76,13 +86,19 @@ public class NodePathWidth : NodeBase
     private class Output : ISupplier<Path>
     {
         private readonly ISupplier<Path> _input;
-        private readonly ISupplier<IGridFunction<double>> _widthGrid;
+        private readonly ISupplier<IGridFunction<double>> _extentLeftGrid;
+        private readonly ISupplier<IGridFunction<double>> _extentRightGrid;
         private readonly ISupplier<double> _widthLoss;
 
-        public Output(ISupplier<Path> input, ISupplier<IGridFunction<double>> widthGrid, ISupplier<double> widthLoss)
+        public Output(
+            ISupplier<Path> input,
+            ISupplier<IGridFunction<double>> extentLeftGrid,
+            ISupplier<IGridFunction<double>> extentRightGrid,
+            ISupplier<double> widthLoss)
         {
             _input = input;
-            _widthGrid = widthGrid;
+            _extentLeftGrid = extentLeftGrid;
+            _extentRightGrid = extentRightGrid;
             _widthLoss = widthLoss;
         }
 
@@ -94,7 +110,8 @@ public class NodePathWidth : NodeBase
             {
                 var extParams = segment.TraceParams;
 
-                extParams.WidthGrid = _widthGrid.Get();
+                extParams.ExtentLeftGrid = _extentLeftGrid.Get();
+                extParams.ExtentRightGrid = _extentRightGrid.Get();
                 extParams.WidthLoss = _widthLoss.Get();
 
                 segment.ExtendWithParams(extParams);
@@ -106,7 +123,8 @@ public class NodePathWidth : NodeBase
         public void ResetState()
         {
             _input.ResetState();
-            _widthGrid.ResetState();
+            _extentLeftGrid.ResetState();
+            _extentRightGrid.ResetState();
             _widthLoss.ResetState();
         }
     }

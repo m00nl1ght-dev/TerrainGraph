@@ -620,9 +620,11 @@ public class Path
 
         public IGridFunction<double> CostGrid;
         public IGridFunction<double> SwerveFunc;
-        public IGridFunction<double> WidthGrid;
+        public IGridFunction<double> ExtentLeftGrid;
+        public IGridFunction<double> ExtentRightGrid;
         public IGridFunction<double> SpeedGrid;
-        public IGridFunction<double> DensityGrid;
+        public IGridFunction<double> DensityLeftGrid;
+        public IGridFunction<double> DensityRightGrid;
 
         public IReadOnlyCollection<DiversionPoint> DiversionPoints;
 
@@ -668,9 +670,11 @@ public class Path
                 AdjustmentPriority = a.AdjustmentPriority || b.AdjustmentPriority,
                 CostGrid = Lerp.Of(a.CostGrid, b.CostGrid, t),
                 SwerveFunc = Lerp.Of(a.SwerveFunc, b.SwerveFunc, t),
-                WidthGrid = Lerp.Of(a.WidthGrid, b.WidthGrid, t),
+                ExtentLeftGrid = Lerp.Of(a.ExtentLeftGrid, b.ExtentLeftGrid, t),
+                ExtentRightGrid = Lerp.Of(a.ExtentRightGrid, b.ExtentRightGrid, t),
                 SpeedGrid = Lerp.Of(a.SpeedGrid, b.SpeedGrid, t),
-                DensityGrid = Lerp.Of(a.DensityGrid, b.DensityGrid, t),
+                DensityLeftGrid = Lerp.Of(a.DensityLeftGrid, b.DensityLeftGrid, t),
+                DensityRightGrid = Lerp.Of(a.DensityRightGrid, b.DensityRightGrid, t),
                 Target = a.Target ?? b.Target
             };
         }
@@ -689,9 +693,11 @@ public class Path
             AdjustmentPriority == other.AdjustmentPriority &&
             Equals(CostGrid, other.CostGrid) &&
             Equals(SwerveFunc, other.SwerveFunc) &&
-            Equals(WidthGrid, other.WidthGrid) &&
+            Equals(ExtentLeftGrid, other.ExtentLeftGrid) &&
+            Equals(ExtentRightGrid, other.ExtentRightGrid) &&
             Equals(SpeedGrid, other.SpeedGrid) &&
-            Equals(DensityGrid, other.DensityGrid) &&
+            Equals(DensityLeftGrid, other.DensityLeftGrid) &&
+            Equals(DensityRightGrid, other.DensityRightGrid) &&
             Equals(DiversionPoints, other.DiversionPoints) &&
             Target == other.Target;
 
@@ -709,9 +715,11 @@ public class Path
             $"{nameof(AdjustmentPriority)}: {AdjustmentPriority}, " +
             $"{nameof(CostGrid)}: {CostGrid}, " +
             $"{nameof(SwerveFunc)}: {SwerveFunc}, " +
-            $"{nameof(WidthGrid)}: {WidthGrid}, " +
+            $"{nameof(ExtentLeftGrid)}: {ExtentLeftGrid}, " +
+            $"{nameof(ExtentRightGrid)}: {ExtentRightGrid}, " +
             $"{nameof(SpeedGrid)}: {SpeedGrid}, " +
-            $"{nameof(DensityGrid)}: {DensityGrid}, " +
+            $"{nameof(DensityLeftGrid)}: {DensityLeftGrid}, " +
+            $"{nameof(DensityRightGrid)}: {DensityRightGrid}, " +
             $"{nameof(DiversionPoints)}: {DiversionPoints?.Count ?? 0}, " +
             $"{nameof(Target)}: {Target}";
     }

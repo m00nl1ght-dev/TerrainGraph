@@ -18,8 +18,11 @@ public class NodePathDensity : NodeBase
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
-    [ValueConnectionKnob("Density Grid", Direction.In, GridFunctionConnection.Id)]
-    public ValueConnectionKnob DensityGridKnob;
+    [ValueConnectionKnob("Density Left Grid", Direction.In, GridFunctionConnection.Id)]
+    public ValueConnectionKnob DensityLeftGridKnob;
+
+    [ValueConnectionKnob("Density Right Grid", Direction.In, GridFunctionConnection.Id)]
+    public ValueConnectionKnob DensityRightGridKnob;
 
     [ValueConnectionKnob("Density Loss", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob DensityLossKnob;
@@ -41,10 +44,16 @@ public class NodePathDensity : NodeBase
         GUILayout.EndHorizontal();
 
         GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Density Grid", BoxLayout);
+        GUILayout.Label("Density Left", BoxLayout);
         GUILayout.EndHorizontal();
 
-        DensityGridKnob.SetPosition();
+        DensityLeftGridKnob.SetPosition();
+
+        GUILayout.BeginHorizontal(BoxStyle);
+        GUILayout.Label("Density Right", BoxLayout);
+        GUILayout.EndHorizontal();
+
+        DensityRightGridKnob.SetPosition();
 
         KnobValueField(DensityLossKnob, ref DensityLoss);
 
@@ -67,7 +76,8 @@ public class NodePathDensity : NodeBase
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
-            SupplierOrFallback(DensityGridKnob, GridFunction.One),
+            SupplierOrFallback(DensityLeftGridKnob, GridFunction.One),
+            SupplierOrFallback(DensityRightGridKnob, GridFunction.One),
             SupplierOrFallback(DensityLossKnob, DensityLoss)
         ));
         return true;
@@ -76,13 +86,19 @@ public class NodePathDensity : NodeBase
     private class Output : ISupplier<Path>
     {
         private readonly ISupplier<Path> _input;
-        private readonly ISupplier<IGridFunction<double>> _densityGrid;
+        private readonly ISupplier<IGridFunction<double>> _densityLeftGrid;
+        private readonly ISupplier<IGridFunction<double>> _densityRightGrid;
         private readonly ISupplier<double> _densityLoss;
 
-        public Output(ISupplier<Path> input, ISupplier<IGridFunction<double>> densityGrid, ISupplier<double> densityLoss)
+        public Output(
+            ISupplier<Path> input,
+            ISupplier<IGridFunction<double>> densityLeftGrid,
+            ISupplier<IGridFunction<double>> densityRightGrid,
+            ISupplier<double> densityLoss)
         {
             _input = input;
-            _densityGrid = densityGrid;
+            _densityLeftGrid = densityLeftGrid;
+            _densityRightGrid = densityRightGrid;
             _densityLoss = densityLoss;
         }
 
@@ -94,7 +110,8 @@ public class NodePathDensity : NodeBase
             {
                 var extParams = segment.TraceParams;
 
-                extParams.DensityGrid = _densityGrid.Get();
+                extParams.DensityLeftGrid = _densityLeftGrid.Get();
+                extParams.DensityRightGrid = _densityRightGrid.Get();
                 extParams.DensityLoss = _densityLoss.Get();
 
                 segment.ExtendWithParams(extParams);
@@ -106,7 +123,8 @@ public class NodePathDensity : NodeBase
         public void ResetState()
         {
             _input.ResetState();
-            _densityGrid.ResetState();
+            _densityLeftGrid.ResetState();
+            _densityRightGrid.ResetState();
             _densityLoss.ResetState();
         }
     }

@@ -5,7 +5,7 @@ namespace TerrainGraph.Util;
 public class GridKernel
 {
     public readonly int Size;
-    public readonly double Extend;
+    public readonly double Extent;
 
     public int PointCount => Offsets.Count;
 
@@ -15,7 +15,7 @@ public class GridKernel
     public readonly IReadOnlyList<double> Distances;
     public readonly IReadOnlyList<double> Angles;
 
-    public static GridKernel DiscreteCircle(int radius, double extend)
+    public static GridKernel DiscreteCircle(int radius, double extent)
     {
         var offsets = new List<Vector2d>();
 
@@ -31,10 +31,10 @@ public class GridKernel
             if (y > radius) y = radius;
             else if (y < -radius) y = -radius;
 
-            offsets.Add(new Vector2d(x * extend, y * extend));
-            offsets.Add(new Vector2d(x * extend, -y * extend));
-            offsets.Add(new Vector2d(-x * extend, y * extend));
-            offsets.Add(new Vector2d(-x * extend, -y * extend));
+            offsets.Add(new Vector2d(x * extent, y * extent));
+            offsets.Add(new Vector2d(x * extent, -y * extent));
+            offsets.Add(new Vector2d(-x * extent, y * extent));
+            offsets.Add(new Vector2d(-x * extent, -y * extent));
 
             if (d < 0 && 2 * (d + y) - 1 <= 0)
             {
@@ -51,10 +51,10 @@ public class GridKernel
             d += 2 * (++x - y--);
         }
 
-        return new GridKernel(radius, extend, offsets.ToArray());
+        return new GridKernel(radius, extent, offsets.ToArray());
     }
 
-    public static GridKernel Square(int size, double extend)
+    public static GridKernel Square(int size, double extent)
     {
         var offsets = new Vector2d[(1 + 2 * size) * (1 + 2 * size) - 1];
 
@@ -66,16 +66,16 @@ public class GridKernel
             {
                 if (x != 0 || z != 0)
                 {
-                    offsets[index] = new Vector2d(x * extend, z * extend);
+                    offsets[index] = new Vector2d(x * extent, z * extent);
                     index++;
                 }
             }
         }
 
-        return new GridKernel(size, extend, offsets);
+        return new GridKernel(size, extent, offsets);
     }
 
-    public static GridKernel Shield(int size, double extend, double spacing)
+    public static GridKernel Shield(int size, double extent, double spacing)
     {
         var offsets = new Vector2d[1 + 2 * size];
 
@@ -83,14 +83,14 @@ public class GridKernel
 
         for (int z = -size; z <= size; z++)
         {
-            offsets[index] = new Vector2d(extend, z * spacing);
+            offsets[index] = new Vector2d(extent, z * spacing);
             index++;
         }
 
-        return new GridKernel(size, extend, offsets);
+        return new GridKernel(size, extent, offsets);
     }
 
-    private GridKernel(int size, double extend, IReadOnlyList<Vector2d> offsets)
+    private GridKernel(int size, double extent, IReadOnlyList<Vector2d> offsets)
     {
         var directions = new Vector2d[offsets.Count];
         var distances = new double[offsets.Count];
@@ -104,7 +104,7 @@ public class GridKernel
         }
 
         Size = size;
-        Extend = extend;
+        Extent = extent;
         Offsets = offsets;
         Directions = directions;
         Distances = distances;

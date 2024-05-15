@@ -59,9 +59,14 @@ internal readonly struct TraceFrame
     public readonly TraceFactors factors;
 
     /// <summary>
-    /// The path width at the current position, with local multiplier applied.
+    /// The path`s left extent at the current position, with local multiplier applied.
     /// </summary>
-    public double widthMul => width * factors.width.ScaleAround(1, factors.scalar);
+    public double extentLeftMul => width * factors.extentLeft.ScaleAround(1, factors.scalar);
+
+    /// <summary>
+    /// The path`s right extent at the current position, with local multiplier applied.
+    /// </summary>
+    public double extentRightMul => width * factors.extentRight.ScaleAround(1, factors.scalar);
 
     /// <summary>
     /// The rate of value change at the current position, with local multiplier applied.
@@ -69,9 +74,14 @@ internal readonly struct TraceFrame
     public double speedMul => speed * factors.speed.ScaleAround(1, factors.scalar);
 
     /// <summary>
-    /// The offset density at the current position, with local multiplier applied.
+    /// The left offset density at the current position, with local multiplier applied.
     /// </summary>
-    public double densityMul => density * factors.density.ScaleAround(1, factors.scalar);
+    public double densityLeftMul => density * factors.densityLeft.ScaleAround(1, factors.scalar);
+
+    /// <summary>
+    /// The right offset density at the current position, with local multiplier applied.
+    /// </summary>
+    public double densityRightMul => density * factors.densityRight.ScaleAround(1, factors.scalar);
 
     /// <summary>
     /// The unit vector perpendicular clockwise to the current direction.
@@ -105,13 +115,16 @@ internal readonly struct TraceFrame
     /// <param name="distOffset">Offset applied to the initial trace distance</param>
     public TraceFrame(TraceFrame parent, Path.Segment segment, Vector2d gridOffset, double distOffset = 0)
     {
+        var shiftExtent = segment.RelShift < 0 ? parent.extentLeftMul : parent.extentRightMul;
+        var shiftDensity = segment.RelShift < 0 ? parent.densityLeftMul : parent.densityRightMul;
+
         this.angle = (parent.angle + segment.RelAngle).NormalizeDeg();
         this.width = parent.width * segment.RelWidth - distOffset * segment.TraceParams.WidthLoss;
         this.speed = parent.speed * segment.RelSpeed - distOffset * segment.TraceParams.SpeedLoss;
         this.value = parent.value + segment.RelValue + distOffset * (distOffset < 0 ? speed : parent.speed);
-        this.offset = parent.offset + segment.RelOffset - segment.RelShift * parent.widthMul * parent.densityMul;
+        this.offset = parent.offset + segment.RelOffset - segment.RelShift * shiftExtent * shiftDensity;
         this.normal = Vector2d.Direction(-angle);
-        this.pos = parent.pos + segment.RelPosition + segment.RelShift * parent.perpCCW * parent.widthMul + distOffset * normal;
+        this.pos = parent.pos + segment.RelPosition + segment.RelShift * parent.perpCCW * shiftExtent + distOffset * normal;
         this.factors = new TraceFactors(segment, pos - gridOffset, distOffset);
         this.density = parent.density * segment.RelDensity;
         this.dist = distOffset;
@@ -233,8 +246,8 @@ internal readonly struct TraceFrame
 
     public bool PossiblyInBounds(Vector2d minI, Vector2d maxE)
     {
-        var p1 = pos + perpCW * 0.5 * widthMul;
-        var p2 = pos + perpCCW * 0.5 * widthMul;
+        var p1 = pos + perpCW * 0.5 * extentRightMul;
+        var p2 = pos + perpCCW * 0.5 * extentLeftMul;
 
         if (p1.x < minI.x && p2.x < minI.x) return false;
         if (p1.z < minI.z && p2.z < minI.z) return false;
@@ -246,8 +259,8 @@ internal readonly struct TraceFrame
 
     public bool PossiblyOutOfBounds(Vector2d minI, Vector2d maxE)
     {
-        var p1 = pos + perpCW * 0.5 * widthMul;
-        var p2 = pos + perpCCW * 0.5 * widthMul;
+        var p1 = pos + perpCW * 0.5 * extentRightMul;
+        var p2 = pos + perpCCW * 0.5 * extentLeftMul;
 
         return !p1.InBounds(minI, maxE) || !p2.InBounds(minI, maxE);
     }
