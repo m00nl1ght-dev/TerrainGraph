@@ -175,8 +175,8 @@ public class PathFinder
 
             var newDirIdx = curNode.DirectionIdx + dirIdxDelta;
 
-            if (newDirIdx > _kernel.ArcCount) newDirIdx -= 2 * _kernel.ArcCount;
-            else if (newDirIdx <= -_kernel.ArcCount) newDirIdx += 2 * _kernel.ArcCount;
+            if (newDirIdx > _kernel.ArcsPerHalf) newDirIdx -= 2 * _kernel.ArcsPerHalf;
+            else if (newDirIdx <= -_kernel.ArcsPerHalf) newDirIdx += 2 * _kernel.ArcsPerHalf;
 
             if (_closed.Contains(new NodeKey(newPos, newDirIdx, QtClosedLoc, QtClosedRot))) continue;
 
@@ -335,6 +335,7 @@ public class PathFinder
     {
         public readonly int ArcCount;
         public readonly int SplitCount;
+        public readonly int ArcsPerHalf;
 
         public readonly double[] AngleData;
         public readonly double[,,] SinCosData;
@@ -343,7 +344,7 @@ public class PathFinder
 
         public double SplitFraction(int splitIdx) => (splitIdx + 1d) / SplitCount;
 
-        public ArcKernel(int arcCount, int splitCount)
+        public ArcKernel(int arcCount, double arcMaxAngle, int splitCount)
         {
             ArcCount = arcCount;
             SplitCount = splitCount;
@@ -351,11 +352,17 @@ public class PathFinder
             AngleData = new double[ArcCount];
             SinCosData = new double[ArcCount, SplitCount, 2];
 
-            var angleInterval = 180d / (SplitCount * ArcCount);
+            var angleInterval = MathUtil.LargestDivisorLessThanOrEqual(180d, arcMaxAngle.WithMax(180d) / arcCount);
+
+            ArcsPerHalf = (int) Math.Round(180d / angleInterval);
+
+            #if DEBUG
+            PathTracer.DebugOutput($"Creating kernel with {arcCount} arcs and max angle {arcMaxAngle} -> {angleInterval} x {ArcsPerHalf}");
+            #endif
 
             for (int i = 0; i < ArcCount; i++)
             {
-                var splitDeg = angleInterval * (i + 1);
+                var splitDeg = angleInterval / splitCount * (i + 1);
                 var splitRad = splitDeg * (Math.PI / 180);
 
                 AngleData[i] = splitDeg;

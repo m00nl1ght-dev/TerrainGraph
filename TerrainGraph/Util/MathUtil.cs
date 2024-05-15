@@ -91,6 +91,8 @@ public static class MathUtil
         return true;
     }
 
+    public static double LargestDivisorLessThanOrEqual(double value, double limit) => value / Math.Ceiling(value / limit);
+
     public static bool BalancedTraversal(ref int a, ref int b, ref int ptr, int limitA, int limitB)
     {
         if (a == ptr.WithMax(limitA) && b == ptr.WithMax(limitB))

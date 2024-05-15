@@ -361,16 +361,18 @@ public class PathTracer
                 costGrid = new Add(costGrid, new Multiply(Of(extParams.AvoidOverlap), _overlapAvoidanceGrid));
             }
 
-            // TODO dynamic arc count and spread based on AngleDeltaLimit
+            var angleLimit = (1d - extParams.AngleTenacity) * 180d / (initialFrame.width * Math.PI);
 
-            var pathFinder = new PathFinder(this, new PathFinder.ArcKernel(7, (int) stepSize))
+            var arcCount = angleLimit switch { < 2d => 2, < 5d => 3, _ => 4 };
+
+            var pathFinder = new PathFinder(this, new PathFinder.ArcKernel(arcCount, stepSize * angleLimit, (int) stepSize))
             {
                 Grid = costGrid,
                 ObstacleThreshold = 100d,
                 FullStepDistance = stepSize,
                 QtClosedLoc = 0.5d * stepSize,
                 QtOpenLoc = 0.5d * stepSize,
-                AngleDeltaLimit = (1 - extParams.AngleTenacity) * 180 / (initialFrame.width * Math.PI),
+                AngleDeltaLimit = angleLimit,
                 IterationLimit = 10000
             };
 
