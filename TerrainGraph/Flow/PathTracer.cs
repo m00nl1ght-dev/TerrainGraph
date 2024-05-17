@@ -358,7 +358,8 @@ public class PathTracer
 
             if (extParams.AvoidOverlap > 0)
             {
-                costGrid = new Add(costGrid, new Multiply(Of(extParams.AvoidOverlap), _overlapAvoidanceGrid));
+                var threshold = extParams.AvoidOverlap.InRange01();
+                costGrid = new Max(costGrid, new Select<double>(_overlapAvoidanceGrid, [Of(0d), Of(999d)], [1d - threshold]));
             }
 
             var angleLimit = (1d - extParams.AngleTenacity) * 180d / (initialFrame.width * Math.PI);
