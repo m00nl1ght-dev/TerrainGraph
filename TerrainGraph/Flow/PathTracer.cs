@@ -551,7 +551,7 @@ public class PathTracer
 
             var extentMax = Math.Max(Math.Max(extentLeftA, extentRightA), Math.Max(extentLeftB, extentRightB));
 
-            if (extentLeftA < 1 && extentRightA < 1 && a.dist >= 0)
+            if (extentLeftA + extentRightA < 1 && a.dist >= 0)
             {
                 length = Math.Min(length, b.dist);
 

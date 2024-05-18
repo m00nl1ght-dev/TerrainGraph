@@ -143,6 +143,7 @@ public class NodeValueOperator : NodeOperatorBase
                 Operation.Invert => (a, b) => b + (b - a),
                 Operation.Invert_Below => (a, b) => a < b ? b + (b - a) : a,
                 Operation.Invert_Above => (a, b) => a > b ? b + (b - a) : a,
+                Operation.Scale_Around_1 => (a, b) => a.ScaleAround(1, b),
                 _ => throw new ArgumentOutOfRangeException()
             };
 

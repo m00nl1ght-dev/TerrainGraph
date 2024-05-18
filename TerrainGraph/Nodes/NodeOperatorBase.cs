@@ -180,6 +180,7 @@ public abstract class NodeOperatorBase : NodeBase
         Smooth_Max,
         Invert,
         Invert_Below,
-        Invert_Above
+        Invert_Above,
+        Scale_Around_1
     }
 }

@@ -352,6 +352,38 @@ public static class GridFunction
         public override string ToString() => $"{Input} * {Scale:F2} + {Bias:F2}";
     }
 
+    public class ScaleAround : IGridFunction<double>
+    {
+        public readonly IGridFunction<double> V, M, S;
+
+        public ScaleAround(IGridFunction<double> v, IGridFunction<double> m, IGridFunction<double> s)
+        {
+            V = v;
+            M = m;
+            S = s;
+        }
+
+        public double ValueAt(double x, double z)
+        {
+            return V.ValueAt(x, z).ScaleAround(M.ValueAt(x, z), S.ValueAt(x, z));
+        }
+
+        protected bool Equals(ScaleAround other) =>
+            V.Equals(other.V) &&
+            M.Equals(other.M) &&
+            S.Equals(other.S);
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((ScaleAround) obj);
+        }
+
+        public override string ToString() => $"SCALE {{ {V} around {M} by {S} }}";
+    }
+
     public class Min : IGridFunction<double>
     {
         public readonly IGridFunction<double> A, B;

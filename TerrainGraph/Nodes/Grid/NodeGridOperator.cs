@@ -133,6 +133,7 @@ public class NodeGridOperator : NodeOperatorBase
                 Operation.Invert => (a, b) => new GridFunction.Invert(a, b, true, true),
                 Operation.Invert_Below => (a, b) => new GridFunction.Invert(a, b, true, false),
                 Operation.Invert_Above => (a, b) => new GridFunction.Invert(a, b, false, true),
+                Operation.Scale_Around_1 => (a, b) => new GridFunction.ScaleAround(a, GridFunction.Of(1d), b),
                 _ => throw new ArgumentOutOfRangeException()
             };
 

@@ -240,7 +240,7 @@ internal readonly struct TraceFrame
             speed - distDelta * segment.TraceParams.SpeedLoss,
             density - distDelta * segment.TraceParams.DensityLoss,
             newValue, newOffset, newDist,
-            new TraceFactors(segment, pos - gridOffset, newDist)
+            new TraceFactors(segment, newPos - gridOffset, newDist)
         );
     }
 
