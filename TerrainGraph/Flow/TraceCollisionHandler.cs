@@ -653,7 +653,7 @@ public class TraceCollisionHandler
 
         // calculate max angle for arc B and make sure it is not exceeded
 
-        var arcAngleMaxB = (1 - b.TraceParams.AngleTenacity) * 180 * arcLengthB / (frameB.width * Math.PI);
+        var arcAngleMaxB = MathUtil.AngleLimit(frameB.width, b.TraceParams.AngleTenacity) * arcLengthB;
 
         if (Math.Round(arcAngleB.Abs()) > arcAngleMaxB)
         {

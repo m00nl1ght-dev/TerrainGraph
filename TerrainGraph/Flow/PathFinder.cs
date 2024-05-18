@@ -15,8 +15,6 @@ public class PathFinder
     public IGridFunction<double> Grid;
 
     public double ObstacleThreshold = 1d;
-    public double AngleDeltaLimit = 10d;
-
     public double FullStepDistance = 1d;
 
     public float HeuristicDistanceWeight = 2;
@@ -29,6 +27,7 @@ public class PathFinder
     public double QtOpenLoc = 1d;
     public double QtOpenRot = 1d;
 
+    public AngleDeltaLimitFunc AngleDeltaLimit = (_,_) => 0d;
     public DirectionBiasFunc DirectionBias = (_,_) => 0d;
 
     private readonly PathTracer _tracer;
@@ -38,6 +37,7 @@ public class PathFinder
     private readonly Dictionary<NodeKey, Node> _open = new(100);
     private readonly FastPriorityQueue<Node> _openQueue = new(100);
 
+    public delegate double AngleDeltaLimitFunc(Vector2d position, double distance);
     public delegate double DirectionBiasFunc(double distance, double cost);
 
     public PathFinder(PathTracer tracer, ArcKernel kernel)
@@ -94,6 +94,7 @@ public class PathFinder
         var newNodes = 0;
         var obstructed = 0;
 
+        var angleDeltaLimit = AngleDeltaLimit(curNode.Position, curNode.PathDepth * FullStepDistance);
         var splitDistance = FullStepDistance / _kernel.SplitCount;
 
         for (int i = 0; i <= _kernel.ArcCount * 2; i++)
@@ -111,7 +112,7 @@ public class PathFinder
             if (kernelArcIdx >= 0)
             {
                 angleDelta = _kernel.AngleData[kernelArcIdx] / splitDistance;
-                if (angleDelta > AngleDeltaLimit) break;
+                if (angleDelta > angleDeltaLimit) break;
 
                 var pivotOffset = 180d / (Math.PI * -angleDelta) * (i % 2 == 1 ? -1 : 1);
                 var pivotPoint = curNode.Position + curNode.Direction.PerpCCW * pivotOffset;
@@ -235,7 +236,7 @@ public class PathFinder
                     var newDir = ((target - center).PerpCW * Math.Sign(scalarA)).Normalized;
                     var angleDelta = Vector2d.Angle(curNode.Direction, newDir) / distToTarget;
 
-                    if (angleDelta <= AngleDeltaLimit)
+                    if (angleDelta <= angleDeltaLimit)
                     {
                         var totalCost = 0d;
                         var hitObstacle = false;

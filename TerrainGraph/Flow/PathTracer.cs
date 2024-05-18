@@ -362,18 +362,24 @@ public class PathTracer
                 costGrid = new Max(costGrid, new Select<double>(_overlapAvoidanceGrid, [Of(0d), Of(999d)], [1d - threshold]));
             }
 
-            var angleLimit = (1d - extParams.AngleTenacity) * 180d / (initialFrame.width * Math.PI);
+            double AngleLimitFunc(Vector2d pos, double dist)
+            {
+                var width = extParams.StaticAngleTenacity ? initialFrame.width : initialFrame.width - dist * extParams.WidthLoss;
+                return MathUtil.AngleLimit(width, extParams.AngleTenacity);
+            }
 
-            var arcCount = angleLimit switch { < 2d => 2, < 5d => 3, _ => 4 };
+            var angleLimitBase = MathUtil.AngleLimit(initialFrame.width, extParams.AngleTenacity);
 
-            var pathFinder = new PathFinder(this, new PathFinder.ArcKernel(arcCount, stepSize * angleLimit, (int) stepSize))
+            var arcCount = angleLimitBase switch { < 2d => 2, < 5d => 3, _ => 4 };
+
+            var pathFinder = new PathFinder(this, new PathFinder.ArcKernel(arcCount, stepSize * angleLimitBase, (int) stepSize))
             {
                 Grid = costGrid,
                 ObstacleThreshold = 100d,
                 FullStepDistance = stepSize,
                 QtClosedLoc = 0.5d * stepSize,
                 QtOpenLoc = 0.5d * stepSize,
-                AngleDeltaLimit = angleLimit,
+                AngleDeltaLimit = AngleLimitFunc,
                 IterationLimit = 10000
             };
 
@@ -477,7 +483,7 @@ public class PathTracer
                     if (a.dist < task.segment.AngleDeltaNegLockLength && angleDelta < 0) angleDelta = 0;
 
                     var widthForTenacity = extParams.StaticAngleTenacity ? initialFrame.width : a.width;
-                    var maxAngleDelta = (1 - extParams.AngleTenacity) * 180 * distDelta / (widthForTenacity * Math.PI);
+                    var maxAngleDelta = MathUtil.AngleLimit(widthForTenacity, extParams.AngleTenacity) * distDelta;
                     angleDelta = (distDelta * angleDelta).NormalizeDeg().InRange(-maxAngleDelta, maxAngleDelta);
                 }
 
