@@ -7,7 +7,7 @@ using UnityEngine;
 namespace TerrainGraph;
 
 [Serializable]
-[Node(false, "Value/Polar rect", 115)]
+[Node(false, "Value/Polar Rect", 115)]
 public class NodeValuePolarRectPosition : NodeBase
 {
     public const string ID = "valuePolarRectPosition";
