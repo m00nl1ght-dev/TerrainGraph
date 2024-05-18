@@ -495,6 +495,9 @@ public class TraceCollisionHandler
         var widthForTenacityA = a.TraceParams.StaticAngleTenacity ? _tracer.TraceResults[a].initialFrame.width : frameA.width;
         var widthForTenacityB = b.TraceParams.StaticAngleTenacity ? _tracer.TraceResults[b].initialFrame.width : frameB.width;
 
+        widthForTenacityA *= a.TraceParams.MaxExtentFactor(frameA.pos - _tracer.GridMargin);
+        widthForTenacityB *= b.TraceParams.MaxExtentFactor(frameB.pos - _tracer.GridMargin);
+
         arcLengthA = arcAngleA.Abs() / 180 * widthForTenacityA * Math.PI / (1 - a.TraceParams.AngleTenacity.WithMax(0.9));
         arcLengthB = arcAngleB.Abs() / 180 * widthForTenacityB * Math.PI / (1 - b.TraceParams.AngleTenacity.WithMax(0.9));
 
@@ -653,7 +656,8 @@ public class TraceCollisionHandler
 
         // calculate max angle for arc B and make sure it is not exceeded
 
-        var arcAngleMaxB = MathUtil.AngleLimit(frameB.width, b.TraceParams.AngleTenacity) * arcLengthB;
+        var widthForTenacityG = frameB.width * b.TraceParams.MaxExtentFactor(pointG - _tracer.GridMargin);
+        var arcAngleMaxB = MathUtil.AngleLimit(widthForTenacityG, b.TraceParams.AngleTenacity) * arcLengthB;
 
         if (Math.Round(arcAngleB.Abs()) > arcAngleMaxB)
         {

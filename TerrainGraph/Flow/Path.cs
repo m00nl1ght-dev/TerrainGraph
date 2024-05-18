@@ -628,6 +628,15 @@ public class Path
 
         public IReadOnlyCollection<DiversionPoint> DiversionPoints;
 
+        /// <summary>
+        /// Calculate the Maximum expected extent multiplier at the given position, used for angle limit calculations.
+        /// Never lower than 1 because of local stability that could potentially be applied later.
+        /// </summary>
+        public double MaxExtentFactor(Vector2d pos)
+        {
+            return Math.Max(ExtentLeftGrid?.ValueAt(pos) ?? 1, ExtentRightGrid?.ValueAt(pos) ?? 1).WithMin(1);
+        }
+
         public void ApplyFixedAngle(double angleDelta, bool stable)
         {
             AvoidOverlap = 0;
