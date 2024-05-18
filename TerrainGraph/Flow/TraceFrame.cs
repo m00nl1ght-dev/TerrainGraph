@@ -61,12 +61,12 @@ internal readonly struct TraceFrame
     /// <summary>
     /// The path`s left extent at the current position, with local multiplier applied.
     /// </summary>
-    public double extentLeftMul => width * factors.extentLeft.ScaleAround(1, factors.scalar);
+    public double extentLeftMul => width / 2 * factors.extentLeft.ScaleAround(1, factors.scalar);
 
     /// <summary>
     /// The path`s right extent at the current position, with local multiplier applied.
     /// </summary>
-    public double extentRightMul => width * factors.extentRight.ScaleAround(1, factors.scalar);
+    public double extentRightMul => width / 2 * factors.extentRight.ScaleAround(1, factors.scalar);
 
     /// <summary>
     /// The rate of value change at the current position, with local multiplier applied.
@@ -246,8 +246,8 @@ internal readonly struct TraceFrame
 
     public bool PossiblyInBounds(Vector2d minI, Vector2d maxE)
     {
-        var p1 = pos + perpCW * 0.5 * extentRightMul;
-        var p2 = pos + perpCCW * 0.5 * extentLeftMul;
+        var p1 = pos + perpCW * extentRightMul;
+        var p2 = pos + perpCCW * extentLeftMul;
 
         if (p1.x < minI.x && p2.x < minI.x) return false;
         if (p1.z < minI.z && p2.z < minI.z) return false;
@@ -259,8 +259,8 @@ internal readonly struct TraceFrame
 
     public bool PossiblyOutOfBounds(Vector2d minI, Vector2d maxE)
     {
-        var p1 = pos + perpCW * 0.5 * extentRightMul;
-        var p2 = pos + perpCCW * 0.5 * extentLeftMul;
+        var p1 = pos + perpCW * extentRightMul;
+        var p2 = pos + perpCCW * extentLeftMul;
 
         return !p1.InBounds(minI, maxE) || !p2.InBounds(minI, maxE);
     }
