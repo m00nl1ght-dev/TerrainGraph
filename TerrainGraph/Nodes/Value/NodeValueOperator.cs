@@ -93,6 +93,25 @@ public class NodeValueOperator : NodeOperatorBase
         return true;
     }
 
+    public static Func<double, double, double> BuildFunc(Operation operation, double smoothness)
+    {
+        Func<double, double, double> func = operation switch
+        {
+            Operation.Add => (a, b) => a + b,
+            Operation.Subtract => (a, b) => a - b,
+            Operation.Multiply => (a, b) => a * b,
+            Operation.Divide => (a, b) => a / b,
+            Operation.Min or Operation.Smooth_Min => (a, b) => GridFunction.Min.Calculate(a, b, smoothness),
+            Operation.Max or Operation.Smooth_Max => (a, b) => GridFunction.Max.Calculate(a, b, smoothness),
+            Operation.Invert => (a, b) => b + (b - a),
+            Operation.Invert_Below => (a, b) => a < b ? b + (b - a) : a,
+            Operation.Invert_Above => (a, b) => a > b ? b + (b - a) : a,
+            Operation.Scale_Around_1 => (a, b) => a.ScaleAround(1, b),
+            _ => throw new ArgumentOutOfRangeException()
+        };
+        return func;
+    }
+
     private class Output : ISupplier<double>
     {
         private readonly ISupplier<double> _applyChance;
@@ -132,20 +151,7 @@ public class NodeValueOperator : NodeOperatorBase
 
             if (_inputs.Count == 0) return 0f;
 
-            Func<double, double, double> func = _operationType switch
-            {
-                Operation.Add => (a, b) => a + b,
-                Operation.Subtract => (a, b) => a - b,
-                Operation.Multiply => (a, b) => a * b,
-                Operation.Divide => (a, b) => a / b,
-                Operation.Min or Operation.Smooth_Min => (a, b) => GridFunction.Min.Calculate(a, b, smoothness),
-                Operation.Max or Operation.Smooth_Max => (a, b) => GridFunction.Max.Calculate(a, b, smoothness),
-                Operation.Invert => (a, b) => b + (b - a),
-                Operation.Invert_Below => (a, b) => a < b ? b + (b - a) : a,
-                Operation.Invert_Above => (a, b) => a > b ? b + (b - a) : a,
-                Operation.Scale_Around_1 => (a, b) => a.ScaleAround(1, b),
-                _ => throw new ArgumentOutOfRangeException()
-            };
+            var func = BuildFunc(_operationType, smoothness);
 
             var value = _inputs[0].Get();
 

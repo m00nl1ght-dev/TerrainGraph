@@ -444,14 +444,14 @@ public class PathTracer
 
                     if (extParams.CostGrid != null)
                     {
-                        followVec = _followGridKernel.CalculateAt(
+                        followVec = _followGridKernel.CalculateFlowVecAt(
                             new(1, 0), new(0, 1), extParams.CostGrid, a.pos - GridMargin, ref costAtFrame
                         );
                     }
 
                     if (extParams.AvoidOverlap > 0)
                     {
-                        followVec += extParams.AvoidOverlap * _avoidGridKernel.CalculateAt(
+                        followVec += extParams.AvoidOverlap * _avoidGridKernel.CalculateFlowVecAt(
                             a.normal, a.perpCW, _overlapAvoidanceGrid, a.pos, ref costAtFrame
                         );
                     }

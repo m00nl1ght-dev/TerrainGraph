@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace TerrainGraph.Util;
 
@@ -111,7 +113,12 @@ public class GridKernel
         Angles = angles;
     }
 
-    public Vector2d CalculateAt(Vector2d axisX, Vector2d axisZ, IGridFunction<double> grid, Vector2d pos, ref double totalHere)
+    public T CalculateAt<T>(IGridFunction<T> grid, Vector2d pos, Func<T, T, T> func)
+    {
+        return Offsets.Aggregate(grid.ValueAt(pos), (current, offset) => func(current, grid.ValueAt(pos + offset)));
+    }
+
+    public Vector2d CalculateFlowVecAt(Vector2d axisX, Vector2d axisZ, IGridFunction<double> grid, Vector2d pos, ref double totalHere)
     {
         var result = Vector2d.Zero;
 

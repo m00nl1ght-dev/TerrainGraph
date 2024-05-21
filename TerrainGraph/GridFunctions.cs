@@ -133,7 +133,7 @@ public static class GridFunction
             return Options[Options.Count - 1].ValueAt(x, z);
         }
 
-        protected bool Equals(Select<T> other) =>
+        protected bool Equals(Interpolate<T> other) =>
             Input.Equals(other.Input) &&
             Options.SequenceEqual(other.Options) &&
             Thresholds.SequenceEqual(other.Thresholds);
@@ -143,7 +143,7 @@ public static class GridFunction
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
             if (obj.GetType() != this.GetType()) return false;
-            return Equals((Select<T>) obj);
+            return Equals((Interpolate<T>) obj);
         }
 
         public override string ToString() =>
@@ -705,6 +705,40 @@ public static class GridFunction
         }
 
         public override string ToString() => $"DELTA MAP {{ {Input} with step {Step:F2} }}";
+    }
+
+    public class KernelAggregation<T> : IGridFunction<T>
+    {
+        public readonly IGridFunction<T> Input;
+        public readonly Func<T, T, T> Aggregation;
+        public readonly GridKernel Kernel;
+
+        public KernelAggregation(IGridFunction<T> input, Func<T, T, T> aggregation, GridKernel kernel)
+        {
+            Input = input;
+            Aggregation = aggregation;
+            Kernel = kernel;
+        }
+
+        public T ValueAt(double x, double z)
+        {
+            return Kernel.CalculateAt(Input, new Vector2d(x, z), Aggregation);
+        }
+
+        protected bool Equals(KernelAggregation<T> other) =>
+            Equals(Input, other.Input) &&
+            Equals(Aggregation, other.Aggregation) &&
+            Equals(Kernel, other.Kernel);
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((KernelAggregation<T>) obj);
+        }
+
+        public override string ToString() => $"KERNEL {{ {Input} }}";
     }
 
     public class BilinearDiscrete : IGridFunction<double>
