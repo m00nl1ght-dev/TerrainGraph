@@ -15,10 +15,12 @@ namespace NodeEditorFramework
 		private static Dictionary<string, ConnectionPortStyle> connectionPortStyles;
 		private static Dictionary<string, ValueConnectionType> connectionValueTypes;
 
+		public static IEnumerable<ValueConnectionType> ValueConnectionTypes => connectionValueTypes.Values;
+
 		/// <summary>
 		/// Fetches every ConnectionPortStyle, ConnectionKnobStyle or ValueConnectionType declaration in the script assemblies to provide the framework with custom connection port styles
 		/// </summary>
-		public static void FetchConnectionPortStyles () 
+		public static void FetchConnectionPortStyles ()
 		{
 			connectionPortStyles = new Dictionary<string, ConnectionPortStyle> ();
 			connectionValueTypes = new Dictionary<string, ValueConnectionType> ();
