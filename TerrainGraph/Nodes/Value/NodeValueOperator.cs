@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using NodeEditorFramework;
 using TerrainGraph.Util;
-using UnityEngine;
 
 namespace TerrainGraph;
 
@@ -18,34 +17,11 @@ public class NodeValueOperator : NodeOperatorBase
 
     public override ValueConnectionKnob OutputKnobRef => OutputKnob;
 
-    public List<double> Values = [];
-
-    public override void NodeGUI()
+    protected override void InputGUI(int i)
     {
-        OutputKnob.SetPosition(FirstKnobPosition);
-        while (InputKnobs.Count < 2) CreateNewInputKnob();
-
-        GUILayout.BeginVertical(BoxStyle);
-
-        if (SmoothnessKnob != null) KnobValueField(SmoothnessKnob, ref Smoothness);
-        if (ApplyChanceKnob != null) KnobValueField(ApplyChanceKnob, ref ApplyChance);
-        if (StackCountKnob != null) KnobValueField(StackCountKnob, ref StackCount);
-
-        while (Values.Count < InputKnobs.Count) Values.Add(0f);
-        while (Values.Count > InputKnobs.Count) Values.RemoveAt(Values.Count - 1);
-
-        for (int i = 0; i < InputKnobs.Count; i++)
-        {
-            var knob = InputKnobs[i];
-            var value = Values[i];
-            KnobValueField(knob, ref value, i == 0 ? "Base" : "Input " + i);
-            Values[i] = value;
-        }
-
-        GUILayout.EndVertical();
-
-        if (GUI.changed)
-            canvas.OnNodeChange(this);
+        var value = Values[i];
+        KnobValueField(InputKnobs[i], ref value, i == 0 ? "Base" : "Input " + i);
+        Values[i] = value;
     }
 
     protected override void CreateNewInputKnob()

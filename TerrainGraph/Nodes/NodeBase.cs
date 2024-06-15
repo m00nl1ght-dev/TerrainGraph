@@ -127,16 +127,20 @@ public abstract class NodeBase : Node
         Dropdown(typeof(T).GetEnumValues().Cast<T>().ToList(), action, e => e.ToString().Replace('_', ' '));
     }
 
-    public static void SelectionMenu<T>(GenericMenu menu, List<T> potentialValues, Action<T> action, Func<T, string> textFunc = null)
+    public void SelectionMenu<T>(GenericMenu menu, List<T> potentialValues, Action<T> action, Func<T, string> textFunc = null)
     {
         foreach (var value in potentialValues)
         {
             string text = textFunc != null ? textFunc.Invoke(value) : value.ToString();
-            menu.AddItem(new GUIContent(text), false, () => action(value));
+            menu.AddItem(new GUIContent(text), false, () =>
+            {
+                action(value);
+                canvas.OnNodeChange(this);
+            });
         }
     }
 
-    public static void SelectionMenu<T>(GenericMenu menu, Action<T> action, string prefix = "") where T : Enum
+    public void SelectionMenu<T>(GenericMenu menu, Action<T> action, string prefix = "") where T : Enum
     {
         SelectionMenu(menu, typeof(T).GetEnumValues().Cast<T>().ToList(), action, e => prefix + e.ToString().Replace('_', ' '));
     }

@@ -27,6 +27,8 @@ public abstract class NodeOperatorBase : NodeBase
 
     public abstract ValueConnectionKnob OutputKnobRef { get; }
 
+    public List<double> Values = [];
+
     public Operation OperationType = Operation.Add;
     public double ApplyChance = 1f;
     public double StackCount = 1;
@@ -54,19 +56,30 @@ public abstract class NodeOperatorBase : NodeBase
         if (ApplyChanceKnob != null) KnobValueField(ApplyChanceKnob, ref ApplyChance);
         if (StackCountKnob != null) KnobValueField(StackCountKnob, ref StackCount);
 
-        for (int i = 0; i < InputKnobs.Count; i++)
-        {
-            var knob = InputKnobs[i];
-            GUILayout.BeginHorizontal(BoxStyle);
-            GUILayout.Label(i == 0 ? "Base" : ("Input " + i), BoxLayout);
-            knob.SetPosition();
-            GUILayout.EndHorizontal();
-        }
+        while (Values.Count < InputKnobs.Count) Values.Add(0f);
+        while (Values.Count > InputKnobs.Count) Values.RemoveAt(Values.Count - 1);
+
+        for (int i = 0; i < InputKnobs.Count; i++) InputGUI(i);
 
         GUILayout.EndVertical();
 
         if (GUI.changed)
             canvas.OnNodeChange(this);
+    }
+
+    protected virtual void InputGUI(int i)
+    {
+        GUILayout.BeginHorizontal(BoxStyle);
+        GUILayout.Label(i == 0 ? "Base" : ("Input " + i), BoxLayout);
+
+        if (!InputKnobs[i].connected())
+        {
+            GUILayout.FlexibleSpace();
+            Values[i] = RTEditorGUI.FloatField(GUIContent.none, (float) Values[i], BoxLayout);
+        }
+
+        GUILayout.EndHorizontal();
+        InputKnobs[i].SetPosition();
     }
 
     protected abstract void CreateNewInputKnob();

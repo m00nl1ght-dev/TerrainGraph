@@ -92,20 +92,8 @@ public class NodeGridPreview : NodeBase
         base.FillNodeActionsMenu(inputInfo, menu);
         menu.AddSeparator("");
 
-        SelectionMenu(menu, PreviewModelIds.ToList(), SetModel, e => "Set preview model/" + e);
-        SelectionMenu(menu, PreviewTransformIds.ToList(), SetTransform, e => "Set preview transform/" + e);
-    }
-
-    private void SetModel(string id)
-    {
-        PreviewModelId = id;
-        canvas.OnNodeChange(this);
-    }
-
-    private void SetTransform(string id)
-    {
-        PreviewTransformId = id;
-        canvas.OnNodeChange(this);
+        SelectionMenu(menu, PreviewModelIds.ToList(), s => PreviewModelId = s, e => "Set preview model/" + e);
+        SelectionMenu(menu, PreviewTransformIds.ToList(), s => PreviewTransformId = s, e => "Set preview transform/" + e);
     }
 
     public override bool Calculate()
@@ -161,18 +149,15 @@ public class NodeGridPreview : NodeBase
     public static readonly IPreviewModel DefaultModel_100 = new DefaultPreviewModel(100f);
 
     public static readonly IPreviewTransform DefaultTransform = new DefaultPreviewTransform(1f, 0f);
-    public static readonly IPreviewTransform DefaultTransformQuad = new DefaultPreviewTransform(1f, -0.5f);
     public static readonly IPreviewTransform LargeTransform = new DefaultPreviewTransform(2f, -0.5f);
-    public static readonly IPreviewTransform LargeTransformQuad = new DefaultPreviewTransform(2f, -1f);
-    public static readonly IPreviewTransform FixedTransform1X100 = new FixedPreviewTransform(new Vector2(1f, 100f));
-    public static readonly IPreviewTransform FixedTransform100X1 = new FixedPreviewTransform(new Vector2(100f, 1f));
+    public static readonly IPreviewTransform QuadTransform = new DefaultPreviewTransform(1f, -0.5f);
 
     public static void RegisterPreviewModel(IPreviewModel model, string id)
     {
         PreviewModels[id] = model;
     }
 
-    public static void RegisterPreviewRange(IPreviewTransform transform, string id)
+    public static void RegisterPreviewTransform(IPreviewTransform transform, string id)
     {
         PreviewTransforms[id] = transform;
     }
@@ -193,12 +178,9 @@ public class NodeGridPreview : NodeBase
         RegisterPreviewModel(DefaultModel_10, "Default x10");
         RegisterPreviewModel(DefaultModel_100, "Default x100");
 
-        RegisterPreviewRange(DefaultTransform, "Default");
-        RegisterPreviewRange(DefaultTransformQuad, "Default Quad");
-        RegisterPreviewRange(LargeTransform, "Large");
-        RegisterPreviewRange(LargeTransformQuad, "Large Quad");
-        RegisterPreviewRange(FixedTransform1X100, "Fixed 1 x 100");
-        RegisterPreviewRange(FixedTransform100X1, "Fixed 100 x 1");
+        RegisterPreviewTransform(DefaultTransform, "Default");
+        RegisterPreviewTransform(LargeTransform, "Large");
+        RegisterPreviewTransform(QuadTransform, "Quad");
     }
 
     public interface IPreviewModel

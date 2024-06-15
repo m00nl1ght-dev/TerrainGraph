@@ -7,6 +7,8 @@ namespace TerrainGraph.Util;
 
 public static class MathUtil
 {
+    public delegate T Interpolation<T>(double t, T a, T b);
+
     public static readonly Func<double, double> Identity = a => a;
 
     public static long Factorial(long v) => v <= 1 ? 1 : v * Factorial(v - 1);

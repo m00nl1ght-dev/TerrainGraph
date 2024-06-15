@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using TerrainGraph.Util;
+using static TerrainGraph.Util.MathUtil;
 
 #pragma warning disable CS0659
 
@@ -13,8 +14,6 @@ public static class GridFunction
     public static readonly IGridFunction<double> One = new Const<double>(1f);
 
     public static IGridFunction<T> Of<T>(T value) => new Const<T>(value);
-
-    public delegate T Interpolation<T>(double t, T a, T b);
 
     public class Const<T> : IGridFunction<T>
     {
@@ -154,122 +153,63 @@ public static class GridFunction
             "}";
     }
 
-    public class Add : IGridFunction<double>
+    public abstract class Dyadic<T> : IGridFunction<T>
     {
-        public readonly IGridFunction<double> A, B;
+        public readonly IGridFunction<T> A, B;
 
-        public Add(IGridFunction<double> a, IGridFunction<double> b)
+        protected Dyadic(IGridFunction<T> a, IGridFunction<T> b)
         {
             A = a;
             B = b;
         }
 
-        public double ValueAt(double x, double z)
-        {
-            return A.ValueAt(x, z) + B.ValueAt(x, z);
-        }
-
-        protected bool Equals(Add other) =>
+        protected bool Equals(Dyadic<T> other) =>
             A.Equals(other.A) &&
             B.Equals(other.B);
+
+        public abstract T ValueAt(double x, double z);
 
         public override bool Equals(object obj)
         {
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
             if (obj.GetType() != this.GetType()) return false;
-            return Equals((Add) obj);
+            return Equals((Dyadic<T>) obj);
         }
+    }
+
+    public class Add : Dyadic<double>
+    {
+        public Add(IGridFunction<double> a, IGridFunction<double> b) : base(a, b) {}
+
+        public override double ValueAt(double x, double z) => A.ValueAt(x, z) + B.ValueAt(x, z);
 
         public override string ToString() => $"{A:F2} + {B:F2}";
     }
 
-    public class Subtract : IGridFunction<double>
+    public class Subtract : Dyadic<double>
     {
-        public readonly IGridFunction<double> A, B;
+        public Subtract(IGridFunction<double> a, IGridFunction<double> b) : base(a, b) {}
 
-        public Subtract(IGridFunction<double> a, IGridFunction<double> b)
-        {
-            A = a;
-            B = b;
-        }
-
-        public double ValueAt(double x, double z)
-        {
-            return A.ValueAt(x, z) - B.ValueAt(x, z);
-        }
-
-        protected bool Equals(Subtract other) =>
-            A.Equals(other.A) &&
-            B.Equals(other.B);
-
-        public override bool Equals(object obj)
-        {
-            if (ReferenceEquals(null, obj)) return false;
-            if (ReferenceEquals(this, obj)) return true;
-            if (obj.GetType() != this.GetType()) return false;
-            return Equals((Subtract) obj);
-        }
+        public override double ValueAt(double x, double z) => A.ValueAt(x, z) - B.ValueAt(x, z);
 
         public override string ToString() => $"{A:F2} - {B:F2}";
     }
 
-    public class Multiply : IGridFunction<double>
+    public class Multiply : Dyadic<double>
     {
-        public readonly IGridFunction<double> A, B;
+        public Multiply(IGridFunction<double> a, IGridFunction<double> b) : base(a, b) {}
 
-        public Multiply(IGridFunction<double> a, IGridFunction<double> b)
-        {
-            A = a;
-            B = b;
-        }
-
-        public double ValueAt(double x, double z)
-        {
-            return A.ValueAt(x, z) * B.ValueAt(x, z);
-        }
-
-        protected bool Equals(Multiply other) =>
-            A.Equals(other.A) &&
-            B.Equals(other.B);
-
-        public override bool Equals(object obj)
-        {
-            if (ReferenceEquals(null, obj)) return false;
-            if (ReferenceEquals(this, obj)) return true;
-            if (obj.GetType() != this.GetType()) return false;
-            return Equals((Multiply) obj);
-        }
+        public override double ValueAt(double x, double z) => A.ValueAt(x, z) * B.ValueAt(x, z);
 
         public override string ToString() => $"{A:F2} * {B:F2}";
     }
 
-    public class Divide : IGridFunction<double>
+    public class Divide : Dyadic<double>
     {
-        public readonly IGridFunction<double> A, B;
+        public Divide(IGridFunction<double> a, IGridFunction<double> b) : base(a, b) {}
 
-        public Divide(IGridFunction<double> a, IGridFunction<double> b)
-        {
-            A = a;
-            B = b;
-        }
-
-        public double ValueAt(double x, double z)
-        {
-            return A.ValueAt(x, z) / B.ValueAt(x, z);
-        }
-
-        protected bool Equals(Divide other) =>
-            A.Equals(other.A) &&
-            B.Equals(other.B);
-
-        public override bool Equals(object obj)
-        {
-            if (ReferenceEquals(null, obj)) return false;
-            if (ReferenceEquals(this, obj)) return true;
-            if (obj.GetType() != this.GetType()) return false;
-            return Equals((Divide) obj);
-        }
+        public override double ValueAt(double x, double z) => A.ValueAt(x, z) / B.ValueAt(x, z);
 
         public override string ToString() => $"{A:F2} / {B:F2}";
     }

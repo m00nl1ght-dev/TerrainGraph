@@ -81,13 +81,7 @@ public abstract class NodeDiscreteGridPreview<T> : NodeBase
         base.FillNodeActionsMenu(inputInfo, menu);
         menu.AddSeparator("");
 
-        SelectionMenu(menu, NodeGridPreview.PreviewTransformIds.ToList(), SetTransform, e => "Set preview transform/" + e);
-    }
-
-    private void SetTransform(string id)
-    {
-        PreviewTransformId = id;
-        canvas.OnNodeChange(this);
+        SelectionMenu(menu, NodeGridPreview.PreviewTransformIds.ToList(), s => PreviewTransformId = s, e => "Set preview transform/" + e);
     }
 
     protected abstract string MakeTooltip(T value, double x, double y);

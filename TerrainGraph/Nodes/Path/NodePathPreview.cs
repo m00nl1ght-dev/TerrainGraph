@@ -73,20 +73,8 @@ public class NodePathPreview : NodeBase
         base.FillNodeActionsMenu(inputInfo, menu);
         menu.AddSeparator("");
 
-        SelectionMenu(menu, NodeGridPreview.PreviewModelIds.ToList(), SetModel, e => "Set preview model/" + e);
-        SelectionMenu(menu, NodeGridPreview.PreviewTransformIds.ToList(), SetTransform, e => "Set preview transform/" + e);
-    }
-
-    private void SetModel(string id)
-    {
-        PreviewModelId = id;
-        canvas.OnNodeChange(this);
-    }
-
-    private void SetTransform(string id)
-    {
-        PreviewTransformId = id;
-        canvas.OnNodeChange(this);
+        SelectionMenu(menu, NodeGridPreview.PreviewModelIds.ToList(), s => PreviewModelId = s, e => "Set preview model/" + e);
+        SelectionMenu(menu, NodeGridPreview.PreviewTransformIds.ToList(), s => PreviewTransformId = s, e => "Set preview transform/" + e);
     }
 
     public override bool Calculate()

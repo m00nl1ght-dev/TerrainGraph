@@ -4,7 +4,7 @@ using System.Linq;
 using NodeEditorFramework;
 using NodeEditorFramework.Utilities;
 using UnityEngine;
-using static TerrainGraph.GridFunction;
+using static TerrainGraph.Util.MathUtil;
 
 namespace TerrainGraph;
 
@@ -246,6 +246,44 @@ public abstract class NodeSelectBase<TKey, TVal> : NodeBase
         }
     }
 
+    protected class CurveOutput<T> : ISupplier<ICurveFunction<T>>
+    {
+        private readonly ISupplier<ICurveFunction<double>> _input;
+        private readonly List<ISupplier<ICurveFunction<T>>> _options;
+        private readonly List<double> _thresholds;
+        private readonly Interpolation<T> _interpolation;
+
+        public CurveOutput(
+            ISupplier<ICurveFunction<double>> input, List<ISupplier<ICurveFunction<T>>> options,
+            List<double> thresholds, Interpolation<T> interpolation)
+        {
+            _input = input;
+            _options = options;
+            _thresholds = thresholds;
+            _interpolation = interpolation;
+        }
+
+        public ICurveFunction<T> Get()
+        {
+            if (_interpolation != null)
+            {
+                return new CurveFunction.Interpolate<T>(
+                    _input.Get(), _options.Select(o => o.Get()).ToList(), _thresholds, _interpolation
+                );
+            }
+
+            return new CurveFunction.Select<T>(
+                _input.Get(), _options.Select(o => o.Get()).ToList(), _thresholds
+            );
+        }
+
+        public void ResetState()
+        {
+            _input.ResetState();
+            foreach (var option in _options) option.ResetState();
+        }
+    }
+
     protected class GridOutput<T> : ISupplier<IGridFunction<T>>
     {
         private readonly ISupplier<IGridFunction<double>> _input;
@@ -267,12 +305,12 @@ public abstract class NodeSelectBase<TKey, TVal> : NodeBase
         {
             if (_interpolation != null)
             {
-                return new Interpolate<T>(
+                return new GridFunction.Interpolate<T>(
                     _input.Get(), _options.Select(o => o.Get()).ToList(), _thresholds, _interpolation
                 );
             }
 
-            return new Select<T>(
+            return new GridFunction.Select<T>(
                 _input.Get(), _options.Select(o => o.Get()).ToList(), _thresholds
             );
         }
