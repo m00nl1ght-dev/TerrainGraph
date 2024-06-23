@@ -550,4 +550,35 @@ public static class CurveFunction
 
         public override string ToString() => $"TRANSFORM {{ {Input} by {Translate:F2} scaled {Scale:F2} }}";
     }
+
+    public class GridSlice<T> : ICurveFunction<T>
+    {
+        public readonly IGridFunction<T> Grid;
+        public readonly double Position;
+
+        public GridSlice(IGridFunction<T> grid, double position)
+        {
+            Grid = grid;
+            Position = position;
+        }
+
+        public T ValueAt(double x)
+        {
+            return Grid.ValueAt(x, Position);
+        }
+
+        protected bool Equals(GridSlice<T> other) =>
+            Grid.Equals(other.Grid) &&
+            Position.Equals(other.Position);
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((GridSlice<T>) obj);
+        }
+
+        public override string ToString() => $"GRID SLICE {{ {Grid} at {Position:F2} }}";
+    }
 }
