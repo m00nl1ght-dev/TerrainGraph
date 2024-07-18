@@ -54,14 +54,14 @@ public class TraceCollisionHandler
 
             var enclosedSegments = best!.FindEnclosedSegments();
 
-            collisions = collisions.Where(c => c != best && enclosedSegments.Contains(c.segmentA)).ToList();
+            collisions = collisions.Where(c => c != best && enclosedSegments.Contains(c.taskA.segment)).ToList();
 
             #if DEBUG
 
             if (enclosedSegments.Count > 0)
             {
                 var debugString = string.Join(", ", enclosedSegments.Select(s => s.Id));
-                PathTracer.DebugOutput($"Enclosed segments for {best.segmentA.Id} vs {best.segmentB.Id}: {debugString}");
+                PathTracer.DebugOutput($"Enclosed segments for {best.taskA.segment.Id} vs {best.taskB.segment.Id}: {debugString}");
             }
 
             #endif
@@ -83,7 +83,7 @@ public class TraceCollisionHandler
             PathTracer.DebugOutput($"Collision missing data: {c}");
             #endif
 
-            Stub(c.segmentA, c.frameA.dist);
+            Stub(c.taskA.segment, c.frameA.dist);
             return;
         }
 
@@ -100,11 +100,11 @@ public class TraceCollisionHandler
             return;
         }
 
-        var divCountA = c.segmentA.TraceParams.DiversionPoints?.Count ?? 0;
-        var divCountB = c.segmentB.TraceParams.DiversionPoints?.Count ?? 0;
+        var divCountA = c.taskA.segment.TraceParams.DiversionPoints?.Count ?? 0;
+        var divCountB = c.taskB.segment.TraceParams.DiversionPoints?.Count ?? 0;
 
-        var adjPrioA = c.segmentA.TraceParams.AdjustmentPriority;
-        var adjPrioB = c.segmentB.TraceParams.AdjustmentPriority;
+        var adjPrioA = c.taskA.segment.TraceParams.AdjustmentPriority;
+        var adjPrioB = c.taskB.segment.TraceParams.AdjustmentPriority;
 
         var passiveFirst = adjPrioA != adjPrioB ? adjPrioB
             : divCountA != divCountB ? divCountA > divCountB
@@ -164,11 +164,11 @@ public class TraceCollisionHandler
 
         if (c.hasMergeA == c.hasMergeB ? c.frameA.width <= c.frameB.width : c.hasMergeB)
         {
-            Stub(c.segmentA, c.frameA.dist);
+            Stub(c.taskA.segment, c.frameA.dist);
         }
         else
         {
-            Stub(c.segmentB, c.frameB.dist);
+            Stub(c.taskB.segment, c.frameB.dist);
         }
     }
 
@@ -178,10 +178,13 @@ public class TraceCollisionHandler
     /// <returns>true if the segments were merged successfully, otherwise false</returns>
     private bool TryMerge(TraceCollision c)
     {
-        if (c.cyclic || c.hasMergeA || c.hasMergeB) return false;
-        if (c.segmentA.TraceParams.AvoidOverlap > 0) return false;
+        var a = c.taskA.segment;
+        var b = c.taskB.segment;
 
-        if (c.segmentA.TraceParams.AdjustmentPriority != c.segmentB.TraceParams.AdjustmentPriority) return false;
+        if (c.cyclic || c.hasMergeA || c.hasMergeB) return false;
+        if (a.TraceParams.AvoidOverlap > 0) return false;
+
+        if (a.TraceParams.AdjustmentPriority != b.TraceParams.AdjustmentPriority) return false;
 
         var dot = Vector2d.Dot(c.frameA.normal, c.frameB.normal);
         var perpDot = Vector2d.PerpDot(c.frameA.normal, c.frameB.normal);
@@ -216,7 +219,7 @@ public class TraceCollisionHandler
             #endif
 
             result = TryCalcArcs(
-                c.segmentA, c.segmentB, normal, shift, ref frameA, ref frameB,
+                c.taskA, c.taskB, normal, shift, ref frameA, ref frameB,
                 out arcA, out arcB, out ductA, out ductB, 1
             );
 
@@ -227,7 +230,7 @@ public class TraceCollisionHandler
             if (result == ArcCalcResult.Success) break;
 
             result = TryCalcArcs(
-                c.segmentB, c.segmentA, normal, -shift, ref frameB, ref frameA,
+                c.taskB, c.taskA, normal, -shift, ref frameB, ref frameA,
                 out arcB, out arcA, out ductB, out ductA, 2
             );
 
@@ -241,8 +244,8 @@ public class TraceCollisionHandler
 
         if (result != ArcCalcResult.Success) return false;
 
-        var stabilityRangeA = c.segmentA.TraceParams.ArcStableRange.WithMin(1);
-        var stabilityRangeB = c.segmentB.TraceParams.ArcStableRange.WithMin(1);
+        var stabilityRangeA = a.TraceParams.ArcStableRange.WithMin(1);
+        var stabilityRangeB = b.TraceParams.ArcStableRange.WithMin(1);
 
         var valueAtMergeA = frameA.value + frameA.speed * (arcA + ductA);
         var valueAtMergeB = frameB.value + frameB.speed * (arcB + ductB);
@@ -252,8 +255,8 @@ public class TraceCollisionHandler
         var offsetAtMergeA = frameA.offset + frameA.width * targetDensity * 0.5 * shift;
         var offsetAtMergeB = frameB.offset + frameB.width * targetDensity * 0.5 * -shift;
 
-        var connectedA = c.segmentA.ConnectedSegments();
-        var connectedB = c.segmentB.ConnectedSegments();
+        var connectedA = a.ConnectedSegments();
+        var connectedB = b.ConnectedSegments();
 
         var valueDelta = valueAtMergeB - valueAtMergeA;
         var offsetDelta = offsetAtMergeB - offsetAtMergeA;
@@ -264,8 +267,8 @@ public class TraceCollisionHandler
 
         if (interconnected)
         {
-            var mutableDistA = c.segmentA.LinearParents().Sum(s => s == c.segmentA ? frameA.dist : s.Length);
-            var mutableDistB = c.segmentB.LinearParents().Sum(s => s == c.segmentB ? frameB.dist : s.Length);
+            var mutableDistA = a.LinearParents().Sum(s => s == a ? frameA.dist : s.Length);
+            var mutableDistB = b.LinearParents().Sum(s => s == b ? frameB.dist : s.Length);
 
             if (!tight)
             {
@@ -298,17 +301,17 @@ public class TraceCollisionHandler
             }
         }
 
-        var discardedBranches = c.segmentA.Branches.ToList();
-        var followingBranches = c.segmentB.Branches.ToList();
+        var discardedBranches = a.Branches.ToList();
+        var followingBranches = b.Branches.ToList();
 
-        var orgLengthA = c.segmentA.Length;
-        var orgLengthB = c.segmentB.Length;
+        var orgLengthA = a.Length;
+        var orgLengthB = b.Length;
 
-        c.segmentA.DetachAll();
-        c.segmentB.DetachAll();
+        a.DetachAll();
+        b.DetachAll();
 
-        var endA = InsertArcWithDuct(c.segmentA, ref frameA, arcA, ductA);
-        var endB = InsertArcWithDuct(c.segmentB, ref frameB, arcB, ductB);
+        var endA = InsertArcWithDuct(a, ref frameA, arcA, ductA);
+        var endB = InsertArcWithDuct(b, ref frameB, arcB, ductB);
 
         Segment InsertArcWithDuct(
             Segment segment,
@@ -345,7 +348,7 @@ public class TraceCollisionHandler
             return segment;
         }
 
-        var remainingLength = Math.Max(orgLengthA - c.segmentA.Length, orgLengthB - c.segmentB.Length);
+        var remainingLength = Math.Max(orgLengthA - a.Length, orgLengthB - b.Length);
 
         endA.ApplyLocalStabilityAtHead(stabilityRangeA / 2, stabilityRangeA / 2);
         endB.ApplyLocalStabilityAtHead(stabilityRangeB / 2, stabilityRangeB / 2);
@@ -354,8 +357,8 @@ public class TraceCollisionHandler
         {
             if (interconnected)
             {
-                var linearParentsA = tight ? c.segmentA.LinearParents() : endA.LinearParents();
-                var linearParentsB = tight ? c.segmentB.LinearParents() : endB.LinearParents();
+                var linearParentsA = tight ? a.LinearParents() : endA.LinearParents();
+                var linearParentsB = tight ? b.LinearParents() : endB.LinearParents();
 
                 var allowSingleFramesA = valueDelta > 0 || linearParentsA.All(s => s.Length < s.TraceParams.StepSize);
                 var allowSingleFramesB = valueDelta < 0 || linearParentsB.All(s => s.Length < s.TraceParams.StepSize);
@@ -437,7 +440,7 @@ public class TraceCollisionHandler
 
         var merged = new Segment(endA.Path)
         {
-            TraceParams = TraceParams.Merge(c.segmentA.TraceParams, c.segmentB.TraceParams),
+            TraceParams = frameA.width > frameB.width ? a.TraceParams : b.TraceParams,
             Length = remainingLength
         };
 
@@ -476,12 +479,15 @@ public class TraceCollisionHandler
     }
 
     private ArcCalcResult TryCalcArcs(
-        Segment a, Segment b,
+        TraceTask taskA, TraceTask taskB,
         Vector2d normal, double shift,
         ref TraceFrame frameA, ref TraceFrame frameB,
         out double arcLengthA, out double arcLengthB,
         out double ductLengthA, out double ductLengthB, int debugGroup)
     {
+        var a = taskA.segment;
+        var b = taskB.segment;
+
         var arcAngleA = -Vector2d.SignedAngle(frameA.normal, normal);
         var arcAngleB = -Vector2d.SignedAngle(frameB.normal, normal);
 
@@ -495,8 +501,8 @@ public class TraceCollisionHandler
         var widthForTenacityA = a.TraceParams.StaticAngleTenacity ? _tracer.TraceResults[a].initialFrame.width : frameA.width;
         var widthForTenacityB = b.TraceParams.StaticAngleTenacity ? _tracer.TraceResults[b].initialFrame.width : frameB.width;
 
-        widthForTenacityA *= a.TraceParams.MaxExtentFactor(frameA.pos - _tracer.GridMargin);
-        widthForTenacityB *= b.TraceParams.MaxExtentFactor(frameB.pos - _tracer.GridMargin);
+        widthForTenacityA *= a.TraceParams.MaxExtentFactor(taskA, frameA.pos - _tracer.GridMargin, frameA.dist);
+        widthForTenacityB *= b.TraceParams.MaxExtentFactor(taskB, frameB.pos - _tracer.GridMargin, frameB.dist);
 
         arcLengthA = arcAngleA.Abs() / 180 * widthForTenacityA * Math.PI / (1 - a.TraceParams.AngleTenacity.WithMax(0.9));
         arcLengthB = arcAngleB.Abs() / 180 * widthForTenacityB * Math.PI / (1 - b.TraceParams.AngleTenacity.WithMax(0.9));
@@ -656,7 +662,7 @@ public class TraceCollisionHandler
 
         // calculate max angle for arc B and make sure it is not exceeded
 
-        var widthForTenacityG = frameB.width * b.TraceParams.MaxExtentFactor(pointG - _tracer.GridMargin);
+        var widthForTenacityG = frameB.width * b.TraceParams.MaxExtentFactor(taskB, pointG - _tracer.GridMargin, frameB.dist);
         var arcAngleMaxB = MathUtil.AngleLimit(widthForTenacityG, b.TraceParams.AngleTenacity) * arcLengthB;
 
         if (Math.Round(arcAngleB.Abs()) > arcAngleMaxB)
@@ -703,8 +709,8 @@ public class TraceCollisionHandler
         {
             if (c.hasMergeB || c.cyclic) return false;
 
-            segmentP = c.segmentA;
-            segmentD = c.segmentB;
+            segmentP = c.taskA.segment;
+            segmentD = c.taskB.segment;
 
             frameP = c.frameA;
             frameD = c.frameB;
@@ -713,8 +719,8 @@ public class TraceCollisionHandler
         {
             if (c.hasMergeA) return false;
 
-            segmentP = c.segmentB;
-            segmentD = c.segmentA;
+            segmentP = c.taskB.segment;
+            segmentD = c.taskA.segment;
 
             frameP = c.frameB;
             frameD = c.frameA;
@@ -827,7 +833,7 @@ public class TraceCollisionHandler
     {
         if (passiveBranch ? c.hasMergeB : c.hasMergeA) return false;
 
-        var segment = passiveBranch ? c.segmentB : c.segmentA;
+        var segment = passiveBranch ? c.taskB.segment : c.taskA.segment;
         if (segment.Length >= _tracer.GridInnerSize.Magnitude) return false;
 
         var postAnchor = segment.LinearParents().Last();
@@ -858,9 +864,9 @@ public class TraceCollisionHandler
     {
         if (c.hasMergeB || !c.cyclic) return false;
 
-        var segments = c.segmentA.ConnectedSegments(false, true, s => s != c.segmentB, s => s.ParentCount == 1);
+        var segments = c.taskA.segment.ConnectedSegments(false, true, s => s != c.taskB.segment, s => s.ParentCount == 1);
 
-        if (segments.Count == 0) segments.Add(c.segmentA);
+        if (segments.Count == 0) segments.Add(c.taskA.segment);
 
         var segmentsAdjusted = 0;
 

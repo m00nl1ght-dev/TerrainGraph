@@ -9,14 +9,14 @@ namespace TerrainGraph.Flow;
 internal class TraceCollision
 {
     /// <summary>
-    /// First segment involved in the collision, the one that was actively being traced.
+    /// Task of the first segment involved in the collision, the one that was actively being traced.
     /// </summary>
-    public Segment segmentA;
+    public TraceTask taskA;
 
     /// <summary>
-    /// Second segment involved in the collision. May be the same as activeSegment if it collided with itself.
+    /// Task of the second segment involved in the collision. Will be the same as activeSegment if it collided with itself.
     /// </summary>
-    public Segment segmentB;
+    public TraceTask taskB;
 
     /// <summary>
     /// The position at which the collision occured.
@@ -65,31 +65,31 @@ internal class TraceCollision
 
     public void Analyze()
     {
-        this.cyclic = segmentA.IsBranchOf(segmentB, true);
-        this.hasMergeA = segmentA.AnyBranchesMatch(s => s.ParentCount > 1, false);
-        this.hasMergeB = segmentB.AnyBranchesMatch(s => s.ParentCount > 1, false);
+        this.cyclic = taskA.segment.IsBranchOf(taskB.segment, true);
+        this.hasMergeA = taskA.segment.AnyBranchesMatch(s => s.ParentCount > 1, false);
+        this.hasMergeB = taskB.segment.AnyBranchesMatch(s => s.ParentCount > 1, false);
     }
 
     public bool Precedes(TraceCollision other)
     {
-        if (segmentA.IsBranchOf(other.segmentB, true)) return false;
-        if (segmentB.IsParentOf(other.segmentA, true)) return true;
-        if (segmentB.IsParentOf(other.segmentB, false)) return true;
+        if (taskA.segment.IsBranchOf(other.taskB.segment, true)) return false;
+        if (taskB.segment.IsParentOf(other.taskA.segment, true)) return true;
+        if (taskB.segment.IsParentOf(other.taskB.segment, false)) return true;
         if (!complete && !other.complete) return false;
-        if (segmentB == other.segmentB && frameB.dist < other.frameB.dist) return true;
+        if (taskB == other.taskB && frameB.dist < other.frameB.dist) return true;
         return false;
     }
 
     public List<Segment> FindEnclosedSegments()
     {
-        if (segmentA == segmentB) return [];
+        if (taskA == taskB) return [];
 
         var enclosed = new List<Segment>();
 
         var shift = Vector2d.PointToLineOrientation(frameB.pos, frameB.pos + frameB.normal, frameA.pos);
 
-        var rhs = shift < 0 ? segmentA : segmentB;
-        var lhs = shift < 0 ? segmentB : segmentA;
+        var rhs = shift < 0 ? taskA.segment : taskB.segment;
+        var lhs = shift < 0 ? taskB.segment : taskA.segment;
 
         if (!TraverseEnclosed(rhs, lhs, enclosed, true)) return [];
         if (!TraverseEnclosed(lhs, rhs, enclosed, false)) return [];
@@ -135,8 +135,8 @@ internal class TraceCollision
     }
 
     public override string ToString() =>
-        $"{nameof(segmentA)}: {segmentA.Id}, " +
-        $"{nameof(segmentB)}: {segmentB.Id}, " +
+        $"{nameof(taskA)}: {taskA.segment.Id}, " +
+        $"{nameof(taskB)}: {taskB.segment.Id}, " +
         $"{nameof(frameA)}: {(framesA == null ? "?" : frameA)}, " +
         $"{nameof(frameB)}: {(framesB == null ? "?" : frameB)}, " +
         $"{nameof(position)}: {position}";

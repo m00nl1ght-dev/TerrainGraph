@@ -37,7 +37,7 @@ public class NodeCurveLinear : NodeBase
     public double Bias;
     public double ClampMin = double.MinValue;
     public double ClampMax = double.MaxValue;
-    public double Slope;
+    public double Slope = 1;
 
     public override void RefreshDynamicKnobs()
     {

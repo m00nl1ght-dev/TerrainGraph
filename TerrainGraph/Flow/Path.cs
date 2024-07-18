@@ -618,13 +618,13 @@ public class Path
 
         public Vector2d? Target;
 
-        public IGridFunction<double> CostGrid;
-        public IGridFunction<double> SwerveFunc;
-        public IGridFunction<double> ExtentLeftGrid;
-        public IGridFunction<double> ExtentRightGrid;
-        public IGridFunction<double> SpeedGrid;
-        public IGridFunction<double> DensityLeftGrid;
-        public IGridFunction<double> DensityRightGrid;
+        public TraceParamFunction Cost;
+        public TraceParamFunction Swerve;
+        public TraceParamFunction ExtentLeft;
+        public TraceParamFunction ExtentRight;
+        public TraceParamFunction Speed;
+        public TraceParamFunction DensityLeft;
+        public TraceParamFunction DensityRight;
 
         public IReadOnlyCollection<DiversionPoint> DiversionPoints;
 
@@ -632,20 +632,22 @@ public class Path
         /// Calculate the Maximum expected extent multiplier at the given position, used for angle limit calculations.
         /// Never lower than 1 because of local stability that could potentially be applied later.
         /// </summary>
-        public double MaxExtentFactor(Vector2d pos)
+        public double MaxExtentFactor(TraceTask task, Vector2d pos, double dist)
         {
-            return Math.Max(ExtentLeftGrid?.ValueAt(pos) ?? 1, ExtentRightGrid?.ValueAt(pos) ?? 1).WithMin(1);
+            return Math.Max(
+                ExtentLeft?.ValueFor(task, pos, dist) ?? 1,
+                ExtentRight?.ValueFor(task, pos, dist) ?? 1
+            ).WithMin(1);
         }
 
         public void ApplyFixedAngle(double angleDelta, bool stable)
         {
+            Swerve = new TraceParamFunction.FromGrid(Of(angleDelta));
+
             AvoidOverlap = 0;
             AngleTenacity = 0;
-
-            CostGrid = null;
-            SwerveFunc = Of(angleDelta);
-
             DiversionPoints = null;
+            Cost = null;
             Target = null;
 
             if (stable)
@@ -653,39 +655,13 @@ public class Path
                 WidthLoss = 0;
                 SpeedLoss = 0;
                 DensityLoss = 0;
-                SpeedGrid = null;
+                Speed = null;
             }
         }
 
         public void AddDiversionPoint(DiversionPoint point)
         {
             DiversionPoints = DiversionPoints != null ? [..DiversionPoints, point] : [point];
-        }
-
-        public static TraceParams Merge(TraceParams a, TraceParams b, double t = 0.5)
-        {
-            return new TraceParams
-            {
-                StepSize = t.Lerp(a.StepSize, b.StepSize),
-                WidthLoss = t.Lerp(a.WidthLoss, b.WidthLoss),
-                SpeedLoss = t.Lerp(a.SpeedLoss, b.SpeedLoss),
-                DensityLoss = t.Lerp(a.DensityLoss, b.DensityLoss),
-                AngleTenacity = t.Lerp(a.AngleTenacity, b.AngleTenacity),
-                AvoidOverlap = t.Lerp(a.AvoidOverlap, b.AvoidOverlap),
-                ArcRetraceFactor = t.Lerp(a.ArcRetraceFactor, b.ArcRetraceFactor),
-                ArcRetraceRange = t.Lerp(a.ArcRetraceRange, b.ArcRetraceRange),
-                ArcStableRange = t.Lerp(a.ArcStableRange, b.ArcStableRange),
-                StaticAngleTenacity = a.StaticAngleTenacity || b.StaticAngleTenacity,
-                AdjustmentPriority = a.AdjustmentPriority || b.AdjustmentPriority,
-                CostGrid = Lerp.Of(a.CostGrid, b.CostGrid, t),
-                SwerveFunc = Lerp.Of(a.SwerveFunc, b.SwerveFunc, t),
-                ExtentLeftGrid = Lerp.Of(a.ExtentLeftGrid, b.ExtentLeftGrid, t),
-                ExtentRightGrid = Lerp.Of(a.ExtentRightGrid, b.ExtentRightGrid, t),
-                SpeedGrid = Lerp.Of(a.SpeedGrid, b.SpeedGrid, t),
-                DensityLeftGrid = Lerp.Of(a.DensityLeftGrid, b.DensityLeftGrid, t),
-                DensityRightGrid = Lerp.Of(a.DensityRightGrid, b.DensityRightGrid, t),
-                Target = a.Target ?? b.Target
-            };
         }
 
         public bool Equals(TraceParams other) =>
@@ -700,13 +676,13 @@ public class Path
             ArcStableRange.Equals(other.ArcStableRange) &&
             StaticAngleTenacity == other.StaticAngleTenacity &&
             AdjustmentPriority == other.AdjustmentPriority &&
-            Equals(CostGrid, other.CostGrid) &&
-            Equals(SwerveFunc, other.SwerveFunc) &&
-            Equals(ExtentLeftGrid, other.ExtentLeftGrid) &&
-            Equals(ExtentRightGrid, other.ExtentRightGrid) &&
-            Equals(SpeedGrid, other.SpeedGrid) &&
-            Equals(DensityLeftGrid, other.DensityLeftGrid) &&
-            Equals(DensityRightGrid, other.DensityRightGrid) &&
+            Equals(Cost, other.Cost) &&
+            Equals(Swerve, other.Swerve) &&
+            Equals(ExtentLeft, other.ExtentLeft) &&
+            Equals(ExtentRight, other.ExtentRight) &&
+            Equals(Speed, other.Speed) &&
+            Equals(DensityLeft, other.DensityLeft) &&
+            Equals(DensityRight, other.DensityRight) &&
             Equals(DiversionPoints, other.DiversionPoints) &&
             Target == other.Target;
 
@@ -722,13 +698,13 @@ public class Path
             $"{nameof(ArcStableRange)}: {ArcStableRange:F2}, " +
             $"{nameof(StaticAngleTenacity)}: {StaticAngleTenacity}, " +
             $"{nameof(AdjustmentPriority)}: {AdjustmentPriority}, " +
-            $"{nameof(CostGrid)}: {CostGrid}, " +
-            $"{nameof(SwerveFunc)}: {SwerveFunc}, " +
-            $"{nameof(ExtentLeftGrid)}: {ExtentLeftGrid}, " +
-            $"{nameof(ExtentRightGrid)}: {ExtentRightGrid}, " +
-            $"{nameof(SpeedGrid)}: {SpeedGrid}, " +
-            $"{nameof(DensityLeftGrid)}: {DensityLeftGrid}, " +
-            $"{nameof(DensityRightGrid)}: {DensityRightGrid}, " +
+            $"{nameof(Cost)}: {Cost}, " +
+            $"{nameof(Swerve)}: {Swerve}, " +
+            $"{nameof(ExtentLeft)}: {ExtentLeft}, " +
+            $"{nameof(ExtentRight)}: {ExtentRight}, " +
+            $"{nameof(Speed)}: {Speed}, " +
+            $"{nameof(DensityLeft)}: {DensityLeft}, " +
+            $"{nameof(DensityRight)}: {DensityRight}, " +
             $"{nameof(DiversionPoints)}: {DiversionPoints?.Count ?? 0}, " +
             $"{nameof(Target)}: {Target}";
     }

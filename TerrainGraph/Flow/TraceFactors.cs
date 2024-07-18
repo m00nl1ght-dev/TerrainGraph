@@ -2,8 +2,7 @@ using TerrainGraph.Util;
 
 namespace TerrainGraph.Flow;
 
-[HotSwappable]
-internal readonly struct TraceFactors
+public readonly struct TraceFactors
 {
     /// <summary>
     /// Local multiplier for the left extent at the current frame position.
@@ -37,17 +36,19 @@ internal readonly struct TraceFactors
 
     public TraceFactors() {}
 
-    public TraceFactors(Path.Segment segment, Vector2d pos, double dist)
+    public TraceFactors(TraceTask task, Vector2d pos, double dist)
     {
-        extentLeft = segment.TraceParams.ExtentLeftGrid?.ValueAt(pos) ?? 1;
-        extentRight = segment.TraceParams.ExtentRightGrid?.ValueAt(pos) ?? 1;
-        speed = segment.TraceParams.SpeedGrid?.ValueAt(pos) ?? 1;
-        densityLeft = segment.TraceParams.DensityLeftGrid?.ValueAt(pos) ?? 1;
-        densityRight = segment.TraceParams.DensityRightGrid?.ValueAt(pos) ?? 1;
+        var traceParams = task.segment.TraceParams;
 
-        var progress = segment.Length <= 0 ? 0 : (dist / segment.Length).InRange01();
+        extentLeft = traceParams.ExtentLeft?.ValueFor(task, pos, dist) ?? 1;
+        extentRight = traceParams.ExtentRight?.ValueFor(task, pos, dist) ?? 1;
+        densityLeft = traceParams.DensityLeft?.ValueFor(task, pos, dist) ?? 1;
+        densityRight = traceParams.DensityRight?.ValueFor(task, pos, dist) ?? 1;
+        speed = traceParams.Speed?.ValueFor(task, pos, dist) ?? 1;
 
-        scalar = 1 - segment.LocalStabilityAt(progress);
+        var progress = task.segment.Length <= 0 ? 0 : (dist / task.segment.Length).InRange01();
+
+        scalar = 1 - task.segment.LocalStabilityAt(progress);
     }
 
     public override string ToString() =>

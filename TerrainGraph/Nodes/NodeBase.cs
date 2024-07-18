@@ -175,8 +175,13 @@ public abstract class NodeBase : Node
         return input.GetValue<ISupplier<T>>();
     }
 
-    protected ValueConnectionKnob FindDynamicKnob(ConnectionKnobAttribute attribute)
+    protected ValueConnectionKnob FindDynamicKnob(ValueConnectionKnobAttribute attribute)
     {
         return (ValueConnectionKnob) dynamicConnectionPorts.FirstOrDefault(k => k.name.Equals(attribute.Name));
+    }
+
+    protected ValueConnectionKnob FindOrCreateDynamicKnob(ValueConnectionKnobAttribute attribute)
+    {
+        return FindDynamicKnob(attribute) ?? CreateValueConnectionKnob(attribute);
     }
 }

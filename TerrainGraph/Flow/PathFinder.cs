@@ -12,7 +12,9 @@ namespace TerrainGraph.Flow;
 [HotSwappable]
 public class PathFinder
 {
-    public IGridFunction<double> Grid;
+    public GridValueSupplier LocalPathCost = (_,_) => 0d;
+    public GridValueSupplier AngleDeltaLimit = (_,_) => 0d;
+    public GridValueSupplier DirectionBias = (_,_) => 0d;
 
     public double ObstacleThreshold = 1d;
     public double FullStepDistance = 1d;
@@ -27,9 +29,6 @@ public class PathFinder
     public double QtOpenLoc = 1d;
     public double QtOpenRot = 1d;
 
-    public AngleDeltaLimitFunc AngleDeltaLimit = (_,_) => 0d;
-    public DirectionBiasFunc DirectionBias = (_,_) => 0d;
-
     private readonly PathTracer _tracer;
     private readonly ArcKernel _kernel;
 
@@ -37,8 +36,7 @@ public class PathFinder
     private readonly Dictionary<NodeKey, Node> _open = new(100);
     private readonly FastPriorityQueue<Node> _openQueue = new(100);
 
-    public delegate double AngleDeltaLimitFunc(Vector2d position, double distance);
-    public delegate double DirectionBiasFunc(double distance, double cost);
+    public delegate double GridValueSupplier(Vector2d position, double distance);
 
     public PathFinder(PathTracer tracer, ArcKernel kernel)
     {
@@ -94,7 +92,11 @@ public class PathFinder
         var newNodes = 0;
         var obstructed = 0;
 
-        var angleDeltaLimit = AngleDeltaLimit(curNode.Position, curNode.PathDepth * FullStepDistance);
+        var curTotalDistance = curNode.PathDepth * FullStepDistance;
+        var newTotalDistance = curTotalDistance + FullStepDistance;
+
+        var directionBias = DirectionBias(curNode.Position, curTotalDistance);
+        var angleDeltaLimit = AngleDeltaLimit(curNode.Position, curTotalDistance);
         var splitDistance = FullStepDistance / _kernel.SplitCount;
 
         for (int i = 0; i <= _kernel.ArcCount * 2; i++)
@@ -124,7 +126,7 @@ public class PathFinder
 
                     var sDir = curNode.Direction.Rotate(i % 2 == 1 ? sin : -sin, cos);
                     var sPos = pivotPoint - sDir.PerpCCW * pivotOffset;
-                    var sCost = splitDistance * (1 + Grid.ValueAt(sPos.x, sPos.z));
+                    var sCost = splitDistance * (1 + LocalPathCost(sPos, newTotalDistance));
 
                     if (s == _kernel.MaxSplitIdx)
                     {
@@ -147,7 +149,7 @@ public class PathFinder
                 {
                     var sDist = FullStepDistance * _kernel.SplitFraction(s);
                     var sPos = curNode.Position + curNode.Direction * sDist;
-                    var sCost = splitDistance * (1 + Grid.ValueAt(sPos.x, sPos.z));
+                    var sCost = splitDistance * (1 + LocalPathCost(sPos, newTotalDistance));
 
                     if (s == _kernel.MaxSplitIdx)
                     {
@@ -192,8 +194,6 @@ public class PathFinder
             {
                 priority += HeuristicCurvatureWeight * (float) angleDelta;
             }
-
-            var directionBias = DirectionBias(curNode.PathDepth * FullStepDistance, totalCost / _kernel.SplitCount - 1);
 
             if (directionBias != 0)
             {
@@ -250,7 +250,7 @@ public class PathFinder
                             var sRad = (angleDelta * p * Math.Sign(scalarA)).ToRad();
                             var sDir = curNode.Direction.Rotate(Math.Sin(sRad), Math.Cos(sRad));
                             var sPos = center + sDir.PerpCCW * scalarA;
-                            var sCost = splitDistance * (1 + Grid.ValueAt(sPos.x, sPos.z));
+                            var sCost = splitDistance * (1 + LocalPathCost(sPos, newTotalDistance));
 
                             totalCost += sCost;
 
@@ -288,7 +288,7 @@ public class PathFinder
                 for (double p = 0; p < distToTarget; p += splitDistance)
                 {
                     var sPos = curNode.Position + p * curNode.Direction;
-                    var sCost = splitDistance * (1 + Grid.ValueAt(sPos.x, sPos.z));
+                    var sCost = splitDistance * (1 + LocalPathCost(sPos, newTotalDistance));
 
                     totalCost += sCost;
 

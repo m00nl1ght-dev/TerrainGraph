@@ -3,6 +3,7 @@ using System.Linq;
 using NodeEditorFramework;
 using TerrainGraph.Flow;
 using UnityEngine;
+using static TerrainGraph.Flow.TraceParamFunction;
 
 namespace TerrainGraph;
 
@@ -18,16 +19,20 @@ public class NodePathCost : NodeBase
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
-    [ValueConnectionKnob("Cost Grid", Direction.In, GridFunctionConnection.Id)]
-    public ValueConnectionKnob CostGridKnob;
-
     [ValueConnectionKnob("Avoid Overlap", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob AvoidOverlapKnob;
 
     [ValueConnectionKnob("Output", Direction.Out, PathFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
 
+    public ValueConnectionKnob ByPositionKnob;
+
     public double AvoidOverlap;
+
+    public override void RefreshDynamicKnobs()
+    {
+        ByPositionKnob = FindOrCreateDynamicKnob(new("Cost ~ Position", Direction.In, GridFunctionConnection.Id));
+    }
 
     public override void NodeGUI()
     {
@@ -41,10 +46,10 @@ public class NodePathCost : NodeBase
         GUILayout.EndHorizontal();
 
         GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Cost Grid", BoxLayout);
+        GUILayout.Label("~ Position", BoxLayout);
         GUILayout.EndHorizontal();
 
-        CostGridKnob.SetPosition();
+        ByPositionKnob.SetPosition();
 
         KnobValueField(AvoidOverlapKnob, ref AvoidOverlap);
 
@@ -67,7 +72,7 @@ public class NodePathCost : NodeBase
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
-            SupplierOrFallback(CostGridKnob, GridFunction.Zero),
+            SupplierOrFallback(ByPositionKnob, GridFunction.Zero),
             SupplierOrFallback(AvoidOverlapKnob, AvoidOverlap)
         ));
         return true;
@@ -76,16 +81,16 @@ public class NodePathCost : NodeBase
     private class Output : ISupplier<Path>
     {
         private readonly ISupplier<Path> _input;
-        private readonly ISupplier<IGridFunction<double>> _costGrid;
+        private readonly ISupplier<IGridFunction<double>> _byPosition;
         private readonly ISupplier<double> _avoidOverlap;
 
         public Output(
             ISupplier<Path> input,
-            ISupplier<IGridFunction<double>> costGrid,
+            ISupplier<IGridFunction<double>> byPosition,
             ISupplier<double> avoidOverlap)
         {
             _input = input;
-            _costGrid = costGrid;
+            _byPosition = byPosition;
             _avoidOverlap = avoidOverlap;
         }
 
@@ -97,7 +102,7 @@ public class NodePathCost : NodeBase
             {
                 var extParams = segment.TraceParams;
 
-                extParams.CostGrid = _costGrid.Get();
+                extParams.Cost = new FromGrid(_byPosition.Get());
                 extParams.AvoidOverlap = _avoidOverlap.Get();
 
                 segment.ExtendWithParams(extParams);
@@ -109,7 +114,7 @@ public class NodePathCost : NodeBase
         public void ResetState()
         {
             _input.ResetState();
-            _costGrid.ResetState();
+            _byPosition.ResetState();
             _avoidOverlap.ResetState();
         }
     }

@@ -33,7 +33,7 @@ public class PathTracer
     private readonly double[,] _valueGrid;
     private readonly double[,] _offsetGrid;
     private readonly double[,] _distanceGrid;
-    private readonly Segment[,] _segmentGrid;
+    private readonly TraceTask[,] _taskGrid;
 
     #if DEBUG
     private readonly double[,] _debugGrid;
@@ -87,7 +87,7 @@ public class PathTracer
         _valueGrid = new double[outerSizeX, outerSizeZ];
         _offsetGrid = new double[outerSizeX, outerSizeZ];
         _distanceGrid = new double[outerSizeX, outerSizeZ];
-        _segmentGrid = new Segment[outerSizeX, outerSizeZ];
+        _taskGrid = new TraceTask[outerSizeX, outerSizeZ];
 
         #if DEBUG
         _debugGrid = new double[outerSizeX, outerSizeZ];
@@ -180,7 +180,7 @@ public class PathTracer
                 _valueGrid[x, z] = 0;
                 _offsetGrid[x, z] = 0;
                 _distanceGrid[x, z] = TraceOuterMargin;
-                _segmentGrid[x, z] = null;
+                _taskGrid[x, z] = null;
 
                 #if DEBUG
                 _debugGrid[x, z] = 0;
@@ -250,7 +250,7 @@ public class PathTracer
         {
             if (rootSegment.RelWidth > 0)
             {
-                Enqueue(rootSegment, originFrame, 0, false);
+                Enqueue(rootSegment, originFrame, 0, rootSegment.RelWidth, false);
             }
         }
 
@@ -272,7 +272,8 @@ public class PathTracer
                     {
                         if (branch.ParentCount <= 1)
                         {
-                            Enqueue(branch, result.finalFrame, task.distFromRoot + result.finalFrame.dist, result.everInBounds);
+                            var stableWidth = branch.StabilityAtTail?.Value >= 1 ? result.finalFrame.width * branch.RelWidth : task.lastStableWidth;
+                            Enqueue(branch, result.finalFrame, task.distFromRoot + result.finalFrame.dist, stableWidth, result.everInBounds);
                         }
                         else
                         {
@@ -290,7 +291,7 @@ public class PathTracer
                             DebugOutput($"Merged frames {string.Join(" + ", branch.Parents.Select(b => b.Id))} into {branch.Id}");
                             #endif
 
-                            Enqueue(branch, mergedFrame, maxDistFromRoot, parentResults.Any(r => r.everInBounds));
+                            Enqueue(branch, mergedFrame, maxDistFromRoot, mergedFrame.width * branch.RelWidth, parentResults.Any(r => r.everInBounds));
                         }
                     }
                 }
@@ -305,11 +306,11 @@ public class PathTracer
 
         return;
 
-        void Enqueue(Segment branch, TraceFrame baseFrame, double distFromRoot, bool everInBounds)
+        void Enqueue(Segment branch, TraceFrame baseFrame, double distFromRoot, double lastStableWidth, bool everInBounds)
         {
             if (_traceResults.ContainsKey(branch) || taskQueue.Any(t => t.segment == branch)) return;
 
-            var collisionList = simulatedCollisions?.Where(c => c.segmentB == branch).ToList();
+            var collisionList = simulatedCollisions?.Where(c => c.taskB.segment == branch).ToList();
 
             if (collisionList is { Count: 0 }) collisionList = null;
 
@@ -317,7 +318,7 @@ public class PathTracer
             var marginTail = branch.IsRoot ? TraceInnerMargin : 0;
 
             taskQueue.Enqueue(new TraceTask(
-                branch, baseFrame, collisionList, marginHead, marginTail, distFromRoot, everInBounds
+                branch, baseFrame, collisionList, marginHead, marginTail, distFromRoot, lastStableWidth, everInBounds
             ));
         }
     }
@@ -333,7 +334,7 @@ public class PathTracer
 
         var stepSize = task.segment.TraceParams.StepSize.WithMin(1);
 
-        var initialFrame = new TraceFrame(task.baseFrame, task.segment, GridMargin, -task.marginTail);
+        var initialFrame = new TraceFrame(task, GridMargin, -task.marginTail);
 
         #if DEBUG
         DebugOutput($"Segment {task.segment.Id} with length {length:F2} started with initial frame [{initialFrame}] and params {task.segment.TraceParams}");
@@ -348,24 +349,18 @@ public class PathTracer
         if (extParams.Target != null)
         {
             var target = extParams.Target.Value + GridMargin;
+            var avoid = extParams.AvoidOverlap.InRange01();
 
-            var costGrid = Zero;
-
-            if (extParams.CostGrid != null)
+            double CostFunc(Vector2d pos, double dist)
             {
-                costGrid = new Transform<double>(extParams.CostGrid, GridMargin.x, GridMargin.z);
-            }
-
-            if (extParams.AvoidOverlap > 0)
-            {
-                var threshold = extParams.AvoidOverlap.InRange01();
-                costGrid = new Max(costGrid, new Select<double>(_overlapAvoidanceGrid, [Of(0d), Of(999d)], [1d - threshold]));
+                if (avoid > 0 && _overlapAvoidanceGrid.ValueAt(pos) >= 1d - avoid) return 999d;
+                return extParams.Cost?.ValueFor(task, pos - GridMargin, dist) ?? 0;
             }
 
             double AngleLimitFunc(Vector2d pos, double dist)
             {
                 var width = extParams.StaticAngleTenacity ? initialFrame.width : initialFrame.width - dist * extParams.WidthLoss;
-                return MathUtil.AngleLimit(width * extParams.MaxExtentFactor(pos - GridMargin), extParams.AngleTenacity);
+                return MathUtil.AngleLimit(width * extParams.MaxExtentFactor(task, pos - GridMargin, dist), extParams.AngleTenacity);
             }
 
             var angleLimitBase = MathUtil.AngleLimit(initialFrame.width, extParams.AngleTenacity);
@@ -374,20 +369,18 @@ public class PathTracer
 
             var pathFinder = new PathFinder(this, new PathFinder.ArcKernel(arcCount, stepSize * angleLimitBase, (int) stepSize))
             {
-                Grid = costGrid,
+                LocalPathCost = CostFunc,
+                AngleDeltaLimit = AngleLimitFunc,
                 ObstacleThreshold = 100d,
                 FullStepDistance = stepSize,
                 QtClosedLoc = 0.5d * stepSize,
                 QtOpenLoc = 0.5d * stepSize,
-                AngleDeltaLimit = AngleLimitFunc,
                 IterationLimit = 10000
             };
 
-            if (extParams.SwerveFunc != null)
+            if (extParams.Swerve != null)
             {
-                var baseDist = task.distFromRoot;
-                var swerveFunc = extParams.SwerveFunc;
-                pathFinder.DirectionBias = (d, c) => swerveFunc.ValueAt(baseDist + d, c);
+                pathFinder.DirectionBias = (pos, dist) => extParams.Swerve.ValueFor(task, pos - GridMargin, dist);
             }
 
             for (int i = 0; i <= 3; i++)
@@ -439,20 +432,20 @@ public class PathTracer
                 {
                     distDelta = Math.Min(stepSize, length + task.marginHead - a.dist);
 
-                    var costAtFrame = 0d;
                     var followVec = Vector2d.Zero;
+                    var newDist = a.dist + distDelta;
 
-                    if (extParams.CostGrid != null)
+                    if (extParams.Cost != null)
                     {
                         followVec = _followGridKernel.CalculateFlowVecAt(
-                            new(1, 0), new(0, 1), extParams.CostGrid, a.pos - GridMargin, ref costAtFrame
+                            new(1, 0), new(0, 1), a.pos, pos => extParams.Cost.ValueFor(task, pos - GridMargin, newDist)
                         );
                     }
 
                     if (extParams.AvoidOverlap > 0)
                     {
                         followVec += extParams.AvoidOverlap * _avoidGridKernel.CalculateFlowVecAt(
-                            a.normal, a.perpCW, _overlapAvoidanceGrid, a.pos, ref costAtFrame
+                            a.normal, a.perpCW, a.pos, pos => _overlapAvoidanceGrid.ValueAt(pos)
                         );
                     }
 
@@ -474,16 +467,16 @@ public class PathTracer
                         angleDelta -= Vector2d.SignedAngle(a.normal, a.normal + followVec);
                     }
 
-                    if (extParams.SwerveFunc != null)
+                    if (extParams.Swerve != null)
                     {
-                        angleDelta += extParams.SwerveFunc.ValueAt(task.distFromRoot + a.dist, costAtFrame);
+                        angleDelta += extParams.Swerve.ValueFor(task, a.pos - GridMargin, a.dist);
                     }
 
                     if (a.dist < task.segment.AngleDeltaPosLockLength && angleDelta > 0) angleDelta = 0;
                     if (a.dist < task.segment.AngleDeltaNegLockLength && angleDelta < 0) angleDelta = 0;
 
                     var widthForTenacity = extParams.StaticAngleTenacity ? initialFrame.width : a.width;
-                    widthForTenacity *= extParams.MaxExtentFactor(a.pos - GridMargin);
+                    widthForTenacity *= extParams.MaxExtentFactor(task, a.pos - GridMargin, a.dist);
                     var maxAngleDelta = MathUtil.AngleLimit(widthForTenacity, extParams.AngleTenacity) * distDelta;
                     angleDelta = (distDelta * angleDelta).NormalizeDeg().InRange(-maxAngleDelta, maxAngleDelta);
                 }
@@ -538,7 +531,7 @@ public class PathTracer
             }
 
             var b = a.Advance(
-                task.segment, distDelta, angleDelta,
+                task, distDelta, angleDelta,
                 extraValue, extraOffset, GridMargin,
                 out var pivotPoint, out var pivotOffset,
                 Math.Abs(angleDelta) >= RadialThreshold
@@ -664,20 +657,20 @@ public class PathTracer
                                         if (valueDiff >= valueThr || offsetDiff >= offsetThr)
                                         {
                                             #if DEBUG
-                                            DebugOutput($"Collision {task.segment.Id} vs {_segmentGrid[x, z].Id} at {pos} with value diff {valueDiff} and offset diff {offsetDiff}");
+                                            DebugOutput($"Collision {task.segment.Id} vs {_taskGrid[x, z].segment.Id} at {pos} with value diff {valueDiff} and offset diff {offsetDiff}");
                                             #endif
 
                                             return new TraceResult(initialFrame, a, everFullyInBounds, new TraceCollision
                                             {
-                                                segmentA = task.segment,
-                                                segmentB = _segmentGrid[x, z],
+                                                taskA = task,
+                                                taskB = _taskGrid[x, z],
                                                 framesA = ExchangeFrameBuffer(),
                                                 position = pos
                                             });
                                         }
 
                                         #if DEBUG
-                                        DebugOutput($"Ignoring collision {task.segment.Id} vs {_segmentGrid[x, z].Id} at {pos} with value diff {valueDiff} and offset diff {offsetDiff}");
+                                        DebugOutput($"Ignoring collision {task.segment.Id} vs {_taskGrid[x, z].segment.Id} at {pos} with value diff {valueDiff} and offset diff {offsetDiff}");
                                         #endif
                                     }
 
@@ -692,7 +685,7 @@ public class PathTracer
                                         }
                                     }
 
-                                    _segmentGrid[x, z] = task.segment;
+                                    _taskGrid[x, z] = task;
 
                                     if (nowDist <= 0)
                                     {

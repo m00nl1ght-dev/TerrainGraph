@@ -3,6 +3,7 @@ using System.Linq;
 using NodeEditorFramework;
 using TerrainGraph.Flow;
 using UnityEngine;
+using static TerrainGraph.Flow.TraceParamFunction;
 
 namespace TerrainGraph;
 
@@ -18,16 +19,20 @@ public class NodePathSpeed : NodeBase
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
-    [ValueConnectionKnob("Speed Grid", Direction.In, GridFunctionConnection.Id)]
-    public ValueConnectionKnob SpeedGridKnob;
-
     [ValueConnectionKnob("Speed Loss", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob SpeedLossKnob;
 
     [ValueConnectionKnob("Output", Direction.Out, PathFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
 
+    public ValueConnectionKnob ByPositionKnob;
+
     public double SpeedLoss;
+
+    public override void RefreshDynamicKnobs()
+    {
+        ByPositionKnob = FindOrCreateDynamicKnob(new("Speed ~ Position", Direction.In, GridFunctionConnection.Id));
+    }
 
     public override void NodeGUI()
     {
@@ -41,10 +46,10 @@ public class NodePathSpeed : NodeBase
         GUILayout.EndHorizontal();
 
         GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Speed Grid", BoxLayout);
+        GUILayout.Label("~ Position", BoxLayout);
         GUILayout.EndHorizontal();
 
-        SpeedGridKnob.SetPosition();
+        ByPositionKnob.SetPosition();
 
         KnobValueField(SpeedLossKnob, ref SpeedLoss);
 
@@ -67,7 +72,7 @@ public class NodePathSpeed : NodeBase
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
-            SupplierOrFallback(SpeedGridKnob, GridFunction.One),
+            SupplierOrFallback(ByPositionKnob, GridFunction.One),
             SupplierOrFallback(SpeedLossKnob, SpeedLoss)
         ));
         return true;
@@ -76,13 +81,16 @@ public class NodePathSpeed : NodeBase
     private class Output : ISupplier<Path>
     {
         private readonly ISupplier<Path> _input;
-        private readonly ISupplier<IGridFunction<double>> _speedGrid;
+        private readonly ISupplier<IGridFunction<double>> _byPosition;
         private readonly ISupplier<double> _speedLoss;
 
-        public Output(ISupplier<Path> input, ISupplier<IGridFunction<double>> speedGrid, ISupplier<double> speedLoss)
+        public Output(
+            ISupplier<Path> input,
+            ISupplier<IGridFunction<double>> byPosition,
+            ISupplier<double> speedLoss)
         {
             _input = input;
-            _speedGrid = speedGrid;
+            _byPosition = byPosition;
             _speedLoss = speedLoss;
         }
 
@@ -94,7 +102,7 @@ public class NodePathSpeed : NodeBase
             {
                 var extParams = segment.TraceParams;
 
-                extParams.SpeedGrid = _speedGrid.Get();
+                extParams.Speed = new FromGrid(_byPosition.Get());
                 extParams.SpeedLoss = _speedLoss.Get();
 
                 segment.ExtendWithParams(extParams);
@@ -106,7 +114,7 @@ public class NodePathSpeed : NodeBase
         public void ResetState()
         {
             _input.ResetState();
-            _speedGrid.ResetState();
+            _byPosition.ResetState();
             _speedLoss.ResetState();
         }
     }

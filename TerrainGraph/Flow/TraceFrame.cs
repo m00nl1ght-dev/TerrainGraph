@@ -4,8 +4,7 @@ using TerrainGraph.Util;
 
 namespace TerrainGraph.Flow;
 
-[HotSwappable]
-internal readonly struct TraceFrame
+public readonly struct TraceFrame
 {
     /// <summary>
     /// The absolute position in the grid.
@@ -107,30 +106,32 @@ internal readonly struct TraceFrame
     }
 
     /// <summary>
-    /// Construct the initial frame for tracing the given path segment.
+    /// Construct the initial frame for the given trace task.
     /// </summary>
-    /// <param name="parent">Last frame of the preceding path segment</param>
-    /// <param name="segment">Next path segment to trace</param>
+    /// <param name="task">Task for the next path segment to trace</param>
     /// <param name="gridOffset">Offset applied when retrieving factors from external grids</param>
     /// <param name="distOffset">Offset applied to the initial trace distance</param>
-    public TraceFrame(TraceFrame parent, Path.Segment segment, Vector2d gridOffset, double distOffset = 0)
+    public TraceFrame(TraceTask task, Vector2d gridOffset, double distOffset = 0)
     {
-        var shiftExtent = segment.RelShift < 0 ? parent.extentLeftMul : parent.extentRightMul;
-        var shiftDensity = segment.RelShift < 0 ? parent.densityLeftMul : parent.densityRightMul;
+        var b = task.baseFrame;
+        var s = task.segment;
 
-        this.angle = (parent.angle + segment.RelAngle).NormalizeDeg();
-        this.width = parent.width * segment.RelWidth - distOffset * segment.TraceParams.WidthLoss;
-        this.speed = parent.speed * segment.RelSpeed - distOffset * segment.TraceParams.SpeedLoss;
-        this.value = parent.value + segment.RelValue + distOffset * (distOffset < 0 ? speed : parent.speed);
-        this.offset = parent.offset + segment.RelOffset - segment.RelShift * shiftExtent * shiftDensity;
+        var shiftExtent = s.RelShift < 0 ? b.extentLeftMul : b.extentRightMul;
+        var shiftDensity = s.RelShift < 0 ? b.densityLeftMul : b.densityRightMul;
+
+        this.angle = (b.angle + s.RelAngle).NormalizeDeg();
+        this.width = b.width * s.RelWidth - distOffset * s.TraceParams.WidthLoss;
+        this.speed = b.speed * s.RelSpeed - distOffset * s.TraceParams.SpeedLoss;
+        this.value = b.value + s.RelValue + distOffset * (distOffset < 0 ? speed : b.speed);
+        this.offset = b.offset + s.RelOffset - s.RelShift * shiftExtent * shiftDensity;
         this.normal = Vector2d.Direction(-angle);
-        this.pos = parent.pos + segment.RelPosition + segment.RelShift * parent.perpCCW * shiftExtent + distOffset * normal;
-        this.factors = new TraceFactors(segment, pos - gridOffset, distOffset);
-        this.density = parent.density * segment.RelDensity;
+        this.pos = b.pos + s.RelPosition + s.RelShift * b.perpCCW * shiftExtent + distOffset * normal;
+        this.factors = new TraceFactors(task, pos - gridOffset, distOffset);
+        this.density = b.density * s.RelDensity;
         this.dist = distOffset;
     }
 
-    public TraceFrame(List<TraceResult> mergingSegments)
+    internal TraceFrame(List<TraceResult> mergingSegments)
     {
         if (mergingSegments.Count == 0) return;
 
@@ -195,7 +196,7 @@ internal readonly struct TraceFrame
     /// <summary>
     /// Move the frame forward in its current direction, returning the result as a new frame.
     /// </summary>
-    /// <param name="segment">Segment with parameters defining how the values of the frame should evolve</param>
+    /// <param name="task">Task with parameters defining how the values of the frame should evolve</param>
     /// <param name="distDelta">Distance to move forward in the current direction</param>
     /// <param name="angleDelta">Total angle change to be applied continuously while advancing</param>
     /// <param name="extraValue">Additional value delta to be applied continuously while advancing</param>
@@ -206,7 +207,7 @@ internal readonly struct TraceFrame
     /// <param name="radial">If true, the path will advance along a circle arc, otherwise linearly</param>
     /// <returns></returns>
     public TraceFrame Advance(
-        Path.Segment segment, double distDelta, double angleDelta, double extraValue, double extraOffset,
+        TraceTask task, double distDelta, double angleDelta, double extraValue, double extraOffset,
         Vector2d gridOffset, out Vector2d pivotPoint, out double pivotOffset, bool radial)
     {
         var newAngle = (angle + angleDelta).NormalizeDeg();
@@ -236,11 +237,11 @@ internal readonly struct TraceFrame
         newValue += distDelta * (dist >= 0 ? speedMul : speed);
 
         return new TraceFrame(newPos, newNormal, newAngle,
-            width - distDelta * segment.TraceParams.WidthLoss,
-            speed - distDelta * segment.TraceParams.SpeedLoss,
-            density - distDelta * segment.TraceParams.DensityLoss,
+            width - distDelta * task.segment.TraceParams.WidthLoss,
+            speed - distDelta * task.segment.TraceParams.SpeedLoss,
+            density - distDelta * task.segment.TraceParams.DensityLoss,
             newValue, newOffset, newDist,
-            new TraceFactors(segment, newPos - gridOffset, newDist)
+            new TraceFactors(task, newPos - gridOffset, newDist)
         );
     }
 

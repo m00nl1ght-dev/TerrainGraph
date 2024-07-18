@@ -118,13 +118,11 @@ public class GridKernel
         return Offsets.Aggregate(grid.ValueAt(pos), (current, offset) => func(current, grid.ValueAt(pos + offset)));
     }
 
-    public Vector2d CalculateFlowVecAt(Vector2d axisX, Vector2d axisZ, IGridFunction<double> grid, Vector2d pos, ref double totalHere)
+    public Vector2d CalculateFlowVecAt(Vector2d axisX, Vector2d axisZ, Vector2d pos, Func<Vector2d, double> func)
     {
         var result = Vector2d.Zero;
 
-        var valHere = grid.ValueAt(pos);
-
-        totalHere += valHere;
+        var valHere = func(pos);
 
         for (var i = 0; i < Offsets.Count; i++)
         {
@@ -135,7 +133,7 @@ public class GridKernel
             var directionT = direction.x * axisX + direction.z * axisZ;
 
             var posThere = pos + offsetT;
-            var valThere = grid.ValueAt(posThere);
+            var valThere = func(posThere);
 
             result -= directionT * (valThere - valHere);
         }
