@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using TerrainGraph.Util;
+using static TerrainGraph.Flow.TraceParamFunction;
 using static TerrainGraph.GridFunction;
 
 namespace TerrainGraph.Flow;
@@ -629,7 +630,7 @@ public class Path
         public IReadOnlyCollection<DiversionPoint> DiversionPoints;
 
         /// <summary>
-        /// Calculate the Maximum expected extent multiplier at the given position, used for angle limit calculations.
+        /// Calculate the maximum expected extent multiplier at the given position, used for angle limit calculations.
         /// Never lower than 1 because of local stability that could potentially be applied later.
         /// </summary>
         public double MaxExtentFactor(TraceTask task, Vector2d pos, double dist)
@@ -642,7 +643,7 @@ public class Path
 
         public void ApplyFixedAngle(double angleDelta, bool stable)
         {
-            Swerve = new TraceParamFunction.FromGrid(Of(angleDelta));
+            Swerve = new FromGrid(Of(angleDelta));
 
             AvoidOverlap = 0;
             AngleTenacity = 0;

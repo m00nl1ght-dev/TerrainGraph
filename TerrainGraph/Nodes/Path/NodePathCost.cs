@@ -19,7 +19,7 @@ public class NodePathCost : NodeBase
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
-    [ValueConnectionKnob("Avoid Overlap", Direction.In, ValueFunctionConnection.Id)]
+    [ValueConnectionKnob("Avoid overlap", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob AvoidOverlapKnob;
 
     [ValueConnectionKnob("Output", Direction.Out, PathFunctionConnection.Id)]

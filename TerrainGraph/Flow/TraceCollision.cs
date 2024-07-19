@@ -76,13 +76,13 @@ internal class TraceCollision
         if (taskB.segment.IsParentOf(other.taskA.segment, true)) return true;
         if (taskB.segment.IsParentOf(other.taskB.segment, false)) return true;
         if (!complete && !other.complete) return false;
-        if (taskB == other.taskB && frameB.dist < other.frameB.dist) return true;
+        if (taskB.segment == other.taskB.segment && frameB.dist < other.frameB.dist) return true;
         return false;
     }
 
     public List<Segment> FindEnclosedSegments()
     {
-        if (taskA == taskB) return [];
+        if (taskA.segment == taskB.segment) return [];
 
         var enclosed = new List<Segment>();
 

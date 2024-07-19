@@ -37,9 +37,9 @@ public class NodePathWidth : NodeBase
 
     public override void RefreshDynamicKnobs()
     {
-        ByPositionKnob = FindOrCreateDynamicKnob(new("Width ~ Position", Direction.In, GridFunctionConnection.Id));
-        ByPatternKnob = FindOrCreateDynamicKnob(new("Width ~ Pattern", Direction.In, CurveFunctionConnection.Id));
-        ByWidthKnob = FindOrCreateDynamicKnob(new("Width ~ Width", Direction.In, CurveFunctionConnection.Id));
+        ByPositionKnob = FindOrCreateDynamicKnob(new("Extent ~ Position", Direction.In, GridFunctionConnection.Id));
+        ByPatternKnob = FindOrCreateDynamicKnob(new("Extent ~ Pattern", Direction.In, CurveFunctionConnection.Id));
+        ByWidthKnob = FindOrCreateDynamicKnob(new("Extent ~ Width", Direction.In, CurveFunctionConnection.Id));
         PatternScalingKnob = FindOrCreateDynamicKnob(new("Pattern ~ Stable width", Direction.In, CurveFunctionConnection.Id));
         SideBalanceKnob = FindOrCreateDynamicKnob(new("Side balance ~ Pattern", Direction.In, CurveFunctionConnection.Id));
     }
@@ -181,11 +181,11 @@ public class NodePathWidth : NodeBase
         public void ResetState()
         {
             _input.ResetState();
-            _byPosition.ResetState();
-            _byPattern.ResetState();
-            _byWidth.ResetState();
-            _patternScaling.ResetState();
-            _sideBalance.ResetState();
+            _byPosition?.ResetState();
+            _byPattern?.ResetState();
+            _byWidth?.ResetState();
+            _patternScaling?.ResetState();
+            _sideBalance?.ResetState();
             _widthLoss.ResetState();
         }
     }

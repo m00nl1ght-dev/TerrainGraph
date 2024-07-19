@@ -28,7 +28,7 @@ public class NodePathExtendTowards : NodeBase
     [ValueConnectionKnob("Length", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob LengthKnob;
 
-    [ValueConnectionKnob("Step Size", Direction.In, ValueFunctionConnection.Id)]
+    [ValueConnectionKnob("Step size", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob StepSizeKnob;
 
     [ValueConnectionKnob("Tenacity", Direction.In, ValueFunctionConnection.Id)]

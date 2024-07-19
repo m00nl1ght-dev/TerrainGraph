@@ -15,11 +15,6 @@ public class TraceTask
     public readonly TraceFrame baseFrame;
 
     /// <summary>
-    /// Collisions with other path segments to be simulated, may be null if there are none.
-    /// </summary>
-    internal readonly IEnumerable<TraceCollision> simulated;
-
-    /// <summary>
     /// The additional path length to trace at the head end of the segment.
     /// </summary>
     public readonly double marginHead;
@@ -43,6 +38,11 @@ public class TraceTask
     /// Whether any previous segment has any frames fully within the bounds of the outer grid.
     /// </summary>
     public readonly bool everInBounds;
+
+    /// <summary>
+    /// Collisions with other path segments to be simulated, may be null if there are none.
+    /// </summary>
+    internal readonly IEnumerable<TraceCollision> simulated;
 
     public double WidthAt(double dist) => baseFrame.width * segment.RelWidth - dist * segment.TraceParams.WidthLoss;
     public double DensityAt(double dist) => baseFrame.density * segment.RelDensity - dist * segment.TraceParams.DensityLoss;

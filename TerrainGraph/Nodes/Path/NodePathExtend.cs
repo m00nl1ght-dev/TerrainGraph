@@ -22,7 +22,7 @@ public class NodePathExtend : NodeBase
     [ValueConnectionKnob("Length", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob LengthKnob;
 
-    [ValueConnectionKnob("Step Size", Direction.In, ValueFunctionConnection.Id)]
+    [ValueConnectionKnob("Step size", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob StepSizeKnob;
 
     [ValueConnectionKnob("Tenacity", Direction.In, ValueFunctionConnection.Id)]
@@ -115,6 +115,7 @@ public class NodePathExtend : NodeBase
 
                 extParams.StepSize = stepSize;
                 extParams.AngleTenacity = tenacity;
+                extParams.Target = null;
 
                 segment.ExtendWithParams(extParams, length);
             }

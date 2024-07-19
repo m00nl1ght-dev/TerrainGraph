@@ -18,13 +18,13 @@ public class NodePathCollide : NodeBase
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
-    [ValueConnectionKnob("Arc Range", Direction.In, ValueFunctionConnection.Id)]
+    [ValueConnectionKnob("Arc range", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob ArcRangeKnob;
 
-    [ValueConnectionKnob("Arc Intensity", Direction.In, ValueFunctionConnection.Id)]
+    [ValueConnectionKnob("Arc intensity", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob ArcIntensityKnob;
 
-    [ValueConnectionKnob("Stable Range", Direction.In, ValueFunctionConnection.Id)]
+    [ValueConnectionKnob("Stable range", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob StableRangeKnob;
 
     [ValueConnectionKnob("Output", Direction.Out, PathFunctionConnection.Id)]

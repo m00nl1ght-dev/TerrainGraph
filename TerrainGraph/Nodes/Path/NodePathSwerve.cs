@@ -25,14 +25,14 @@ public class NodePathSwerve : NodeBase
     public ValueConnectionKnob OutputKnob;
 
     public ValueConnectionKnob ByPositionKnob;
-    public ValueConnectionKnob ByTotalDistKnob;
-    public ValueConnectionKnob ByPathCostKnob;
+    public ValueConnectionKnob ByDistanceKnob;
+    public ValueConnectionKnob ByCostKnob;
 
     public override void RefreshDynamicKnobs()
     {
         ByPositionKnob = FindOrCreateDynamicKnob(new("Swerve ~ Position", Direction.In, GridFunctionConnection.Id));
-        ByTotalDistKnob = FindOrCreateDynamicKnob(new("Swerve ~ Total distance", Direction.In, CurveFunctionConnection.Id));
-        ByPathCostKnob = FindOrCreateDynamicKnob(new("Swerve ~ Path cost", Direction.In, CurveFunctionConnection.Id));
+        ByDistanceKnob = FindOrCreateDynamicKnob(new("Swerve ~ Distance", Direction.In, CurveFunctionConnection.Id));
+        ByCostKnob = FindOrCreateDynamicKnob(new("Swerve ~ Cost", Direction.In, CurveFunctionConnection.Id));
     }
 
     public override void NodeGUI()
@@ -56,13 +56,13 @@ public class NodePathSwerve : NodeBase
         GUILayout.Label("~ Distance", BoxLayout);
         GUILayout.EndHorizontal();
 
-        ByTotalDistKnob.SetPosition();
+        ByDistanceKnob.SetPosition();
 
         GUILayout.BeginHorizontal(BoxStyle);
         GUILayout.Label("~ Cost", BoxLayout);
         GUILayout.EndHorizontal();
 
-        ByPathCostKnob.SetPosition();
+        ByCostKnob.SetPosition();
 
         GUILayout.EndVertical();
 
@@ -75,8 +75,8 @@ public class NodePathSwerve : NodeBase
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
             GetIfConnected<IGridFunction<double>>(ByPositionKnob),
-            GetIfConnected<ICurveFunction<double>>(ByTotalDistKnob),
-            GetIfConnected<ICurveFunction<double>>(ByPathCostKnob)
+            GetIfConnected<ICurveFunction<double>>(ByDistanceKnob),
+            GetIfConnected<ICurveFunction<double>>(ByCostKnob)
         ));
         return true;
     }
@@ -85,26 +85,26 @@ public class NodePathSwerve : NodeBase
     {
         private readonly ISupplier<Path> _input;
         private readonly ISupplier<IGridFunction<double>> _byPosition;
-        private readonly ISupplier<ICurveFunction<double>> _byTotalDist;
-        private readonly ISupplier<ICurveFunction<double>> _byPathCost;
+        private readonly ISupplier<ICurveFunction<double>> _byDistance;
+        private readonly ISupplier<ICurveFunction<double>> _byCost;
 
         public Output(
             ISupplier<Path> input,
             ISupplier<IGridFunction<double>> byPosition,
-            ISupplier<ICurveFunction<double>> byTotalDist,
-            ISupplier<ICurveFunction<double>> byPathCost)
+            ISupplier<ICurveFunction<double>> byDistance,
+            ISupplier<ICurveFunction<double>> byCost)
         {
             _input = input;
             _byPosition = byPosition;
-            _byTotalDist = byTotalDist;
-            _byPathCost = byPathCost;
+            _byDistance = byDistance;
+            _byCost = byCost;
         }
 
         public Path Get()
         {
             var path = new Path(_input.Get());
 
-            var anySuppliers = _byPosition != null || _byTotalDist != null || _byPathCost != null;
+            var anySuppliers = _byPosition != null || _byDistance != null || _byCost != null;
 
             foreach (var segment in path.Leaves.ToList())
             {
@@ -114,8 +114,8 @@ public class NodePathSwerve : NodeBase
                 {
                     extParams.Swerve = new ParamFunc(
                         _byPosition?.Get(),
-                        _byTotalDist?.Get(),
-                        _byPathCost?.Get()
+                        _byDistance?.Get(),
+                        _byCost?.Get()
                     );
                 }
                 else
@@ -132,26 +132,26 @@ public class NodePathSwerve : NodeBase
         public void ResetState()
         {
             _input.ResetState();
-            _byPosition.ResetState();
-            _byTotalDist.ResetState();
-            _byPathCost.ResetState();
+            _byPosition?.ResetState();
+            _byDistance?.ResetState();
+            _byCost?.ResetState();
         }
     }
 
     private class ParamFunc : TraceParamFunction
     {
         private readonly IGridFunction<double> _byPosition;
-        private readonly ICurveFunction<double> _byTotalDist;
-        private readonly ICurveFunction<double> _byPathCost;
+        private readonly ICurveFunction<double> _byDistance;
+        private readonly ICurveFunction<double> _byCost;
 
         public ParamFunc(
             IGridFunction<double> byPosition,
-            ICurveFunction<double> byTotalDist,
-            ICurveFunction<double> byPathCost)
+            ICurveFunction<double> byDistance,
+            ICurveFunction<double> byCost)
         {
             _byPosition = byPosition;
-            _byTotalDist = byTotalDist;
-            _byPathCost = byPathCost;
+            _byDistance = byDistance;
+            _byCost = byCost;
         }
 
         public override double ValueFor(TraceTask task, Vector2d pos, double dist)
@@ -161,11 +161,11 @@ public class NodePathSwerve : NodeBase
             if (_byPosition != null)
                 value *= _byPosition.ValueAt(pos);
 
-            if (_byTotalDist != null)
-                value *= _byTotalDist.ValueAt(task.distFromRoot + dist);
+            if (_byDistance != null)
+                value *= _byDistance.ValueAt(task.distFromRoot + dist);
 
-            if (_byPathCost != null)
-                value *= _byPathCost.ValueAt(task.segment.TraceParams.Cost?.ValueFor(task, pos, dist) ?? 0);
+            if (_byCost != null)
+                value *= _byCost.ValueAt(task.segment.TraceParams.Cost?.ValueFor(task, pos, dist) ?? 0);
 
             return value;
         }
@@ -180,12 +180,12 @@ public class NodePathSwerve : NodeBase
 
         protected bool Equals(ParamFunc other) =>
             Equals(_byPosition, other._byPosition) &&
-            Equals(_byTotalDist, other._byTotalDist) &&
-            Equals(_byPathCost, other._byPathCost);
+            Equals(_byDistance, other._byDistance) &&
+            Equals(_byCost, other._byCost);
 
         public override string ToString() =>
             $"Position ~ {_byPosition}, " +
-            $"TotalDist ~ {_byTotalDist}, " +
-            $"PathCost ~ {_byPathCost}";
+            $"Distance ~ {_byDistance}, " +
+            $"Cost ~ {_byCost}";
     }
 }

@@ -21,21 +21,21 @@ public class NodePathDensity : NodeBase
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
-    [ValueConnectionKnob("Density Loss", Direction.In, ValueFunctionConnection.Id)]
+    [ValueConnectionKnob("Density loss", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob DensityLossKnob;
 
     [ValueConnectionKnob("Output", Direction.Out, PathFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
 
     public ValueConnectionKnob ByPositionKnob;
-    public ValueConnectionKnob ByWidthMulKnob;
+    public ValueConnectionKnob ByExtentKnob;
 
     public double DensityLoss;
 
     public override void RefreshDynamicKnobs()
     {
         ByPositionKnob = FindOrCreateDynamicKnob(new("Density ~ Position", Direction.In, GridFunctionConnection.Id));
-        ByWidthMulKnob = FindOrCreateDynamicKnob(new("Density ~ Width multiplier", Direction.In, CurveFunctionConnection.Id));
+        ByExtentKnob = FindOrCreateDynamicKnob(new("Density ~ Extent", Direction.In, CurveFunctionConnection.Id));
     }
 
     public override void NodeGUI()
@@ -56,10 +56,10 @@ public class NodePathDensity : NodeBase
         ByPositionKnob.SetPosition();
 
         GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("~ Width", BoxLayout);
+        GUILayout.Label("~ Extent", BoxLayout);
         GUILayout.EndHorizontal();
 
-        ByWidthMulKnob.SetPosition();
+        ByExtentKnob.SetPosition();
 
         KnobValueField(DensityLossKnob, ref DensityLoss);
 
@@ -83,7 +83,7 @@ public class NodePathDensity : NodeBase
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
             GetIfConnected<IGridFunction<double>>(ByPositionKnob),
-            GetIfConnected<ICurveFunction<double>>(ByWidthMulKnob),
+            GetIfConnected<ICurveFunction<double>>(ByExtentKnob),
             SupplierOrFallback(DensityLossKnob, DensityLoss)
         ));
         return true;
@@ -93,18 +93,18 @@ public class NodePathDensity : NodeBase
     {
         private readonly ISupplier<Path> _input;
         private readonly ISupplier<IGridFunction<double>> _byPosition;
-        private readonly ISupplier<ICurveFunction<double>> _byWidthMul;
+        private readonly ISupplier<ICurveFunction<double>> _byExtent;
         private readonly ISupplier<double> _densityLoss;
 
         public Output(
             ISupplier<Path> input,
             ISupplier<IGridFunction<double>> byPosition,
-            ISupplier<ICurveFunction<double>> byWidthMul,
+            ISupplier<ICurveFunction<double>> byExtent,
             ISupplier<double> densityLoss)
         {
             _input = input;
             _byPosition = byPosition;
-            _byWidthMul = byWidthMul;
+            _byExtent = byExtent;
             _densityLoss = densityLoss;
         }
 
@@ -116,8 +116,8 @@ public class NodePathDensity : NodeBase
             {
                 var extParams = segment.TraceParams;
 
-                extParams.DensityLeft = new ParamFunc(_byPosition?.Get(), _byWidthMul?.Get(), true);
-                extParams.DensityRight = new ParamFunc(_byPosition?.Get(), _byWidthMul?.Get(), false);
+                extParams.DensityLeft = new ParamFunc(_byPosition?.Get(), _byExtent?.Get(), true);
+                extParams.DensityRight = new ParamFunc(_byPosition?.Get(), _byExtent?.Get(), false);
                 extParams.DensityLoss = _densityLoss.Get();
 
                 segment.ExtendWithParams(extParams);
@@ -129,8 +129,8 @@ public class NodePathDensity : NodeBase
         public void ResetState()
         {
             _input.ResetState();
-            _byPosition.ResetState();
-            _byWidthMul.ResetState();
+            _byPosition?.ResetState();
+            _byExtent?.ResetState();
             _densityLoss.ResetState();
         }
     }
@@ -138,16 +138,16 @@ public class NodePathDensity : NodeBase
     private class ParamFunc : TraceParamFunction
     {
         private readonly IGridFunction<double> _byPosition;
-        private readonly ICurveFunction<double> _byWidthMul;
+        private readonly ICurveFunction<double> _byExtent;
         private readonly bool _leftSide;
 
         public ParamFunc(
             IGridFunction<double> byPosition,
-            ICurveFunction<double> byWidthMul,
+            ICurveFunction<double> byExtent,
             bool leftSide)
         {
             _byPosition = byPosition;
-            _byWidthMul = byWidthMul;
+            _byExtent = byExtent;
             _leftSide = leftSide;
         }
 
@@ -158,11 +158,11 @@ public class NodePathDensity : NodeBase
             if (_byPosition != null)
                 value *= _byPosition.ValueAt(pos);
 
-            if (_byWidthMul != null)
+            if (_byExtent != null)
                 if (_leftSide)
-                    value *= _byWidthMul.ValueAt(task.segment.TraceParams.ExtentLeft?.ValueFor(task, pos, dist) ?? 1);
+                    value *= _byExtent.ValueAt(task.segment.TraceParams.ExtentLeft?.ValueFor(task, pos, dist) ?? 1);
                 else
-                    value *= _byWidthMul.ValueAt(task.segment.TraceParams.ExtentRight?.ValueFor(task, pos, dist) ?? 1);
+                    value *= _byExtent.ValueAt(task.segment.TraceParams.ExtentRight?.ValueFor(task, pos, dist) ?? 1);
 
             return value;
         }
@@ -177,12 +177,12 @@ public class NodePathDensity : NodeBase
 
         protected bool Equals(ParamFunc other) =>
             Equals(_byPosition, other._byPosition) &&
-            Equals(_byWidthMul, other._byWidthMul) &&
+            Equals(_byExtent, other._byExtent) &&
             _leftSide == other._leftSide;
 
         public override string ToString() =>
             $"Position ~ {_byPosition}, " +
-            $"WidthMul ~ {_byWidthMul} @ " +
+            $"Extent ~ {_byExtent} @ " +
             (_leftSide ? "left" : "right");
     }
 }

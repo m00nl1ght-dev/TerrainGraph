@@ -120,14 +120,14 @@ public readonly struct TraceFrame
         var shiftDensity = s.RelShift < 0 ? b.densityLeftMul : b.densityRightMul;
 
         this.angle = (b.angle + s.RelAngle).NormalizeDeg();
-        this.width = b.width * s.RelWidth - distOffset * s.TraceParams.WidthLoss;
-        this.speed = b.speed * s.RelSpeed - distOffset * s.TraceParams.SpeedLoss;
+        this.width = task.WidthAt(distOffset);
+        this.density = task.DensityAt(distOffset);
+        this.speed = task.SpeedAt(distOffset);
         this.value = b.value + s.RelValue + distOffset * (distOffset < 0 ? speed : b.speed);
-        this.offset = b.offset + s.RelOffset - s.RelShift * shiftExtent * shiftDensity;
+        this.offset = b.offset + s.RelOffset - s.RelShift * shiftExtent * 2 * shiftDensity;
         this.normal = Vector2d.Direction(-angle);
-        this.pos = b.pos + s.RelPosition + s.RelShift * b.perpCCW * shiftExtent + distOffset * normal;
+        this.pos = b.pos + s.RelPosition + s.RelShift * b.perpCCW * shiftExtent * 2 + distOffset * normal;
         this.factors = new TraceFactors(task, pos - gridOffset, distOffset);
-        this.density = b.density * s.RelDensity;
         this.dist = distOffset;
     }
 

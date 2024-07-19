@@ -19,7 +19,7 @@ public class NodePathSpeed : NodeBase
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
-    [ValueConnectionKnob("Speed Loss", Direction.In, ValueFunctionConnection.Id)]
+    [ValueConnectionKnob("Speed loss", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob SpeedLossKnob;
 
     [ValueConnectionKnob("Output", Direction.Out, PathFunctionConnection.Id)]
