@@ -55,9 +55,6 @@ public class PathTracer
     internal IReadOnlyDictionary<Segment, TraceResult> TraceResults => _traceResults;
 
     private readonly GridKernel _followGridKernel = GridKernel.Square(3, 3);
-    private readonly GridKernel _avoidGridKernel = GridKernel.Shield(2, 5, 3);
-
-    private readonly IGridFunction<double> _overlapAvoidanceGrid = Zero;
 
     private List<TraceFrame> _frameBuffer = new(50);
 
@@ -94,13 +91,6 @@ public class PathTracer
         #endif
 
         CollisionHandler = new TraceCollisionHandler(this);
-
-        if (TraceOuterMargin > 0)
-        {
-            _overlapAvoidanceGrid = new ScaleWithBias(
-                new Cache<double>(_distanceGrid, TraceOuterMargin), -1 / TraceOuterMargin, 1
-            );
-        }
 
         for (int x = 0; x < outerSizeX; x++)
         {
@@ -334,7 +324,7 @@ public class PathTracer
 
         var stepSize = task.segment.TraceParams.StepSize.WithMin(1);
 
-        var initialFrame = new TraceFrame(task, GridMargin, -task.marginTail);
+        var initialFrame = new TraceFrame(this, task, -task.marginTail);
 
         #if DEBUG
         DebugOutput($"Segment {task.segment.Id} with length {length:F2} started with initial frame [{initialFrame}] and params {task.segment.TraceParams}");
@@ -349,18 +339,11 @@ public class PathTracer
         if (extParams.Target != null)
         {
             var target = extParams.Target.Value + GridMargin;
-            var avoid = extParams.AvoidOverlap.InRange01();
-
-            double CostFunc(Vector2d pos, double dist)
-            {
-                if (avoid > 0 && _overlapAvoidanceGrid.ValueAt(pos) >= 1d - avoid) return 999d;
-                return extParams.Cost?.ValueFor(task, pos - GridMargin, dist) ?? 0;
-            }
 
             double AngleLimitFunc(Vector2d pos, double dist)
             {
                 var width = extParams.StaticAngleTenacity ? initialFrame.width : initialFrame.width - dist * extParams.WidthLoss;
-                return MathUtil.AngleLimit(width * extParams.MaxExtentFactor(task, pos - GridMargin, dist), extParams.AngleTenacity);
+                return MathUtil.AngleLimit(width * extParams.MaxExtentFactor(this, task, pos - GridMargin, dist), extParams.AngleTenacity);
             }
 
             var angleLimitBase = MathUtil.AngleLimit(initialFrame.width, extParams.AngleTenacity);
@@ -369,7 +352,6 @@ public class PathTracer
 
             var pathFinder = new PathFinder(this, new PathFinder.ArcKernel(arcCount, stepSize * angleLimitBase, (int) stepSize))
             {
-                LocalPathCost = CostFunc,
                 AngleDeltaLimit = AngleLimitFunc,
                 ObstacleThreshold = 100d,
                 FullStepDistance = stepSize,
@@ -378,9 +360,14 @@ public class PathTracer
                 IterationLimit = 10000
             };
 
+            if (extParams.Cost != null)
+            {
+                pathFinder.LocalPathCost = (pos, dist) => extParams.Cost.ValueFor(this, task, pos - GridMargin, dist);
+            }
+
             if (extParams.Swerve != null)
             {
-                pathFinder.DirectionBias = (pos, dist) => extParams.Swerve.ValueFor(task, pos - GridMargin, dist);
+                pathFinder.DirectionBias = (pos, dist) => extParams.Swerve.ValueFor(this, task, pos - GridMargin, dist);
             }
 
             for (int i = 0; i <= 3; i++)
@@ -438,14 +425,7 @@ public class PathTracer
                     if (extParams.Cost != null)
                     {
                         followVec = _followGridKernel.CalculateFlowVecAt(
-                            new(1, 0), new(0, 1), a.pos, pos => extParams.Cost.ValueFor(task, pos - GridMargin, newDist)
-                        );
-                    }
-
-                    if (extParams.AvoidOverlap > 0)
-                    {
-                        followVec += extParams.AvoidOverlap * _avoidGridKernel.CalculateFlowVecAt(
-                            a.normal, a.perpCW, a.pos, pos => _overlapAvoidanceGrid.ValueAt(pos)
+                            new(1, 0), new(0, 1), a.pos, pos => extParams.Cost.ValueFor(this, task, pos - GridMargin, newDist)
                         );
                     }
 
@@ -469,14 +449,14 @@ public class PathTracer
 
                     if (extParams.Swerve != null)
                     {
-                        angleDelta += extParams.Swerve.ValueFor(task, a.pos - GridMargin, a.dist);
+                        angleDelta += extParams.Swerve.ValueFor(this, task, a.pos - GridMargin, a.dist);
                     }
 
                     if (a.dist < task.segment.AngleDeltaPosLockLength && angleDelta > 0) angleDelta = 0;
                     if (a.dist < task.segment.AngleDeltaNegLockLength && angleDelta < 0) angleDelta = 0;
 
                     var widthForTenacity = extParams.StaticAngleTenacity ? initialFrame.width : a.width;
-                    widthForTenacity *= extParams.MaxExtentFactor(task, a.pos - GridMargin, a.dist);
+                    widthForTenacity *= extParams.MaxExtentFactor(this, task, a.pos - GridMargin, a.dist);
                     var maxAngleDelta = MathUtil.AngleLimit(widthForTenacity, extParams.AngleTenacity) * distDelta;
                     angleDelta = (distDelta * angleDelta).NormalizeDeg().InRange(-maxAngleDelta, maxAngleDelta);
                 }
@@ -531,8 +511,8 @@ public class PathTracer
             }
 
             var b = a.Advance(
-                task, distDelta, angleDelta,
-                extraValue, extraOffset, GridMargin,
+                this, task, distDelta,
+                angleDelta, extraValue, extraOffset,
                 out var pivotPoint, out var pivotOffset,
                 Math.Abs(angleDelta) >= RadialThreshold
             );

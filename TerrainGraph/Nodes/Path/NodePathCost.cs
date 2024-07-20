@@ -2,8 +2,10 @@ using System;
 using System.Linq;
 using NodeEditorFramework;
 using TerrainGraph.Flow;
+using TerrainGraph.Util;
 using UnityEngine;
-using static TerrainGraph.Flow.TraceParamFunction;
+
+#pragma warning disable CS0659
 
 namespace TerrainGraph;
 
@@ -19,19 +21,16 @@ public class NodePathCost : NodeBase
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
-    [ValueConnectionKnob("Avoid overlap", Direction.In, ValueFunctionConnection.Id)]
-    public ValueConnectionKnob AvoidOverlapKnob;
-
     [ValueConnectionKnob("Output", Direction.Out, PathFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
 
     public ValueConnectionKnob ByPositionKnob;
-
-    public double AvoidOverlap;
+    public ValueConnectionKnob ByOverlapKnob;
 
     public override void RefreshDynamicKnobs()
     {
         ByPositionKnob = FindOrCreateDynamicKnob(new("Cost ~ Position", Direction.In, GridFunctionConnection.Id));
+        ByOverlapKnob = FindOrCreateDynamicKnob(new("Cost ~ Overlap", Direction.In, CurveFunctionConnection.Id));
     }
 
     public override void NodeGUI()
@@ -51,7 +50,11 @@ public class NodePathCost : NodeBase
 
         ByPositionKnob.SetPosition();
 
-        KnobValueField(AvoidOverlapKnob, ref AvoidOverlap);
+        GUILayout.BeginHorizontal(BoxStyle);
+        GUILayout.Label("~ Overlap", BoxLayout);
+        GUILayout.EndHorizontal();
+
+        ByOverlapKnob.SetPosition();
 
         GUILayout.EndVertical();
 
@@ -59,21 +62,12 @@ public class NodePathCost : NodeBase
             canvas.OnNodeChange(this);
     }
 
-    public override void RefreshPreview()
-    {
-        var avoidOverlap = GetIfConnected<double>(AvoidOverlapKnob);
-
-        avoidOverlap?.ResetState();
-
-        if (avoidOverlap != null) AvoidOverlap = avoidOverlap.Get();
-    }
-
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
-            SupplierOrFallback(ByPositionKnob, GridFunction.Zero),
-            SupplierOrFallback(AvoidOverlapKnob, AvoidOverlap)
+            GetIfConnected<IGridFunction<double>>(ByPositionKnob),
+            GetIfConnected<ICurveFunction<double>>(ByOverlapKnob)
         ));
         return true;
     }
@@ -82,16 +76,16 @@ public class NodePathCost : NodeBase
     {
         private readonly ISupplier<Path> _input;
         private readonly ISupplier<IGridFunction<double>> _byPosition;
-        private readonly ISupplier<double> _avoidOverlap;
+        private readonly ISupplier<ICurveFunction<double>> _byOverlap;
 
         public Output(
             ISupplier<Path> input,
             ISupplier<IGridFunction<double>> byPosition,
-            ISupplier<double> avoidOverlap)
+            ISupplier<ICurveFunction<double>> byOverlap)
         {
             _input = input;
             _byPosition = byPosition;
-            _avoidOverlap = avoidOverlap;
+            _byOverlap = byOverlap;
         }
 
         public Path Get()
@@ -102,8 +96,10 @@ public class NodePathCost : NodeBase
             {
                 var extParams = segment.TraceParams;
 
-                extParams.Cost = new FromGrid(_byPosition.Get());
-                extParams.AvoidOverlap = _avoidOverlap.Get();
+                extParams.Cost = _byPosition != null || _byOverlap != null ?
+                    new ParamFunc(_byPosition?.Get(), _byOverlap?.Get()) : null;
+
+                extParams.PreventPathMerge = _byOverlap != null;
 
                 segment.ExtendWithParams(extParams);
             }
@@ -114,8 +110,51 @@ public class NodePathCost : NodeBase
         public void ResetState()
         {
             _input.ResetState();
-            _byPosition.ResetState();
-            _avoidOverlap.ResetState();
+            _byPosition?.ResetState();
+            _byOverlap?.ResetState();
         }
+    }
+
+    private class ParamFunc : TraceParamFunction
+    {
+        private readonly IGridFunction<double> _byPosition;
+        private readonly ICurveFunction<double> _byOverlap;
+
+        public ParamFunc(
+            IGridFunction<double> byPosition,
+            ICurveFunction<double> byOverlap)
+        {
+            _byPosition = byPosition;
+            _byOverlap = byOverlap;
+        }
+
+        public override double ValueFor(PathTracer tracer, TraceTask task, Vector2d pos, double dist)
+        {
+            var value = 0d;
+
+            if (_byPosition != null)
+                value += _byPosition.ValueAt(pos);
+
+            if (_byOverlap != null)
+                value += _byOverlap.ValueAt(tracer.DistanceGrid.ValueAt(pos));
+
+            return value;
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((ParamFunc) obj);
+        }
+
+        protected bool Equals(ParamFunc other) =>
+            Equals(_byPosition, other._byPosition) &&
+            Equals(_byOverlap, other._byOverlap);
+
+        public override string ToString() =>
+            $"Position ~ {_byPosition}, " +
+            $"Overlap ~ {_byOverlap}";
     }
 }

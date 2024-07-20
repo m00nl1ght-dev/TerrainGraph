@@ -151,7 +151,7 @@ public class NodePathDensity : NodeBase
             _leftSide = leftSide;
         }
 
-        public override double ValueFor(TraceTask task, Vector2d pos, double dist)
+        public override double ValueFor(PathTracer tracer, TraceTask task, Vector2d pos, double dist)
         {
             var value = 1d;
 
@@ -160,9 +160,9 @@ public class NodePathDensity : NodeBase
 
             if (_byExtent != null)
                 if (_leftSide)
-                    value *= _byExtent.ValueAt(task.segment.TraceParams.ExtentLeft?.ValueFor(task, pos, dist) ?? 1);
+                    value *= _byExtent.ValueAt(task.segment.TraceParams.ExtentLeft?.ValueFor(tracer, task, pos, dist) ?? 1);
                 else
-                    value *= _byExtent.ValueAt(task.segment.TraceParams.ExtentRight?.ValueFor(task, pos, dist) ?? 1);
+                    value *= _byExtent.ValueAt(task.segment.TraceParams.ExtentRight?.ValueFor(tracer, task, pos, dist) ?? 1);
 
             return value;
         }

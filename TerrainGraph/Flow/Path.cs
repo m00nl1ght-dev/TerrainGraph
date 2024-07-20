@@ -609,13 +609,14 @@ public class Path
         public double SpeedLoss;
         public double DensityLoss;
         public double AngleTenacity;
-        public double AvoidOverlap;
+
         public double ArcRetraceFactor;
         public double ArcRetraceRange;
         public double ArcStableRange;
 
         public bool StaticAngleTenacity;
         public bool AdjustmentPriority;
+        public bool PreventPathMerge;
 
         public Vector2d? Target;
 
@@ -633,11 +634,11 @@ public class Path
         /// Calculate the maximum expected extent multiplier at the given position, used for angle limit calculations.
         /// Never lower than 1 because of local stability that could potentially be applied later.
         /// </summary>
-        public double MaxExtentFactor(TraceTask task, Vector2d pos, double dist)
+        public double MaxExtentFactor(PathTracer tracer, TraceTask task, Vector2d pos, double dist)
         {
             return Math.Max(
-                ExtentLeft?.ValueFor(task, pos, dist) ?? 1,
-                ExtentRight?.ValueFor(task, pos, dist) ?? 1
+                ExtentLeft?.ValueFor(tracer, task, pos, dist) ?? 1,
+                ExtentRight?.ValueFor(tracer, task, pos, dist) ?? 1
             ).WithMin(1);
         }
 
@@ -645,7 +646,6 @@ public class Path
         {
             Swerve = new FromGrid(Of(angleDelta));
 
-            AvoidOverlap = 0;
             AngleTenacity = 0;
             DiversionPoints = null;
             Cost = null;
@@ -671,7 +671,6 @@ public class Path
             SpeedLoss.Equals(other.SpeedLoss) &&
             DensityLoss.Equals(other.DensityLoss) &&
             AngleTenacity.Equals(other.AngleTenacity) &&
-            AvoidOverlap.Equals(other.AvoidOverlap) &&
             ArcRetraceFactor.Equals(other.ArcRetraceFactor) &&
             ArcRetraceRange.Equals(other.ArcRetraceRange) &&
             ArcStableRange.Equals(other.ArcStableRange) &&
@@ -693,7 +692,6 @@ public class Path
             $"{nameof(SpeedLoss)}: {SpeedLoss:F2}, " +
             $"{nameof(DensityLoss)}: {DensityLoss:F2}, " +
             $"{nameof(AngleTenacity)}: {AngleTenacity:F2}, " +
-            $"{nameof(AvoidOverlap)}: {AvoidOverlap:F2}, " +
             $"{nameof(ArcRetraceFactor)}: {ArcRetraceFactor:F2}, " +
             $"{nameof(ArcRetraceRange)}: {ArcRetraceRange:F2}, " +
             $"{nameof(ArcStableRange)}: {ArcStableRange:F2}, " +

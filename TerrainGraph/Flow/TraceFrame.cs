@@ -108,10 +108,10 @@ public readonly struct TraceFrame
     /// <summary>
     /// Construct the initial frame for the given trace task.
     /// </summary>
+    /// <param name="tracer">Path tracer that has the current task</param>
     /// <param name="task">Task for the next path segment to trace</param>
-    /// <param name="gridOffset">Offset applied when retrieving factors from external grids</param>
     /// <param name="distOffset">Offset applied to the initial trace distance</param>
-    public TraceFrame(TraceTask task, Vector2d gridOffset, double distOffset = 0)
+    public TraceFrame(PathTracer tracer, TraceTask task, double distOffset = 0)
     {
         var b = task.baseFrame;
         var s = task.segment;
@@ -127,7 +127,7 @@ public readonly struct TraceFrame
         this.offset = b.offset + s.RelOffset - s.RelShift * shiftExtent * 2 * shiftDensity;
         this.normal = Vector2d.Direction(-angle);
         this.pos = b.pos + s.RelPosition + s.RelShift * b.perpCCW * shiftExtent * 2 + distOffset * normal;
-        this.factors = new TraceFactors(task, pos - gridOffset, distOffset);
+        this.factors = new TraceFactors(tracer, task, pos - tracer.GridMargin, distOffset);
         this.dist = distOffset;
     }
 
@@ -196,19 +196,19 @@ public readonly struct TraceFrame
     /// <summary>
     /// Move the frame forward in its current direction, returning the result as a new frame.
     /// </summary>
+    /// <param name="tracer">Path tracer that has the current task</param>
     /// <param name="task">Task with parameters defining how the values of the frame should evolve</param>
     /// <param name="distDelta">Distance to move forward in the current direction</param>
     /// <param name="angleDelta">Total angle change to be applied continuously while advancing</param>
     /// <param name="extraValue">Additional value delta to be applied continuously while advancing</param>
     /// <param name="extraOffset">Additional offset delta to be applied continuously while advancing</param>
-    /// <param name="gridOffset">Offset applied when retrieving factors from external grids</param>
     /// <param name="pivotPoint">Pivot point resulting from the angle change and distance</param>
     /// <param name="pivotOffset">Signed distance of the pivot point from the frame position</param>
     /// <param name="radial">If true, the path will advance along a circle arc, otherwise linearly</param>
     /// <returns></returns>
     public TraceFrame Advance(
-        TraceTask task, double distDelta, double angleDelta, double extraValue, double extraOffset,
-        Vector2d gridOffset, out Vector2d pivotPoint, out double pivotOffset, bool radial)
+        PathTracer tracer, TraceTask task, double distDelta, double angleDelta, double extraValue,
+        double extraOffset, out Vector2d pivotPoint, out double pivotOffset, bool radial)
     {
         var newAngle = (angle + angleDelta).NormalizeDeg();
         var newNormal = Vector2d.Direction(-newAngle);
@@ -241,7 +241,7 @@ public readonly struct TraceFrame
             speed - distDelta * task.segment.TraceParams.SpeedLoss,
             density - distDelta * task.segment.TraceParams.DensityLoss,
             newValue, newOffset, newDist,
-            new TraceFactors(task, newPos - gridOffset, newDist)
+            new TraceFactors(tracer, task, newPos - tracer.GridMargin, newDist)
         );
     }
 

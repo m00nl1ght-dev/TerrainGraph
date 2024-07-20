@@ -6,7 +6,7 @@ namespace TerrainGraph.Flow;
 
 public abstract class TraceParamFunction
 {
-    public abstract double ValueFor(TraceTask task, Vector2d pos, double dist);
+    public abstract double ValueFor(PathTracer tracer, TraceTask task, Vector2d pos, double dist);
 
     public class FromGrid : TraceParamFunction
     {
@@ -17,7 +17,7 @@ public abstract class TraceParamFunction
             Grid = grid;
         }
 
-        public override double ValueFor(TraceTask task, Vector2d pos, double dist)
+        public override double ValueFor(PathTracer tracer, TraceTask task, Vector2d pos, double dist)
         {
             return Grid.ValueAt(pos);
         }

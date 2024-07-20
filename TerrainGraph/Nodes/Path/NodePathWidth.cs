@@ -215,7 +215,7 @@ public class NodePathWidth : NodeBase
             _leftSide = leftSide;
         }
 
-        public override double ValueFor(TraceTask task, Vector2d pos, double dist)
+        public override double ValueFor(PathTracer tracer, TraceTask task, Vector2d pos, double dist)
         {
             var value = 1d;
 

@@ -182,7 +182,7 @@ public class TraceCollisionHandler
         var b = c.taskB.segment;
 
         if (c.cyclic || c.hasMergeA || c.hasMergeB) return false;
-        if (a.TraceParams.AvoidOverlap > 0) return false;
+        if (a.TraceParams.PreventPathMerge || b.TraceParams.PreventPathMerge) return false;
 
         if (a.TraceParams.AdjustmentPriority != b.TraceParams.AdjustmentPriority) return false;
 
@@ -501,8 +501,8 @@ public class TraceCollisionHandler
         var widthForTenacityA = a.TraceParams.StaticAngleTenacity ? _tracer.TraceResults[a].initialFrame.width : frameA.width;
         var widthForTenacityB = b.TraceParams.StaticAngleTenacity ? _tracer.TraceResults[b].initialFrame.width : frameB.width;
 
-        widthForTenacityA *= a.TraceParams.MaxExtentFactor(taskA, frameA.pos - _tracer.GridMargin, frameA.dist);
-        widthForTenacityB *= b.TraceParams.MaxExtentFactor(taskB, frameB.pos - _tracer.GridMargin, frameB.dist);
+        widthForTenacityA *= a.TraceParams.MaxExtentFactor(_tracer, taskA, frameA.pos - _tracer.GridMargin, frameA.dist);
+        widthForTenacityB *= b.TraceParams.MaxExtentFactor(_tracer, taskB, frameB.pos - _tracer.GridMargin, frameB.dist);
 
         arcLengthA = arcAngleA.Abs() / 180 * widthForTenacityA * Math.PI / (1 - a.TraceParams.AngleTenacity.WithMax(0.9));
         arcLengthB = arcAngleB.Abs() / 180 * widthForTenacityB * Math.PI / (1 - b.TraceParams.AngleTenacity.WithMax(0.9));
@@ -662,7 +662,7 @@ public class TraceCollisionHandler
 
         // calculate max angle for arc B and make sure it is not exceeded
 
-        var widthForTenacityG = frameB.width * b.TraceParams.MaxExtentFactor(taskB, pointG - _tracer.GridMargin, frameB.dist);
+        var widthForTenacityG = frameB.width * b.TraceParams.MaxExtentFactor(_tracer, taskB, pointG - _tracer.GridMargin, frameB.dist);
         var arcAngleMaxB = MathUtil.AngleLimit(widthForTenacityG, b.TraceParams.AngleTenacity) * arcLengthB;
 
         if (Math.Round(arcAngleB.Abs()) > arcAngleMaxB)

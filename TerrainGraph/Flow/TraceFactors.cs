@@ -36,15 +36,15 @@ public readonly struct TraceFactors
 
     public TraceFactors() {}
 
-    public TraceFactors(TraceTask task, Vector2d pos, double dist)
+    public TraceFactors(PathTracer tracer, TraceTask task, Vector2d pos, double dist)
     {
         var traceParams = task.segment.TraceParams;
 
-        extentLeft = traceParams.ExtentLeft?.ValueFor(task, pos, dist) ?? 1;
-        extentRight = traceParams.ExtentRight?.ValueFor(task, pos, dist) ?? 1;
-        densityLeft = traceParams.DensityLeft?.ValueFor(task, pos, dist) ?? 1;
-        densityRight = traceParams.DensityRight?.ValueFor(task, pos, dist) ?? 1;
-        speed = traceParams.Speed?.ValueFor(task, pos, dist) ?? 1;
+        extentLeft = traceParams.ExtentLeft?.ValueFor(tracer, task, pos, dist) ?? 1;
+        extentRight = traceParams.ExtentRight?.ValueFor(tracer, task, pos, dist) ?? 1;
+        densityLeft = traceParams.DensityLeft?.ValueFor(tracer, task, pos, dist) ?? 1;
+        densityRight = traceParams.DensityRight?.ValueFor(tracer, task, pos, dist) ?? 1;
+        speed = traceParams.Speed?.ValueFor(tracer, task, pos, dist) ?? 1;
 
         var progress = task.segment.Length <= 0 ? 0 : (dist / task.segment.Length).InRange01();
 
