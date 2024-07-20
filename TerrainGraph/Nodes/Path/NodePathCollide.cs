@@ -7,13 +7,13 @@ using UnityEngine;
 namespace TerrainGraph;
 
 [Serializable]
-[Node(false, "Path/Collide", 609)]
+[Node(false, "Path/Collision", 609)]
 public class NodePathCollide : NodeBase
 {
-    public const string ID = "pathCollide";
+    public const string ID = "pathCollision";
     public override string GetID => ID;
 
-    public override string Title => "Path: Collide";
+    public override string Title => "Path: Collision";
 
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
