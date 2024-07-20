@@ -52,10 +52,10 @@ public readonly struct TraceFactors
     }
 
     public override string ToString() =>
-        $"{nameof(extentLeft)}: {extentLeft}, " +
-        $"{nameof(extentRight)}: {extentRight}, " +
-        $"{nameof(speed)}: {speed}, " +
-        $"{nameof(densityLeft)}: {densityLeft}, " +
-        $"{nameof(densityRight)}: {densityRight}, " +
-        $"{nameof(scalar)}: {scalar}";
+        $"{nameof(extentLeft)}: {extentLeft:F2}, " +
+        $"{nameof(extentRight)}: {extentRight:F2}, " +
+        $"{nameof(speed)}: {speed:F2}, " +
+        $"{nameof(densityLeft)}: {densityLeft:F2}, " +
+        $"{nameof(densityRight)}: {densityRight:F2}, " +
+        $"{nameof(scalar)}: {scalar:F2}";
 }

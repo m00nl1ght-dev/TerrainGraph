@@ -355,6 +355,7 @@ public class PathTracer
             {
                 AngleDeltaLimits = AngleLimitFunc,
                 ObstacleThreshold = 100d,
+                TargetAcceptRadius = 2d,
                 FullStepDistance = stepSize,
                 QtClosedLoc = 0.5d * stepSize,
                 QtOpenLoc = 0.5d * stepSize,

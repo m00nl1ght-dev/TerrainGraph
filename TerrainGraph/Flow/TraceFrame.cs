@@ -268,13 +268,13 @@ public readonly struct TraceFrame
 
     public override string ToString() =>
         $"{nameof(pos)}: {pos}, " +
-        $"{nameof(angle)}: {angle}, " +
+        $"{nameof(angle)}: {angle:F2}, " +
         $"{nameof(normal)}: {normal}, " +
-        $"{nameof(width)}: {width}, " +
-        $"{nameof(speed)}: {speed}, " +
-        $"{nameof(value)}: {value}, " +
-        $"{nameof(offset)}: {offset}, " +
-        $"{nameof(density)}: {density}, " +
-        $"{nameof(dist)}: {dist}, " +
+        $"{nameof(width)}: {width:F2}, " +
+        $"{nameof(speed)}: {speed:F2}, " +
+        $"{nameof(value)}: {value:F2}, " +
+        $"{nameof(offset)}: {offset:F2}, " +
+        $"{nameof(density)}: {density:F2}, " +
+        $"{nameof(dist)}: {dist:F2}, " +
         $"{nameof(factors)}: [{factors}]";
 }

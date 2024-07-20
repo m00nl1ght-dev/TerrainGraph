@@ -135,6 +135,13 @@ public struct Vector2d
         double dz = a.z - b.z;
         return Math.Sqrt(dx * dx + dz * dz);
     }
+    
+    public static double DistanceSq(Vector2d a, Vector2d b)
+    {
+        double dx = a.x - b.x;
+        double dz = a.z - b.z;
+        return dx * dx + dz * dz;
+    }
 
     /// <summary>
     /// Returns 1 if the point C is on the left of the line from A to B, and -1 if it is on the right.

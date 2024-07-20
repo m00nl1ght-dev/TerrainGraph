@@ -18,6 +18,7 @@ public class PathFinder
 
     public double ObstacleThreshold = 1d;
     public double FullStepDistance = 1d;
+    public double TargetAcceptRadius = 1d;
 
     public float HeuristicDistanceWeight = 2;
     public float HeuristicCurvatureWeight = 0;
@@ -50,6 +51,7 @@ public class PathFinder
         _closed.Clear();
         _openQueue.Clear();
 
+        var targetRadiusSq = TargetAcceptRadius * TargetAcceptRadius;
         var totalDistance = Vector2d.Distance(startPos, targetPos);
         var startNode = new Node(startPos, startDirection, 0, 0);
 
@@ -68,10 +70,11 @@ public class PathFinder
 
             _closed.Add(new NodeKey(curNode, QtClosedLoc, QtClosedRot));
 
-            if (curNode.Position == targetPos)
+            if (Vector2d.DistanceSq(curNode.Position, targetPos) <= targetRadiusSq)
             {
                 #if DEBUG
-                PathTracer.DebugOutput($"Found path after {iterations} iterations");
+                var targetDistance = Vector2d.Distance(curNode.Position, targetPos);
+                PathTracer.DebugOutput($"Found path after {iterations} iterations ending {targetDistance:F2} away from target");
                 #endif
 
                 return WeavePath(curNode);
@@ -363,7 +366,7 @@ public class PathFinder
             ArcsPerHalf = (int) Math.Round(180d / angleInterval);
 
             #if DEBUG
-            PathTracer.DebugOutput($"Creating kernel with {arcCount} arcs and max angle {arcMaxAngle} -> {angleInterval} x {ArcsPerHalf}");
+            PathTracer.DebugOutput($"Creating kernel with {arcCount} arcs and max angle {arcMaxAngle:F2} -> {angleInterval:F2} x {ArcsPerHalf}");
             #endif
 
             for (int i = 0; i < ArcCount; i++)
