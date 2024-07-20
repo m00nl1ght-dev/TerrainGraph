@@ -377,6 +377,11 @@ public class PathTracer
                 pathNodes = pathFinder.FindPath(initialFrame.pos, initialFrame.normal, target);
                 if (pathNodes != null) break;
             }
+
+            if (pathNodes == null)
+            {
+                task.segment.TraceParams.Target = extParams.Target = null;
+            }
         }
 
         var a = initialFrame;
