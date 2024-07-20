@@ -12,9 +12,9 @@ namespace TerrainGraph.Flow;
 [HotSwappable]
 public class PathFinder
 {
-    public GridValueSupplier LocalPathCost = (_,_) => 0d;
-    public GridValueSupplier AngleDeltaLimit = (_,_) => 0d;
-    public GridValueSupplier DirectionBias = (_,_) => 0d;
+    public GridValueSupplier<double> LocalPathCost = (_,_) => 0d;
+    public GridValueSupplier<(double, double)> AngleDeltaLimits = (_,_) => (90d, 90d);
+    public GridValueSupplier<double> DirectionBias = (_,_) => 0d;
 
     public double ObstacleThreshold = 1d;
     public double FullStepDistance = 1d;
@@ -36,7 +36,7 @@ public class PathFinder
     private readonly Dictionary<NodeKey, Node> _open = new(100);
     private readonly FastPriorityQueue<Node> _openQueue = new(100);
 
-    public delegate double GridValueSupplier(Vector2d position, double distance);
+    public delegate T GridValueSupplier<out T>(Vector2d position, double distance);
 
     public PathFinder(PathTracer tracer, ArcKernel kernel)
     {
@@ -95,9 +95,9 @@ public class PathFinder
         var curTotalDistance = curNode.PathDepth * FullStepDistance;
         var newTotalDistance = curTotalDistance + FullStepDistance;
 
-        var directionBias = DirectionBias(curNode.Position, curTotalDistance);
-        var angleDeltaLimit = AngleDeltaLimit(curNode.Position, curTotalDistance);
         var splitDistance = FullStepDistance / _kernel.SplitCount;
+        var directionBias = DirectionBias(curNode.Position, curTotalDistance);
+        var (angleLimitN, angleLimitP) = AngleDeltaLimits(curNode.Position, curTotalDistance);
 
         for (int i = 0; i <= _kernel.ArcCount * 2; i++)
         {
@@ -114,7 +114,12 @@ public class PathFinder
             if (kernelArcIdx >= 0)
             {
                 angleDelta = _kernel.AngleData[kernelArcIdx] / splitDistance;
-                if (angleDelta > angleDeltaLimit) break;
+
+                if (angleDelta > (i % 2 == 1 ? angleLimitN : angleLimitP))
+                {
+                    if (angleDelta > (i % 2 == 1 ? angleLimitP : angleLimitN)) break;
+                    continue;
+                }
 
                 var pivotOffset = 180d / (Math.PI * -angleDelta) * (i % 2 == 1 ? -1 : 1);
                 var pivotPoint = curNode.Position + curNode.Direction.PerpCCW * pivotOffset;
@@ -236,7 +241,7 @@ public class PathFinder
                     var newDir = ((target - center).PerpCW * Math.Sign(scalarA)).Normalized;
                     var angleDelta = Vector2d.Angle(curNode.Direction, newDir) / distToTarget;
 
-                    if (angleDelta <= angleDeltaLimit)
+                    if (angleDelta <= (scalarA < 0 ? angleLimitN : angleLimitP))
                     {
                         var totalCost = 0d;
                         var hitObstacle = false;

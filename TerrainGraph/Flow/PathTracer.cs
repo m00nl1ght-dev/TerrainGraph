@@ -340,10 +340,11 @@ public class PathTracer
         {
             var target = extParams.Target.Value + GridMargin;
 
-            double AngleLimitFunc(Vector2d pos, double dist)
+            (double, double) AngleLimitFunc(Vector2d pos, double dist)
             {
                 var width = extParams.StaticAngleTenacity ? initialFrame.width : initialFrame.width - dist * extParams.WidthLoss;
-                return MathUtil.AngleLimit(width * extParams.MaxExtentFactor(this, task, pos - GridMargin, dist), extParams.AngleTenacity);
+                var limit = MathUtil.AngleLimit(width * extParams.MaxExtentFactor(this, task, pos - GridMargin, dist), extParams.AngleTenacity);
+                return (dist < task.segment.AngleDeltaNegLockLength ? 0 : limit, dist < task.segment.AngleDeltaPosLockLength ? 0 : limit);
             }
 
             var angleLimitBase = MathUtil.AngleLimit(initialFrame.width, extParams.AngleTenacity);
@@ -352,7 +353,7 @@ public class PathTracer
 
             var pathFinder = new PathFinder(this, new PathFinder.ArcKernel(arcCount, stepSize * angleLimitBase, (int) stepSize))
             {
-                AngleDeltaLimit = AngleLimitFunc,
+                AngleDeltaLimits = AngleLimitFunc,
                 ObstacleThreshold = 100d,
                 FullStepDistance = stepSize,
                 QtClosedLoc = 0.5d * stepSize,
@@ -411,7 +412,7 @@ public class PathTracer
                     }
 
                     #if DEBUG
-                    DebugOutput($"Angle delta {angleDelta:F2} over distance {distDelta:F2} for {node}");
+                    // DebugOutput($"Angle delta {angleDelta:F2} over distance {distDelta:F2} for {node}");
                     DebugLine(new TraceDebugLine(this, node.Parent.Position, node.Position, 4));
                     #endif
                 }
