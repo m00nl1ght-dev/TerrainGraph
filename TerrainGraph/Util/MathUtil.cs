@@ -40,6 +40,8 @@ public static class MathUtil
         return angleDelta;
     }
 
+    public static double AngleDelta(double a, double b) => (b - a).NormalizeDeg();
+
     public static double AngleLimit(double width, double tenacity) => (1d - tenacity) * 180d / (width * Math.PI);
 
     public static double ToRad(this double val) => (Math.PI / 180) * val;
