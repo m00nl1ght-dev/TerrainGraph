@@ -240,7 +240,7 @@ public class PathTracer
         {
             if (rootSegment.RelWidth > 0)
             {
-                Enqueue(rootSegment, originFrame, 0, rootSegment.RelWidth, false);
+                Enqueue(rootSegment, originFrame, null, 0, false);
             }
         }
 
@@ -262,8 +262,10 @@ public class PathTracer
                     {
                         if (branch.ParentCount <= 1)
                         {
-                            var stableWidth = branch.StabilityAtTail?.Value >= 1 ? result.finalFrame.width * branch.RelWidth : task.lastStableWidth;
-                            Enqueue(branch, result.finalFrame, task.distFromRoot + result.finalFrame.dist, stableWidth, result.everInBounds);
+                            var distFromRoot = task.distFromRoot + result.finalFrame.dist;
+                            var branchParent = task.segment.Branches.Count() == 1 ? task.branchParent : null;
+
+                            Enqueue(branch, result.finalFrame, branchParent, distFromRoot, result.everInBounds);
                         }
                         else
                         {
@@ -281,7 +283,7 @@ public class PathTracer
                             DebugOutput($"Merged frames {string.Join(" + ", branch.Parents.Select(b => b.Id))} into {branch.Id}");
                             #endif
 
-                            Enqueue(branch, mergedFrame, maxDistFromRoot, mergedFrame.width * branch.RelWidth, parentResults.Any(r => r.everInBounds));
+                            Enqueue(branch, mergedFrame, null, maxDistFromRoot, parentResults.Any(r => r.everInBounds));
                         }
                     }
                 }
@@ -296,7 +298,7 @@ public class PathTracer
 
         return;
 
-        void Enqueue(Segment branch, TraceFrame baseFrame, double distFromRoot, double lastStableWidth, bool everInBounds)
+        void Enqueue(Segment branch, TraceFrame baseFrame, TraceTask branchParent, double distFromRoot, bool everInBounds)
         {
             if (_traceResults.ContainsKey(branch) || taskQueue.Any(t => t.segment == branch)) return;
 
@@ -308,7 +310,7 @@ public class PathTracer
             var marginTail = branch.IsRoot ? TraceInnerMargin : 0;
 
             taskQueue.Enqueue(new TraceTask(
-                branch, baseFrame, collisionList, marginHead, marginTail, distFromRoot, lastStableWidth, everInBounds
+                branch, baseFrame, branchParent, collisionList, marginHead, marginTail, distFromRoot, everInBounds
             ));
         }
     }

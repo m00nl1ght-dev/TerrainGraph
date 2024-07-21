@@ -15,6 +15,11 @@ public class TraceTask
     public readonly TraceFrame baseFrame;
 
     /// <summary>
+    /// The task for the first segment of the current branch of the path, or the root segment.
+    /// </summary>
+    public readonly TraceTask branchParent;
+
+    /// <summary>
     /// The additional path length to trace at the head end of the segment.
     /// </summary>
     public readonly double marginHead;
@@ -28,11 +33,6 @@ public class TraceTask
     /// The total distance of the base frame from the origin of the path.
     /// </summary>
     public readonly double distFromRoot;
-
-    /// <summary>
-    /// The width of the last segment with stability 1, or the root segment.
-    /// </summary>
-    public readonly double lastStableWidth;
 
     /// <summary>
     /// Whether any previous segment has any frames fully within the bounds of the outer grid.
@@ -49,8 +49,8 @@ public class TraceTask
     public double SpeedAt(double dist) => baseFrame.speed * segment.RelSpeed - dist * segment.TraceParams.SpeedLoss;
 
     internal TraceTask(
-        Path.Segment segment, TraceFrame baseFrame, IEnumerable<TraceCollision> simulated,
-        double marginHead, double marginTail, double distFromRoot, double lastStableWidth, bool everInBounds)
+        Path.Segment segment, TraceFrame baseFrame, TraceTask branchParent, IEnumerable<TraceCollision> simulated,
+        double marginHead, double marginTail, double distFromRoot, bool everInBounds)
     {
         this.segment = segment;
         this.baseFrame = baseFrame;
@@ -58,7 +58,7 @@ public class TraceTask
         this.marginHead = marginHead;
         this.marginTail = marginTail;
         this.distFromRoot = distFromRoot;
-        this.lastStableWidth = lastStableWidth;
+        this.branchParent = branchParent ?? this;
         this.everInBounds = everInBounds;
     }
 }

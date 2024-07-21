@@ -219,16 +219,17 @@ public class NodePathWidth : NodeBase
         {
             var value = 1d;
 
-            var scaling = _patternScaling?.ValueAt(task.lastStableWidth) ?? 1;
+            var offset = task.branchParent.segment.Id * 37 % 100 * 10;
+            var scaling = _patternScaling?.ValueAt(task.branchParent.WidthAt(0)) ?? 1;
 
             if (_byPosition != null)
                 value *= _byPosition.ValueAt(pos);
 
             if (_byPattern != null)
-                value *= _byPattern.ValueAt(scaling * (task.distFromRoot + dist));
+                value *= _byPattern.ValueAt(offset + scaling * (task.distFromRoot + dist));
 
             if (_sideBalance != null)
-                value += _sideBalance.ValueAt(scaling * (task.distFromRoot + dist)) * (_leftSide ? -1 : 1);
+                value += _sideBalance.ValueAt(offset + scaling * (task.distFromRoot + dist)) * (_leftSide ? -1 : 1);
 
             if (_byWidth != null)
                 value = value.ScaleAround(1, _byWidth.ValueAt(task.WidthAt(dist)));

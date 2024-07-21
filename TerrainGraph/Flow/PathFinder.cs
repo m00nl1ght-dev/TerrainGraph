@@ -118,9 +118,9 @@ public class PathFinder
             {
                 angleDelta = _kernel.AngleData[kernelArcIdx] / splitDistance;
 
-                if (angleDelta > (i % 2 == 1 ? angleLimitN : angleLimitP))
+                if (angleDelta > (i % 2 == 1 ? angleLimitP : angleLimitN))
                 {
-                    if (angleDelta > (i % 2 == 1 ? angleLimitP : angleLimitN)) break;
+                    if (angleDelta > (i % 2 == 1 ? angleLimitN : angleLimitP)) break;
                     continue;
                 }
 
