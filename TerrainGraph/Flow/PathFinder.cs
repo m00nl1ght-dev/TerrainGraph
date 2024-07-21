@@ -146,6 +146,10 @@ public class PathFinder
 
                     if (sCost >= ObstacleThreshold)
                     {
+                        #if DEBUG
+                        PathTracer.DebugLine(new TraceDebugLine(_tracer, sPos, 1, 0, $"{sCost}"));
+                        #endif
+
                         hitObstacle = true;
                         break;
                     }

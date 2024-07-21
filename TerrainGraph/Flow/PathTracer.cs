@@ -385,6 +385,10 @@ public class PathTracer
             if (pathNodes == null)
             {
                 task.segment.TraceParams.Target = extParams.Target = null;
+
+                #if DEBUG
+                throw new Exception($"Failed to find path from {initialFrame.pos} to {target}");
+                #endif
             }
         }
 

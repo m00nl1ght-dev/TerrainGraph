@@ -137,8 +137,9 @@ public class NodePathCost : NodeBase
 
             if (_byOverlap != null && dist > 0)
             {
-                var factor = task.segment.TraceParams.Target != null ? 100 : 1;
-                value += factor * _byOverlap.ValueAt(tracer.DistanceGrid.ValueAt(pos));
+                var factor = task.segment.TraceParams.Target != null ? 100 : 10;
+                var input = tracer.DistanceGrid.ValueAt(pos) - task.WidthAt(dist) / 2;
+                value += factor * _byOverlap.ValueAt(input);
             }
 
             return value;
