@@ -141,8 +141,8 @@ public class Path
 
         public int AdjustmentCount = 0;
 
-        public double AngleDeltaPosLockLength = 0;
-        public double AngleDeltaNegLockLength = 0;
+        public double TurnRightLockLength = 0;
+        public double TurnLeftLockLength = 0;
 
         public IEnumerable<Segment> Parents => _parents.Select(id => Path._segments[id]);
         public IEnumerable<Segment> Branches => _branches.Select(id => Path._segments[id]);
@@ -243,6 +243,7 @@ public class Path
         {
             if (branch.Path != Path) throw new InvalidOperationException();
             this._branches.AddUnique(branch.Id);
+            this._branches.Sort((a, b) => Path._segments[a].RelShift.CompareTo(Path._segments[b].RelShift));
             branch._parents.AddUnique(this.Id);
         }
 

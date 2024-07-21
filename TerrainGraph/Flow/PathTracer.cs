@@ -13,7 +13,7 @@ public class PathTracer
     private const int MaxTraceFrames = 1_000_000;
 
     public double RadialThreshold = 0.5;
-    public double SplitAngleLockLength = 5;
+    public double SplitTurnLockLength = 5;
     public double CollisionMinValueDiff = 0.75;
     public double CollisionMinOffsetDiff = 0.5;
     public double CollisionCheckMargin = 0.5;
@@ -190,22 +190,19 @@ public class PathTracer
             if (segment.BranchCount > 1)
             {
                 var branches = segment.Branches.ToList();
-                var threshold = branches.Count / 2d - 0.5d;
 
-                for (var i = 0; i < branches.Count; i++)
+                foreach (var branch in branches)
                 {
-                    var branch = branches[i];
-
                     var rangeBranch = branch.TraceParams.ArcStableRange;
                     branch.ApplyLocalStabilityAtTail(rangeBranch / 2, rangeBranch / 2);
 
-                    if (i < threshold)
+                    if (branch.RelShift < 0) // right branch
                     {
-                        branch.AngleDeltaNegLockLength = SplitAngleLockLength;
+                        branch.TurnLeftLockLength = SplitTurnLockLength;
                     }
-                    else if (i > threshold)
+                    else if (branch.RelShift > 0) // left branch
                     {
-                        branch.AngleDeltaPosLockLength = SplitAngleLockLength;
+                        branch.TurnRightLockLength = SplitTurnLockLength;
                     }
                 }
 
@@ -347,7 +344,7 @@ public class PathTracer
             {
                 var width = extParams.StaticAngleTenacity ? initialFrame.width : initialFrame.width - dist * extParams.WidthLoss;
                 var limit = MathUtil.AngleLimit(width * extParams.MaxExtentFactor(this, task, pos - GridMargin, dist), extParams.AngleTenacity);
-                return (dist < task.segment.AngleDeltaNegLockLength ? 0 : limit, dist < task.segment.AngleDeltaPosLockLength ? 0 : limit);
+                return (dist < task.segment.TurnLeftLockLength ? 0 : limit, dist < task.segment.TurnRightLockLength ? 0 : limit);
             }
 
             var angleLimitBase = MathUtil.AngleLimit(initialFrame.width, extParams.AngleTenacity);
@@ -426,8 +423,7 @@ public class PathTracer
                     }
 
                     #if DEBUG
-                    // DebugOutput($"Angle delta {angleDelta:F2} over distance {distDelta:F2} for {node}");
-                    DebugLine(new TraceDebugLine(this, node.Parent.Position, node.Position, 4));
+                    DebugLine(new TraceDebugLine(this, node.Parent.Position, node.Position, 4, 0, $"{angleDelta:F2}"));
                     #endif
                 }
                 else
@@ -467,8 +463,8 @@ public class PathTracer
                         angleDelta += extParams.Swerve.ValueFor(this, task, a.pos - GridMargin, a.dist);
                     }
 
-                    if (a.dist < task.segment.AngleDeltaPosLockLength && angleDelta > 0) angleDelta = 0;
-                    if (a.dist < task.segment.AngleDeltaNegLockLength && angleDelta < 0) angleDelta = 0;
+                    if (a.dist < task.segment.TurnRightLockLength && angleDelta > 0) angleDelta = 0;
+                    if (a.dist < task.segment.TurnLeftLockLength && angleDelta < 0) angleDelta = 0;
 
                     var widthForTenacity = extParams.StaticAngleTenacity ? initialFrame.width : a.width;
                     widthForTenacity *= extParams.MaxExtentFactor(this, task, a.pos - GridMargin, a.dist);

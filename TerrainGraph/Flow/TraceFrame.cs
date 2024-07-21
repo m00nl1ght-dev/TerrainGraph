@@ -116,8 +116,8 @@ public readonly struct TraceFrame
         var b = task.baseFrame;
         var s = task.segment;
 
-        var shiftExtent = s.RelShift < 0 ? b.extentLeftMul : b.extentRightMul;
-        var shiftDensity = s.RelShift < 0 ? b.densityLeftMul : b.densityRightMul;
+        var shiftExtent = s.RelShift > 0 ? b.extentLeftMul : b.extentRightMul;
+        var shiftDensity = s.RelShift > 0 ? b.densityLeftMul : b.densityRightMul;
 
         this.angle = (b.angle + s.RelAngle).NormalizeDeg();
         this.width = task.WidthAt(distOffset);

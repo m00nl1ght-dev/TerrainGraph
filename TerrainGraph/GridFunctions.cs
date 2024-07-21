@@ -89,8 +89,8 @@ public static class GridFunction
         public override string ToString() =>
             "SELECT { " +
             $"{nameof(Input)}: {Input}, " +
-            $"{nameof(Options)}: {Options}, " +
-            $"{nameof(Thresholds)}: {Thresholds}, " +
+            $"{nameof(Options)}: {string.Join(", ", Options.Select(v => $"{v:F2}"))}, " +
+            $"{nameof(Thresholds)}: {string.Join(", ", Thresholds.Select(v => $"{v:F2}"))}, " +
             "}";
     }
 
@@ -148,8 +148,8 @@ public static class GridFunction
         public override string ToString() =>
             "INTERPOLATE { " +
             $"{nameof(Input)}: {Input}, " +
-            $"{nameof(Options)}: {Options}, " +
-            $"{nameof(Thresholds)}: {Thresholds}, " +
+            $"{nameof(Options)}: {string.Join(", ", Options.Select(v => $"{v:F2}"))}, " +
+            $"{nameof(Thresholds)}: {string.Join(", ", Thresholds.Select(v => $"{v:F2}"))}, " +
             "}";
     }
 
