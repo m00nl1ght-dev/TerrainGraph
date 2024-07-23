@@ -405,7 +405,13 @@ public class PathTracer
                     var chord = Vector2d.Distance(a.pos, node.Position);
 
                     distDelta = angleDelta.Abs() < RadialThreshold ? chord : rad * 0.5 * chord / Math.Sin(0.5 * rad);
-                    distDelta = Math.Min(distDelta, length + task.marginHead - a.dist);
+
+                    var distDeltaMax = length + task.marginHead - a.dist;
+                    if (distDelta > distDeltaMax && distDeltaMax > 0)
+                    {
+                        angleDelta *= distDeltaMax / distDelta;
+                        distDelta = distDeltaMax;
+                    }
 
                     if (_frameBuffer.Count + 1 >= pathNodes.Count)
                     {
