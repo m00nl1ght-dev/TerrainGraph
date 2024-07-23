@@ -1,8 +1,10 @@
 using System.Collections.Generic;
 using System.Linq;
+using TerrainGraph.Util;
 
 namespace TerrainGraph.Flow;
 
+[HotSwappable]
 public class TraceTask
 {
     /// <summary>
@@ -51,6 +53,15 @@ public class TraceTask
 
     public double TurnLockRight => baseFrame.width * segment.Siblings().Where(b => b.RelShift < segment.RelShift).Sum(b => b.RelWidth);
     public double TurnLockLeft => baseFrame.width * segment.Siblings().Where(b => b.RelShift > segment.RelShift).Sum(b => b.RelWidth);
+
+    public double AngleTenacityAt(double dist)
+    {
+        var basic = segment.TraceParams.AngleTenacity;
+        var steps = dist / segment.TraceParams.StepSize.WithMin(1);
+        if (steps > 2 || !segment.Siblings().Any()) return basic;
+        var split = segment.TraceParams.SplitTenacity;
+        return steps switch { 0 => split, 1 => 0.75.Lerp(basic, split), _ => 0.5.Lerp(basic, split)};
+    }
 
     internal TraceTask(
         Path.Segment segment, TraceFrame baseFrame, TraceTask branchParent, IEnumerable<TraceCollision> simulated,

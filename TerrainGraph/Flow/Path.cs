@@ -607,6 +607,7 @@ public class Path
         public double SpeedLoss;
         public double DensityLoss;
         public double AngleTenacity;
+        public double SplitTenacity;
 
         public double ArcRetraceFactor;
         public double ArcRetraceRange;
@@ -645,6 +646,8 @@ public class Path
             Swerve = new FromGrid(Of(angleDelta));
 
             AngleTenacity = 0;
+            SplitTenacity = 0;
+
             DiversionPoints = null;
             Cost = null;
             Target = null;
@@ -669,6 +672,7 @@ public class Path
             SpeedLoss.Equals(other.SpeedLoss) &&
             DensityLoss.Equals(other.DensityLoss) &&
             AngleTenacity.Equals(other.AngleTenacity) &&
+            SplitTenacity.Equals(other.SplitTenacity) &&
             ArcRetraceFactor.Equals(other.ArcRetraceFactor) &&
             ArcRetraceRange.Equals(other.ArcRetraceRange) &&
             ArcStableRange.Equals(other.ArcStableRange) &&
@@ -690,6 +694,7 @@ public class Path
             $"{nameof(SpeedLoss)}: {SpeedLoss:F2}, " +
             $"{nameof(DensityLoss)}: {DensityLoss:F2}, " +
             $"{nameof(AngleTenacity)}: {AngleTenacity:F2}, " +
+            $"{nameof(SplitTenacity)}: {SplitTenacity:F2}, " +
             $"{nameof(ArcRetraceFactor)}: {ArcRetraceFactor:F2}, " +
             $"{nameof(ArcRetraceRange)}: {ArcRetraceRange:F2}, " +
             $"{nameof(ArcStableRange)}: {ArcStableRange:F2}, " +
