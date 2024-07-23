@@ -20,6 +20,7 @@ public class PathFinder
     public double ObstacleThreshold = 1d;
     public double FullStepDistance = 1d;
     public double TargetAcceptRadius = 1d;
+    public double PlanarTargetFallback = 0d;
 
     public float HeuristicDistanceWeight = 2;
     public float HeuristicCurvatureWeight = 0;
@@ -53,8 +54,12 @@ public class PathFinder
         _openQueue.Clear();
 
         var targetRadiusSq = TargetAcceptRadius * TargetAcceptRadius;
+        var mainDirection = (targetPos - startPos).Normalized;
         var totalDistance = Vector2d.Distance(startPos, targetPos);
         var startNode = new Node(startPos, startDirection, 0, 0);
+
+        var planarP1 = targetPos + mainDirection * PlanarTargetFallback + mainDirection.PerpCCW * 10;
+        var planarP2 = targetPos + mainDirection * PlanarTargetFallback + mainDirection.PerpCW * 10;
 
         #if DEBUG
         PathTracer.DebugOutput($"Attempting to find path to {targetPos} with hwDist {HeuristicDistanceWeight:F2}");
@@ -76,6 +81,16 @@ public class PathFinder
                 #if DEBUG
                 var targetDistance = Vector2d.Distance(curNode.Position, targetPos);
                 PathTracer.DebugOutput($"Found path after {iterations} iterations ending {targetDistance:F2} away from target");
+                #endif
+
+                return WeavePath(curNode);
+            }
+
+            if (PlanarTargetFallback > 0 && Vector2d.PointToLineOrientation(planarP1, planarP2, curNode.Position) > 0)
+            {
+                #if DEBUG
+                var targetDistance = Vector2d.Distance(curNode.Position, targetPos);
+                PathTracer.DebugOutput($"Accepted fallback path after {iterations} iterations ending {targetDistance:F2} away from target");
                 #endif
 
                 return WeavePath(curNode);

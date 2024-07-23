@@ -350,6 +350,7 @@ public class PathTracer
                 FullStepDistance = stepSize,
                 QtClosedLoc = 0.5d * stepSize,
                 QtOpenLoc = 0.5d * stepSize,
+                PlanarTargetFallback = 3d * stepSize,
                 IterationLimit = 10000
             };
 
