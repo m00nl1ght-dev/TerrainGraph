@@ -334,7 +334,7 @@ public class PathTracer
             (double, double) AngleLimitFunc(Vector2d pos, double dist)
             {
                 var width = extParams.StaticAngleTenacity ? initialFrame.width : initialFrame.width - dist * extParams.WidthLoss;
-                var limit = MathUtil.AngleLimit(width * extParams.MaxExtentFactor(this, task, pos - GridMargin, dist), task.AngleTenacityAt(dist));
+                var limit = task.AngleLimitAt(dist, width * extParams.MaxExtentFactor(this, task, pos - GridMargin, dist));
                 return (dist < turnLockLeft ? 0 : limit, dist < turnLockRight ? 0 : limit);
             }
 
@@ -465,7 +465,7 @@ public class PathTracer
 
                     var widthForTenacity = extParams.StaticAngleTenacity ? initialFrame.width : a.width;
                     widthForTenacity *= extParams.MaxExtentFactor(this, task, a.pos - GridMargin, a.dist);
-                    var maxAngleDelta = MathUtil.AngleLimit(widthForTenacity, task.AngleTenacityAt(a.dist)) * distDelta;
+                    var maxAngleDelta = task.AngleLimitAt(a.dist, widthForTenacity) * distDelta;
                     angleDelta = (distDelta * angleDelta).NormalizeDeg().InRange(-maxAngleDelta, maxAngleDelta);
                 }
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using TerrainGraph.Util;
 
 namespace TerrainGraph.Flow;
@@ -84,7 +85,8 @@ public class PathFinder
         }
 
         #if DEBUG
-        PathTracer.DebugOutput($"Failed to find path after {iterations} iterations");
+        var minDist = Math.Sqrt(_open.Values.Min(n => Vector2d.DistanceSq(n.Position, targetPos)));
+        PathTracer.DebugOutput($"Failed to find path after {iterations} iterations, the closest node was {minDist:F2} from the target");
         #endif
 
         return null;

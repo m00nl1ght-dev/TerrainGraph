@@ -54,12 +54,12 @@ public class TraceTask
     public double TurnLockRight => baseFrame.width * segment.Siblings().Where(b => b.RelShift < segment.RelShift).Sum(b => b.RelWidth);
     public double TurnLockLeft => baseFrame.width * segment.Siblings().Where(b => b.RelShift > segment.RelShift).Sum(b => b.RelWidth);
 
-    public double AngleTenacityAt(double dist)
+    public double AngleLimitAt(double dist, double width)
     {
-        var basic = segment.TraceParams.AngleTenacity;
+        var basic = MathUtil.AngleLimit(width, segment.TraceParams.AngleTenacity);
         var steps = dist / segment.TraceParams.StepSize.WithMin(1);
-        if (steps > 2 || !segment.Siblings().Any()) return basic;
-        var split = segment.TraceParams.SplitTenacity;
+        if (steps > 2 || basic <= 5 || !segment.Siblings().Any()) return basic;
+        var split = MathUtil.AngleLimit(width, segment.TraceParams.SplitTenacity);
         return steps switch { 0 => split, 1 => 0.75.Lerp(basic, split), _ => 0.5.Lerp(basic, split)};
     }
 
