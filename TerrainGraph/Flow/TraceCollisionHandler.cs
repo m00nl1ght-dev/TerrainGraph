@@ -512,10 +512,10 @@ public class TraceCollisionHandler
 
         // check angle locks of each segment
 
-        if (frameA.dist < a.TurnRightLockLength && arcAngleA > 0) return ArcCalcResult.ExcAngleLock;
-        if (frameA.dist < a.TurnLeftLockLength && arcAngleA < 0) return ArcCalcResult.ExcAngleLock;
-        if (frameB.dist < b.TurnRightLockLength && arcAngleB > 0) return ArcCalcResult.ExcAngleLock;
-        if (frameB.dist < b.TurnLeftLockLength && arcAngleB < 0) return ArcCalcResult.ExcAngleLock;
+        if (frameA.dist < taskA.TurnLockRight && arcAngleA > 0) return ArcCalcResult.ExcAngleLock;
+        if (frameA.dist < taskA.TurnLockLeft && arcAngleA < 0) return ArcCalcResult.ExcAngleLock;
+        if (frameB.dist < taskB.TurnLockRight && arcAngleB > 0) return ArcCalcResult.ExcAngleLock;
+        if (frameB.dist < taskB.TurnLockLeft && arcAngleB < 0) return ArcCalcResult.ExcAngleLock;
 
         // calculate chord vector that spans arc B at its minimum length
 

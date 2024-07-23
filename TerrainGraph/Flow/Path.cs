@@ -141,9 +141,6 @@ public class Path
 
         public int AdjustmentCount = 0;
 
-        public double TurnRightLockLength = 0;
-        public double TurnLeftLockLength = 0;
-
         public IEnumerable<Segment> Parents => _parents.Select(id => Path._segments[id]);
         public IEnumerable<Segment> Branches => _branches.Select(id => Path._segments[id]);
 

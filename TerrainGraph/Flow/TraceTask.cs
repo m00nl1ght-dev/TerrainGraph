@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace TerrainGraph.Flow;
 
@@ -47,6 +48,9 @@ public class TraceTask
     public double WidthAt(double dist) => baseFrame.width * segment.RelWidth - dist * segment.TraceParams.WidthLoss;
     public double DensityAt(double dist) => baseFrame.density * segment.RelDensity - dist * segment.TraceParams.DensityLoss;
     public double SpeedAt(double dist) => baseFrame.speed * segment.RelSpeed - dist * segment.TraceParams.SpeedLoss;
+
+    public double TurnLockRight => baseFrame.width * segment.Siblings().Where(b => b.RelShift < segment.RelShift).Sum(b => b.RelWidth);
+    public double TurnLockLeft => baseFrame.width * segment.Siblings().Where(b => b.RelShift > segment.RelShift).Sum(b => b.RelWidth);
 
     internal TraceTask(
         Path.Segment segment, TraceFrame baseFrame, TraceTask branchParent, IEnumerable<TraceCollision> simulated,
