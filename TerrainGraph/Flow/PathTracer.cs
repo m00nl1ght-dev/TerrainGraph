@@ -335,10 +335,12 @@ public class PathTracer
             {
                 var width = extParams.StaticAngleTenacity ? initialFrame.width : initialFrame.width - dist * extParams.WidthLoss;
                 var limit = task.AngleLimitAt(dist, width * extParams.MaxExtentFactor(this, task, pos - GridMargin, dist));
+                if (extParams.AngleLimitAbs > 0 && limit > extParams.AngleLimitAbs) limit = extParams.AngleLimitAbs;
                 return (dist < turnLockLeft ? 0 : limit, dist < turnLockRight ? 0 : limit);
             }
 
             var angleLimitBase = MathUtil.AngleLimit(initialFrame.width, extParams.AngleTenacity);
+            if (extParams.AngleLimitAbs > 0 && angleLimitBase > extParams.AngleLimitAbs) angleLimitBase = extParams.AngleLimitAbs;
 
             var arcCount = angleLimitBase switch { < 2d => 2, < 5d => 3, _ => 4 };
 
@@ -421,7 +423,7 @@ public class PathTracer
                     }
 
                     #if DEBUG
-                    DebugLine(new TraceDebugLine(this, node.Parent.Position, node.Position, 4, 0, $"{angleDelta:F2}"));
+                    DebugLine(new TraceDebugLine(this, node.Parent.Position, node.Position, 1, 0, $"{angleDelta / distDelta:F2}"));
                     #endif
                 }
                 else
@@ -466,8 +468,11 @@ public class PathTracer
 
                     var widthForTenacity = extParams.StaticAngleTenacity ? initialFrame.width : a.width;
                     widthForTenacity *= extParams.MaxExtentFactor(this, task, a.pos - GridMargin, a.dist);
-                    var maxAngleDelta = task.AngleLimitAt(a.dist, widthForTenacity) * distDelta;
-                    angleDelta = (distDelta * angleDelta).NormalizeDeg().InRange(-maxAngleDelta, maxAngleDelta);
+
+                    var angleLimit = task.AngleLimitAt(a.dist, widthForTenacity);
+                    if (extParams.AngleLimitAbs > 0 && angleLimit > extParams.AngleLimitAbs) angleLimit = extParams.AngleLimitAbs;
+
+                    angleDelta = (distDelta * angleDelta.InRange(-angleLimit, angleLimit)).NormalizeDeg();
                 }
 
                 if (task.segment.ExtraDelta != null)

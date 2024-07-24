@@ -608,6 +608,7 @@ public class Path
         public double DensityLoss;
         public double AngleTenacity;
         public double SplitTenacity;
+        public double AngleLimitAbs;
 
         public double ArcRetraceFactor;
         public double ArcRetraceRange;
@@ -673,6 +674,7 @@ public class Path
             DensityLoss.Equals(other.DensityLoss) &&
             AngleTenacity.Equals(other.AngleTenacity) &&
             SplitTenacity.Equals(other.SplitTenacity) &&
+            AngleLimitAbs.Equals(other.AngleLimitAbs) &&
             ArcRetraceFactor.Equals(other.ArcRetraceFactor) &&
             ArcRetraceRange.Equals(other.ArcRetraceRange) &&
             ArcStableRange.Equals(other.ArcStableRange) &&
@@ -695,6 +697,7 @@ public class Path
             $"{nameof(DensityLoss)}: {DensityLoss:F2}, " +
             $"{nameof(AngleTenacity)}: {AngleTenacity:F2}, " +
             $"{nameof(SplitTenacity)}: {SplitTenacity:F2}, " +
+            $"{nameof(AngleLimitAbs)}: {AngleLimitAbs:F2}, " +
             $"{nameof(ArcRetraceFactor)}: {ArcRetraceFactor:F2}, " +
             $"{nameof(ArcRetraceRange)}: {ArcRetraceRange:F2}, " +
             $"{nameof(ArcStableRange)}: {ArcStableRange:F2}, " +

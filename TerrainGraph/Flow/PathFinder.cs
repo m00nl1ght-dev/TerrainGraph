@@ -119,6 +119,10 @@ public class PathFinder
         var directionBias = DirectionBias(curNode.Position, curTotalDistance);
         var (angleLimitN, angleLimitP) = AngleDeltaLimits(curNode.Position, curTotalDistance);
 
+        #if DEBUG
+        PathTracer.DebugLine(new TraceDebugLine(_tracer, curNode.Position, 0, 0, $"{directionBias:F2} [ -{angleLimitN:F2} | {angleLimitP:F2} ]"));
+        #endif
+
         for (int i = 0; i <= _kernel.ArcCount * 2; i++)
         {
             int dirIdxDelta = i % 2 == 1 ? i / 2 + 1 : -i / 2;

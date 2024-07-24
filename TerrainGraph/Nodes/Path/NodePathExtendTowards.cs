@@ -31,12 +31,6 @@ public class NodePathExtendTowards : NodeBase
     [ValueConnectionKnob("Step size", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob StepSizeKnob;
 
-    [ValueConnectionKnob("Tenacity", Direction.In, ValueFunctionConnection.Id)]
-    public ValueConnectionKnob TenacityKnob;
-
-    [ValueConnectionKnob("Split tenacity", Direction.In, ValueFunctionConnection.Id)]
-    public ValueConnectionKnob SplitTenacityKnob;
-
     [ValueConnectionKnob("Output", Direction.Out, PathFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
 
@@ -44,8 +38,6 @@ public class NodePathExtendTowards : NodeBase
     public double TargetZ;
     public double Length = 100;
     public double StepSize = 5;
-    public double Tenacity;
-    public double SplitTenacity;
 
     public override void NodeGUI()
     {
@@ -62,8 +54,6 @@ public class NodePathExtendTowards : NodeBase
         KnobValueField(TargetZKnob, ref TargetZ);
         KnobValueField(LengthKnob, ref Length);
         KnobValueField(StepSizeKnob, ref StepSize);
-        KnobValueField(TenacityKnob, ref Tenacity);
-        KnobValueField(SplitTenacityKnob, ref SplitTenacity);
 
         GUILayout.EndVertical();
 
@@ -77,22 +67,16 @@ public class NodePathExtendTowards : NodeBase
         var targetZ = GetIfConnected<double>(TargetZKnob);
         var length = GetIfConnected<double>(LengthKnob);
         var stepSize = GetIfConnected<double>(StepSizeKnob);
-        var tenacity = GetIfConnected<double>(TenacityKnob);
-        var splitTenacity = GetIfConnected<double>(SplitTenacityKnob);
 
         targetX?.ResetState();
         targetZ?.ResetState();
         length?.ResetState();
         stepSize?.ResetState();
-        tenacity?.ResetState();
-        splitTenacity?.ResetState();
 
         if (targetX != null) TargetX = targetX.Get();
         if (targetZ != null) TargetZ = targetZ.Get();
         if (length != null) Length = length.Get();
         if (stepSize != null) StepSize = stepSize.Get();
-        if (tenacity != null) Tenacity = tenacity.Get();
-        if (splitTenacity != null) SplitTenacity = splitTenacity.Get();
     }
 
     public override bool Calculate()
@@ -103,8 +87,6 @@ public class NodePathExtendTowards : NodeBase
             SupplierOrFallback(TargetZKnob, TargetZ),
             SupplierOrFallback(LengthKnob, Length),
             SupplierOrFallback(StepSizeKnob, StepSize),
-            SupplierOrFallback(TenacityKnob, Tenacity),
-            SupplierOrFallback(SplitTenacityKnob, SplitTenacity),
             TerrainCanvas.GridFullSize
         ));
         return true;
@@ -117,22 +99,17 @@ public class NodePathExtendTowards : NodeBase
         private readonly ISupplier<double> _targetZ;
         private readonly ISupplier<double> _length;
         private readonly ISupplier<double> _stepSize;
-        private readonly ISupplier<double> _tenacity;
-        private readonly ISupplier<double> _splitTenacity;
         private readonly int _gridSize;
 
         public Output(
             ISupplier<Path> input, ISupplier<double> targetX, ISupplier<double> targetZ,
-            ISupplier<double> length, ISupplier<double> stepSize, ISupplier<double> tenacity,
-            ISupplier<double> splitTenacity, int gridSize)
+            ISupplier<double> length, ISupplier<double> stepSize, int gridSize)
         {
             _input = input;
             _targetX = targetX;
             _targetZ = targetZ;
             _length = length;
             _stepSize = stepSize;
-            _tenacity = tenacity;
-            _splitTenacity = splitTenacity;
             _gridSize = gridSize;
         }
 
@@ -146,14 +123,10 @@ public class NodePathExtendTowards : NodeBase
                 var targetZ = _targetZ.Get();
                 var length = _length.Get().WithMin(0);
                 var stepSize = _stepSize.Get().WithMin(1);
-                var tenacity = _tenacity.Get().InRange01();
-                var splitTenacity = _splitTenacity.Get().InRange01();
 
                 var extParams = segment.TraceParams;
 
                 extParams.StepSize = stepSize;
-                extParams.AngleTenacity = tenacity;
-                extParams.SplitTenacity = splitTenacity;
                 extParams.Target = new Vector2d(targetX, targetZ) * _gridSize;
 
                 segment.ExtendWithParams(extParams, length);
@@ -169,8 +142,6 @@ public class NodePathExtendTowards : NodeBase
             _targetZ.ResetState();
             _length.ResetState();
             _stepSize.ResetState();
-            _tenacity.ResetState();
-            _splitTenacity.ResetState();
         }
     }
 }
