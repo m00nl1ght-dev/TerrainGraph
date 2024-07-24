@@ -155,7 +155,11 @@ public class TraceCollisionHandler
             PathTracer.DebugOutput("Tenacity adjustment attempt was successful");
             #endif
 
+            #if DEBUG
+            throw new Exception("Could not handle collision without resorting to tenacity adjustment");
+            #else
             return;
+            #endif
         }
 
         #if DEBUG

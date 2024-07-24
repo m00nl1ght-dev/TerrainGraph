@@ -51,8 +51,8 @@ public class TraceTask
     public double DensityAt(double dist) => baseFrame.density * segment.RelDensity - dist * segment.TraceParams.DensityLoss;
     public double SpeedAt(double dist) => baseFrame.speed * segment.RelSpeed - dist * segment.TraceParams.SpeedLoss;
 
-    public double TurnLockRight => baseFrame.width * segment.Siblings().Where(b => b.RelShift < segment.RelShift).Sum(b => b.RelWidth);
-    public double TurnLockLeft => baseFrame.width * segment.Siblings().Where(b => b.RelShift > segment.RelShift).Sum(b => b.RelWidth);
+    public double TurnLockRight => baseFrame.width * 2 * segment.Siblings().Where(b => b.RelShift < segment.RelShift).Sum(b => b.RelWidth);
+    public double TurnLockLeft => baseFrame.width * 2 * segment.Siblings().Where(b => b.RelShift > segment.RelShift).Sum(b => b.RelWidth);
 
     public double AngleLimitAt(double dist, double width)
     {

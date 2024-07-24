@@ -25,14 +25,18 @@ public class NodePathSwerve : NodeBase
     public ValueConnectionKnob OutputKnob;
 
     public ValueConnectionKnob ByPositionKnob;
-    public ValueConnectionKnob ByDistanceKnob;
+    public ValueConnectionKnob ByPatternKnob;
+    public ValueConnectionKnob ByWidthKnob;
     public ValueConnectionKnob ByCostKnob;
+    public ValueConnectionKnob PatternScalingKnob;
 
     public override void RefreshDynamicKnobs()
     {
         ByPositionKnob = FindOrCreateDynamicKnob(new("Swerve ~ Position", Direction.In, GridFunctionConnection.Id));
-        ByDistanceKnob = FindOrCreateDynamicKnob(new("Swerve ~ Distance", Direction.In, CurveFunctionConnection.Id));
+        ByPatternKnob = FindOrCreateDynamicKnob(new("Swerve ~ Pattern", Direction.In, CurveFunctionConnection.Id));
+        ByWidthKnob = FindOrCreateDynamicKnob(new("Swerve ~ Width", Direction.In, CurveFunctionConnection.Id));
         ByCostKnob = FindOrCreateDynamicKnob(new("Swerve ~ Cost", Direction.In, CurveFunctionConnection.Id));
+        PatternScalingKnob = FindOrCreateDynamicKnob(new("Pattern ~ Stable width", Direction.In, CurveFunctionConnection.Id));
     }
 
     public override void NodeGUI()
@@ -53,16 +57,28 @@ public class NodePathSwerve : NodeBase
         ByPositionKnob.SetPosition();
 
         GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("~ Distance", BoxLayout);
+        GUILayout.Label("~ Pattern", BoxLayout);
         GUILayout.EndHorizontal();
 
-        ByDistanceKnob.SetPosition();
+        ByPatternKnob.SetPosition();
+
+        GUILayout.BeginHorizontal(BoxStyle);
+        GUILayout.Label("~ Width", BoxLayout);
+        GUILayout.EndHorizontal();
+
+        ByWidthKnob.SetPosition();
 
         GUILayout.BeginHorizontal(BoxStyle);
         GUILayout.Label("~ Cost", BoxLayout);
         GUILayout.EndHorizontal();
 
         ByCostKnob.SetPosition();
+
+        GUILayout.BeginHorizontal(BoxStyle);
+        GUILayout.Label("Pattern Scaling", BoxLayout);
+        GUILayout.EndHorizontal();
+
+        PatternScalingKnob.SetPosition();
 
         GUILayout.EndVertical();
 
@@ -75,8 +91,10 @@ public class NodePathSwerve : NodeBase
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
             GetIfConnected<IGridFunction<double>>(ByPositionKnob),
-            GetIfConnected<ICurveFunction<double>>(ByDistanceKnob),
-            GetIfConnected<ICurveFunction<double>>(ByCostKnob)
+            GetIfConnected<ICurveFunction<double>>(ByPatternKnob),
+            GetIfConnected<ICurveFunction<double>>(ByWidthKnob),
+            GetIfConnected<ICurveFunction<double>>(ByCostKnob),
+            GetIfConnected<ICurveFunction<double>>(PatternScalingKnob)
         ));
         return true;
     }
@@ -85,26 +103,32 @@ public class NodePathSwerve : NodeBase
     {
         private readonly ISupplier<Path> _input;
         private readonly ISupplier<IGridFunction<double>> _byPosition;
-        private readonly ISupplier<ICurveFunction<double>> _byDistance;
+        private readonly ISupplier<ICurveFunction<double>> _byPattern;
+        private readonly ISupplier<ICurveFunction<double>> _byWidth;
         private readonly ISupplier<ICurveFunction<double>> _byCost;
+        private readonly ISupplier<ICurveFunction<double>> _patternScaling;
 
         public Output(
             ISupplier<Path> input,
             ISupplier<IGridFunction<double>> byPosition,
-            ISupplier<ICurveFunction<double>> byDistance,
-            ISupplier<ICurveFunction<double>> byCost)
+            ISupplier<ICurveFunction<double>> byPattern,
+            ISupplier<ICurveFunction<double>> byWidth,
+            ISupplier<ICurveFunction<double>> byCost,
+            ISupplier<ICurveFunction<double>> patternScaling)
         {
             _input = input;
             _byPosition = byPosition;
-            _byDistance = byDistance;
+            _byPattern = byPattern;
+            _byWidth = byWidth;
             _byCost = byCost;
+            _patternScaling = patternScaling;
         }
 
         public Path Get()
         {
             var path = new Path(_input.Get());
 
-            var anySuppliers = _byPosition != null || _byDistance != null || _byCost != null;
+            var anySuppliers = _byPosition != null || _byPattern != null;
 
             foreach (var segment in path.Leaves.ToList())
             {
@@ -114,8 +138,10 @@ public class NodePathSwerve : NodeBase
                 {
                     extParams.Swerve = new ParamFunc(
                         _byPosition?.Get(),
-                        _byDistance?.Get(),
-                        _byCost?.Get()
+                        _byPattern?.Get(),
+                        _byWidth?.Get(),
+                        _byCost?.Get(),
+                        _patternScaling?.Get()
                     );
                 }
                 else
@@ -133,36 +159,50 @@ public class NodePathSwerve : NodeBase
         {
             _input.ResetState();
             _byPosition?.ResetState();
-            _byDistance?.ResetState();
+            _byPattern?.ResetState();
+            _byWidth?.ResetState();
             _byCost?.ResetState();
+            _patternScaling?.ResetState();
         }
     }
 
     private class ParamFunc : TraceParamFunction
     {
         private readonly IGridFunction<double> _byPosition;
-        private readonly ICurveFunction<double> _byDistance;
+        private readonly ICurveFunction<double> _byPattern;
+        private readonly ICurveFunction<double> _byWidth;
         private readonly ICurveFunction<double> _byCost;
+        private readonly ICurveFunction<double> _patternScaling;
 
         public ParamFunc(
             IGridFunction<double> byPosition,
-            ICurveFunction<double> byDistance,
-            ICurveFunction<double> byCost)
+            ICurveFunction<double> byPattern,
+            ICurveFunction<double> byWidth,
+            ICurveFunction<double> byCost,
+            ICurveFunction<double> patternScaling)
         {
             _byPosition = byPosition;
-            _byDistance = byDistance;
+            _byPattern = byPattern;
+            _byWidth = byWidth;
             _byCost = byCost;
+            _patternScaling = patternScaling;
         }
 
         public override double ValueFor(PathTracer tracer, TraceTask task, Vector2d pos, double dist)
         {
             var value = 1d;
 
+            var offset = task.branchParent.segment.Id * 37 % 100 * 10;
+            var scaling = _patternScaling?.ValueAt(task.branchParent.WidthAt(0)) ?? 1;
+
             if (_byPosition != null)
                 value *= _byPosition.ValueAt(pos);
 
-            if (_byDistance != null)
-                value *= _byDistance.ValueAt(task.distFromRoot + dist);
+            if (_byPattern != null)
+                value *= _byPattern.ValueAt(offset + scaling * (task.distFromRoot + dist));
+
+            if (_byWidth != null)
+                value *= _byWidth.ValueAt(task.WidthAt(dist));
 
             if (_byCost != null)
                 value *= _byCost.ValueAt(task.segment.TraceParams.Cost?.ValueFor(tracer, task, pos, dist) ?? 0);
@@ -180,12 +220,17 @@ public class NodePathSwerve : NodeBase
 
         protected bool Equals(ParamFunc other) =>
             Equals(_byPosition, other._byPosition) &&
-            Equals(_byDistance, other._byDistance) &&
-            Equals(_byCost, other._byCost);
+            Equals(_byPattern, other._byPattern) &&
+            Equals(_byWidth, other._byWidth) &&
+            Equals(_byCost, other._byCost) &&
+            Equals(_patternScaling, other._patternScaling);
 
         public override string ToString() =>
             $"Position ~ {_byPosition}, " +
-            $"Distance ~ {_byDistance}, " +
-            $"Cost ~ {_byCost}";
+            $"Width ~ {_byWidth}, " +
+            $"Cost ~ {_byCost}" +
+            $"Pattern ~ {_byPattern} " +
+            $"scaled by {_patternScaling} ";
+
     }
 }
