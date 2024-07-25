@@ -458,19 +458,19 @@ public class PathTracer
                         angleDelta -= Vector2d.SignedAngle(a.normal, a.normal + followVec);
                     }
 
-                    if (extParams.Swerve != null)
-                    {
-                        angleDelta += extParams.Swerve.ValueFor(this, task, a.pos - GridMargin, a.dist);
-                    }
-
-                    if (a.dist < turnLockRight && angleDelta > 0) angleDelta = 0;
-                    if (a.dist < turnLockLeft && angleDelta < 0) angleDelta = 0;
-
                     var widthForTenacity = extParams.StaticAngleTenacity ? initialFrame.width : a.width;
                     widthForTenacity *= extParams.MaxExtentFactor(this, task, a.pos - GridMargin, a.dist);
 
                     var angleLimit = task.AngleLimitAt(a.dist, widthForTenacity);
                     if (extParams.AngleLimitAbs > 0 && angleLimit > extParams.AngleLimitAbs) angleLimit = extParams.AngleLimitAbs;
+
+                    if (extParams.Swerve != null)
+                    {
+                        angleDelta += angleLimit * extParams.Swerve.ValueFor(this, task, a.pos - GridMargin, a.dist);
+                    }
+
+                    if (a.dist < turnLockRight && angleDelta > 0) angleDelta = 0;
+                    if (a.dist < turnLockLeft && angleDelta < 0) angleDelta = 0;
 
                     angleDelta = (distDelta * angleDelta.InRange(-angleLimit, angleLimit)).NormalizeDeg();
                 }
