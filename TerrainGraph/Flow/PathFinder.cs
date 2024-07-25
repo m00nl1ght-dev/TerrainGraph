@@ -21,6 +21,7 @@ public class PathFinder
     public double FullStepDistance = 1d;
     public double TargetAcceptRadius = 1d;
     public double PlanarTargetFallback = 0d;
+    public double DirectionBiasFactor = 1.5d;
 
     public float HeuristicDistanceWeight = 2;
     public float HeuristicCurvatureWeight = 0;
@@ -216,6 +217,13 @@ public class PathFinder
 
             if (_closed.Contains(new NodeKey(newPos, newDirIdx, QtClosedLoc, QtClosedRot))) continue;
 
+            if (directionBias != 0)
+            {
+                var clampedBias = directionBias.InRange(-angleLimitN, angleLimitP);
+                var signedDelta = angleDelta * (i % 2 == 1 ? -1 : 1);
+                totalCost += (float) (clampedBias - signedDelta).Abs() * DirectionBiasFactor;
+            }
+
             var newNode = new Node(newPos, newDir, newDirIdx, curNode.PathDepth + 1, curNode)
             {
                 TotalCost = curNode.TotalCost + (float) totalCost
@@ -226,11 +234,6 @@ public class PathFinder
             if (kernelArcIdx >= 0)
             {
                 priority += HeuristicCurvatureWeight * (float) angleDelta;
-            }
-
-            if (directionBias != 0)
-            {
-                priority += (float) (directionBias - angleDelta * (i % 2 == 1 ? -1 : 1)).Abs();
             }
 
             newNodes++;
