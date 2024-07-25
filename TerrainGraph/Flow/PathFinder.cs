@@ -119,7 +119,7 @@ public class PathFinder
         var splitDistance = FullStepDistance / _kernel.SplitCount;
         var (angleLimitN, angleLimitP) = AngleDeltaLimits(curNode.Position, curTotalDistance);
 
-        var directionBias = DirectionBias(curNode.Position, curTotalDistance);
+        var directionBias = DirectionBias(curNode.Position + curNode.Direction * FullStepDistance, curTotalDistance);
         directionBias *= directionBias < 0 ? angleLimitN : angleLimitP;
 
         #if DEBUG
@@ -219,6 +219,10 @@ public class PathFinder
 
             if (_closed.Contains(new NodeKey(newPos, newDirIdx, QtClosedLoc, QtClosedRot))) continue;
 
+            #if DEBUG
+            PathTracer.DebugLine(new TraceDebugLine(_tracer, curNode.Position, newPos, totalCost <= FullStepDistance ? 2 : 0));
+            #endif
+
             if (directionBias != 0)
             {
                 var clampedBias = directionBias.InRange(-angleLimitN, angleLimitP);
@@ -239,10 +243,6 @@ public class PathFinder
             }
 
             newNodes++;
-
-            #if DEBUG
-            PathTracer.DebugLine(new TraceDebugLine(_tracer, curNode.Position, newPos, directionBias != 0 ? 2 : 0));
-            #endif
 
             var newKey = new NodeKey(newPos, newDirIdx, QtOpenLoc, QtOpenRot);
 
