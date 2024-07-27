@@ -13,6 +13,12 @@ public struct Vector2d
     public double x;
     public double z;
 
+    public Vector2d(double v)
+    {
+        this.x = v;
+        this.z = v;
+    }
+
     public Vector2d(double x, double z)
     {
         this.x = x;
@@ -89,9 +95,11 @@ public struct Vector2d
 
     public static implicit operator Vector2d(Vector2Int vec) => new(vec.x, vec.y);
 
+    public static implicit operator Vector2d(Vector2i vec) => new(vec.x, vec.z);
+
     public static implicit operator Vector2d(Vector2 vec) => new(vec.x, vec.y);
 
-    public readonly Vector2Int ToIntRounded() => new((int) Math.Round(x), (int) Math.Round(z));
+    public readonly Vector2i ToIntRounded() => new((int) Math.Round(x), (int) Math.Round(z));
 
     public static Vector2d Min(Vector2d a, Vector2d b) => new(Math.Min(a.x, b.x), Math.Min(a.z, b.z));
 
@@ -135,7 +143,7 @@ public struct Vector2d
         double dz = a.z - b.z;
         return Math.Sqrt(dx * dx + dz * dz);
     }
-    
+
     public static double DistanceSq(Vector2d a, Vector2d b)
     {
         double dx = a.x - b.x;

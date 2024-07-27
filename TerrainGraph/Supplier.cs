@@ -41,6 +41,35 @@ public static class Supplier
         }
     }
 
+    public class Cached<T> : ISupplier<T>
+    {
+        private readonly ISupplier<T> _generator;
+        private readonly List<T> _cache;
+
+        private int _iteration;
+
+        public Cached(ISupplier<T> generator, List<T> cache)
+        {
+            _generator = generator;
+            _cache = cache;
+        }
+
+        public T Get()
+        {
+            while (_cache.Count <= _iteration)
+            {
+                _cache.Add(_generator.Get());
+            }
+
+            return _cache[_iteration++];
+        }
+
+        public void ResetState()
+        {
+            _iteration = 0;
+        }
+    }
+
     public class CompoundCached<TS,T> : ISupplier<T>
     {
         private readonly ISupplier<TS> _generator;
