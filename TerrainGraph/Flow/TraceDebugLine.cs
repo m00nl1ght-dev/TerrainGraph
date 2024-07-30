@@ -12,6 +12,12 @@ public class TraceDebugLine
     public int Group;
     public int Color;
 
+    public object ContextA = CurrentContextA;
+    public object ContextB = CurrentContextB;
+
+    public static object CurrentContextA = null;
+    public static object CurrentContextB = null;
+
     public bool IsPointAt(Vector2d p) => p == Pos1 && Pos1 == Pos2;
 
     public Vector2d MapPos1 => Tracer == null ? Pos1 : Pos1 - Tracer.GridMargin;

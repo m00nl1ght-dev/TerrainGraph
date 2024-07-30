@@ -64,6 +64,7 @@ public class PathFinder
 
         #if DEBUG
         PathTracer.DebugOutput($"Attempting to find path to {targetPos} with hwDist {HeuristicDistanceWeight:F2}");
+        TraceDebugLine.CurrentContextA = startNode;
         #endif
 
         _openQueue.Enqueue(startNode, HeuristicDistanceWeight * (float) totalDistance);
@@ -75,6 +76,10 @@ public class PathFinder
         {
             var curNode = _openQueue.Dequeue();
 
+            #if DEBUG
+            TraceDebugLine.CurrentContextB = curNode;
+            #endif
+
             _closed.Add(new NodeKey(curNode, QtClosedLoc, QtClosedRot));
 
             if (Vector2d.DistanceSq(curNode.Position, targetPos) <= targetRadiusSq)
@@ -82,6 +87,8 @@ public class PathFinder
                 #if DEBUG
                 var targetDistance = Vector2d.Distance(curNode.Position, targetPos);
                 PathTracer.DebugOutput($"Found path after {iterations} iterations ending {targetDistance:F2} away from target");
+                TraceDebugLine.CurrentContextA = null;
+                TraceDebugLine.CurrentContextB = null;
                 #endif
 
                 return WeavePath(curNode);
@@ -92,6 +99,8 @@ public class PathFinder
                 #if DEBUG
                 var targetDistance = Vector2d.Distance(curNode.Position, targetPos);
                 PathTracer.DebugOutput($"Accepted fallback path after {iterations} iterations ending {targetDistance:F2} away from target");
+                TraceDebugLine.CurrentContextA = null;
+                TraceDebugLine.CurrentContextB = null;
                 #endif
 
                 return WeavePath(curNode);
@@ -103,6 +112,9 @@ public class PathFinder
         #if DEBUG
         var minDist = Math.Sqrt(_open.Values.Min(n => Vector2d.DistanceSq(n.Position, targetPos)));
         PathTracer.DebugOutput($"Failed to find path after {iterations} iterations, the closest node was {minDist:F2} from the target");
+        PathTracer.DebugLines.RemoveAll(l => l.ContextA == startNode);
+        TraceDebugLine.CurrentContextA = null;
+        TraceDebugLine.CurrentContextB = null;
         #endif
 
         return null;
@@ -218,6 +230,16 @@ public class PathFinder
             else if (newDirIdx <= -_kernel.ArcsPerHalf) newDirIdx += 2 * _kernel.ArcsPerHalf;
 
             if (_closed.Contains(new NodeKey(newPos, newDirIdx, QtClosedLoc, QtClosedRot))) continue;
+
+            var trav = curNode.Parent;
+
+            while (trav != null)
+            {
+                if (Vector2d.DistanceSq(newPos, trav.Position) < FullStepDistance * FullStepDistance) break;
+                trav = trav.Parent;
+            }
+
+            if (trav != null) continue;
 
             #if DEBUG
             PathTracer.DebugLine(new TraceDebugLine(_tracer, curNode.Position, newPos, totalCost <= FullStepDistance ? 2 : 0));
@@ -366,6 +388,11 @@ public class PathFinder
         }
 
         list.Reverse();
+
+        #if DEBUG
+        PathTracer.DebugLines.RemoveAll(l => l.ContextA == list[0] && !list.Contains(l.ContextB));
+        TraceDebugLine.CurrentContextA = null;
+        #endif
 
         return list;
     }
