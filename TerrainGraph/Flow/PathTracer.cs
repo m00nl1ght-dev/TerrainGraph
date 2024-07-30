@@ -13,13 +13,13 @@ public class PathTracer
     private const int MaxTraceFrames = 1_000_000;
 
     public double RadialThreshold = 0.5;
-    public double SplitTurnLockLength = 5;
     public double CollisionMinValueDiff = 0.75;
     public double CollisionMinOffsetDiff = 0.5;
     public double CollisionCheckMargin = 0.5;
     public double CollisionMinValueDiffM = 5;
     public double CollisionMinOffsetDiffM = 5;
     public double CollisionMinParentDist = 2;
+    public double MainGridSmoothLength = 1; // TODO tweak
 
     public bool StopWhenOutOfBounds = true;
 
@@ -44,6 +44,7 @@ public class PathTracer
     public IGridFunction<double> ValueGrid => BuildGridFunction(_valueGrid);
     public IGridFunction<double> OffsetGrid => BuildGridFunction(_offsetGrid);
     public IGridFunction<double> DistanceGrid => BuildGridFunction(_distanceGrid, TraceOuterMargin);
+    public IGridFunction<TraceTask> TaskGrid => BuildGridFunction(_taskGrid);
 
     #if DEBUG
     public IGridFunction<double> DebugGrid => BuildGridFunction(_debugGrid);
@@ -316,6 +317,9 @@ public class PathTracer
         var stepSize = task.segment.TraceParams.StepSize.WithMin(1);
 
         var initialFrame = new TraceFrame(this, task, -task.marginTail);
+
+        var nextSplit = FindNextSplit(task, MainGridSmoothLength.WithMin(1) * task.WidthAt(length));
+        var lastMerge = FindLastMerge(task, MainGridSmoothLength.WithMin(1) * task.WidthAt(0));
 
         #if DEBUG
         DebugOutput($"Segment {task.segment.Id} with length {length:F2} started with initial frame [{initialFrame}] and params {task.segment.TraceParams}");
@@ -690,11 +694,29 @@ public class PathTracer
 
                                     if (nowDist <= 0)
                                     {
-                                        _mainGrid[x, z] = extent;
+                                        _mainGrid[x, z] = progress.Lerp(a.width, b.width);
 
                                         #if DEBUG
                                         _debugGrid[x, z] = task.segment.Id;
                                         #endif
+
+                                        if (nextSplit.relWidths != null)
+                                        {
+                                            var splitDistance = nextSplit.distance + (length - dist);
+                                            if (splitDistance <= MainGridSmoothLength.WithMin(1) * nextSplit.baseWidth)
+                                            {
+                                                ApplySmoothBranching(x, z, shift, extent, splitDistance, nextSplit);
+                                            }
+                                        }
+
+                                        if (lastMerge.relWidths != null)
+                                        {
+                                            var mergeDistance = lastMerge.distance + dist;
+                                            if (mergeDistance <= MainGridSmoothLength.WithMin(1) * nextSplit.baseWidth)
+                                            {
+                                                ApplySmoothBranching(x, z, shift, extent, mergeDistance, lastMerge);
+                                            }
+                                        }
                                     }
                                 }
 
@@ -724,13 +746,112 @@ public class PathTracer
         return new TraceResult(initialFrame, a, everFullyInBounds);
     }
 
+    private void ApplySmoothBranching(int x, int z, double shift, double extent, double distance, ForkInfo info)
+    {
+        double relWidthA = 0d, relWidthB = 0d;
+        double relPos = -shift / info.baseWidth + 0.5d;
+
+        for (int i = 1; i < info.relWidths.Length; i++)
+        {
+            relWidthA = info.relWidths[i - 1];
+            relWidthB = info.relWidths[i];
+
+            relPos -= relWidthA;
+
+            if (relPos < -relWidthA / 2) break;
+            if (relPos > relWidthB / 2) continue;
+
+            var coneLength = info.baseWidth * (relWidthA + relWidthB); // TODO tweak
+            if (distance <= coneLength)
+            {
+                var lerp = relPos.Abs() * info.baseWidth + extent * (distance / coneLength);
+                _distanceGrid[x, z] = Math.Max(_distanceGrid[x, z], -lerp);
+
+                #if DEBUG
+                if ((distance - coneLength).Abs() <= 1d) DebugLine(new TraceDebugLine(this, new Vector2d(x, z)));
+                #endif
+            }
+
+            break;
+        }
+
+        var relWidthC = relPos < 0 ? relWidthA : relWidthB;
+        var fracSmooth = distance / (MainGridSmoothLength * info.baseWidth);
+        _mainGrid[x, z] = fracSmooth.LerpClamped(info.baseWidth * relWidthC, _mainGrid[x, z]);
+    }
+
+    private ForkInfo FindNextSplit(TraceTask task, double maxDistance)
+    {
+        var distance = 0d;
+        var width = task.WidthAt(task.segment.Length);
+        var current = task.segment;
+
+        while (current.BranchCount > 0 && distance <= maxDistance)
+        {
+            if (current.BranchCount == 1)
+            {
+                current = current.Branches.First();
+
+                if (current.ParentCount == 1)
+                {
+                    distance += current.Length;
+                    width *= current.RelWidth;
+                    width -= current.TraceParams.WidthLoss * current.Length;
+                }
+                else
+                {
+                    return default;
+                }
+            }
+            else if (current.BranchCount > 1)
+            {
+                var relWidths = current.Branches.Select(s => s.RelWidth).ToArray();
+                return new ForkInfo(distance, width, relWidths);
+            }
+        }
+
+        return default;
+    }
+
+    private ForkInfo FindLastMerge(TraceTask task, double maxDistance)
+    {
+        if (task.branchParent.segment.ParentCount <= 1) return default;
+
+        var baseWidth = task.branchParent.WidthAt(0);
+        var distance = task.distFromRoot - task.branchParent.distFromRoot;
+
+        if (distance > maxDistance || baseWidth <= 0) return default;
+
+        var relWidths = task.branchParent.segment.Parents
+            .Select(s => _traceResults[s])
+            .Where(r => r != null)
+            .Select(r => r.finalFrame.width / baseWidth)
+            .ToArray();
+
+        return new ForkInfo(distance, baseWidth, relWidths);
+    }
+
+    private readonly struct ForkInfo
+    {
+        public readonly double distance;
+        public readonly double baseWidth;
+        public readonly double[] relWidths;
+
+        public ForkInfo(double distance, double baseWidth, double[] relWidths)
+        {
+            this.distance = distance;
+            this.baseWidth = baseWidth;
+            this.relWidths = relWidths;
+        }
+    }
+
     /// <summary>
     /// Wrap the given raw grid array in a GridFunction, transforming values into map space.
     /// </summary>
-    private IGridFunction<double> BuildGridFunction(double[,] grid, double fallback = 0d)
+    private IGridFunction<T> BuildGridFunction<T>(T[,] grid, T fallback = default)
     {
-        if (GridMargin == Vector2d.Zero) return new Cache<double>(grid);
-        return new Transform<double>(new Cache<double>(grid, fallback), -GridMargin.x, -GridMargin.z);
+        if (GridMargin == Vector2d.Zero) return new Cache<T>(grid);
+        return new Transform<T>(new Cache<T>(grid, fallback), -GridMargin.x, -GridMargin.z);
     }
 
     /// <summary>
@@ -755,7 +876,7 @@ public class PathTracer
 
     internal static void DebugLine(TraceDebugLine debugLine)
     {
-        if (DebugLines != null && (DebugLines.Count < 50000 || debugLine.Color > 1))
+        if (DebugLines != null && (DebugLines.Count < 50000 || debugLine.Color > 2))
         {
             DebugLines.Add(debugLine);
         }
