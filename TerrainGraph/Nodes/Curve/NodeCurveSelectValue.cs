@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using NodeEditorFramework;
 using TerrainGraph.Util;
 
@@ -42,7 +43,7 @@ public class NodeCurveSelectValue : NodeSelectBase<double, double>
 
         OutputKnob.SetValue<ISupplier<ICurveFunction<double>>>(
             new CurveOutput<double>(
-                input, options, Thresholds,
+                input, options, Thresholds.ToList(),
                 Interpolated ? MathUtil.Lerp : null
             )
         );

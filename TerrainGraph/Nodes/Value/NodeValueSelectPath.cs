@@ -39,7 +39,7 @@ public class NodeValueSelectPath : NodeSelectBase<double, byte>
 
         OutputKnob.SetValue<ISupplier<Path>>(
             new Output<Path>(
-                input, options, Thresholds, null
+                input, options, Thresholds.ToList(), null
             )
         );
 

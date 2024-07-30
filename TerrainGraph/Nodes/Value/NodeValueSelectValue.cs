@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using NodeEditorFramework;
 using TerrainGraph.Util;
 
@@ -44,7 +45,7 @@ public class NodeValueSelectValue : NodeSelectBase<double, double>
 
         OutputKnob.SetValue<ISupplier<double>>(
             new Output<double>(
-                input, options, Thresholds,
+                input, options, Thresholds.ToList(),
                 Interpolated ? MathUtil.Lerp : null
             )
         );

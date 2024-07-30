@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using NodeEditorFramework;
 using static TerrainGraph.GridFunction;
 
@@ -42,7 +43,7 @@ public class NodeValueSelectGridValue : NodeSelectBase<double, double>
 
         OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
             new Output<IGridFunction<double>>(
-                input, options, Thresholds,
+                input, options, Thresholds.ToList(),
                 Interpolated ? (t, a, b) => Lerp.Of(a, b, t) : null
             )
         );
