@@ -6,7 +6,7 @@ using UnityEngine;
 namespace TerrainGraph;
 
 [Serializable]
-[Node(false, "Value/Angle delta", 116)]
+[Node(false, "Value/Angle Delta", 116)]
 public class NodeValueAngleDelta : NodeBase
 {
     public const string ID = "valueAngleDelta";

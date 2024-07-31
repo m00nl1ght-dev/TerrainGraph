@@ -610,6 +610,34 @@ public static class GridFunction
         public override string ToString() => $"ROTATE {{ {Input} around {PivotX:F2} | {PivotZ:F2} by {Angle:F2} }}";
     }
 
+    public class ApplyCurve<T> : IGridFunction<T>
+    {
+        public readonly IGridFunction<double> Input;
+        public readonly ICurveFunction<T> Curve;
+
+        public ApplyCurve(IGridFunction<double> input, ICurveFunction<T> curve)
+        {
+            Input = input;
+            Curve = curve;
+        }
+
+        public T ValueAt(double x, double z) => Curve.ValueAt(Input.ValueAt(x, z));
+
+        protected bool Equals(ApplyCurve<T> other) =>
+            Input.Equals(other.Input) &&
+            Curve.Equals(other.Curve);
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((ApplyCurve<T>) obj);
+        }
+
+        public override string ToString() => $"APPLY CURVE {{ {Curve} on {Input} }}";
+    }
+
     public class DeltaMap : IGridFunction<double>
     {
         public readonly IGridFunction<double> Input;
