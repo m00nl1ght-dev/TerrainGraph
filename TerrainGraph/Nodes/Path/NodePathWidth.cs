@@ -21,9 +21,6 @@ public class NodePathWidth : NodeBase
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
-    [ValueConnectionKnob("Width Loss", Direction.In, ValueFunctionConnection.Id)]
-    public ValueConnectionKnob WidthLossKnob;
-
     [ValueConnectionKnob("Output", Direction.Out, PathFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
 
@@ -32,8 +29,6 @@ public class NodePathWidth : NodeBase
     public ValueConnectionKnob ByWidthKnob;
     public ValueConnectionKnob PatternScalingKnob;
     public ValueConnectionKnob SideBalanceKnob;
-
-    public double WidthLoss;
 
     public override void RefreshDynamicKnobs()
     {
@@ -85,26 +80,10 @@ public class NodePathWidth : NodeBase
 
         SideBalanceKnob.SetPosition();
 
-        KnobValueField(WidthLossKnob, ref WidthLoss);
-
         GUILayout.EndVertical();
 
         if (GUI.changed)
             canvas.OnNodeChange(this);
-    }
-
-    public override void RefreshPreview()
-    {
-        var widthLoss = GetIfConnected<double>(WidthLossKnob);
-
-        widthLoss?.ResetState();
-
-        if (widthLoss != null) WidthLoss = widthLoss.Get();
-    }
-
-    public override void CleanUpGUI()
-    {
-        if (WidthLossKnob.connected()) WidthLoss = 0;
     }
 
     public override bool Calculate()
@@ -115,8 +94,7 @@ public class NodePathWidth : NodeBase
             GetIfConnected<ICurveFunction<double>>(ByPatternKnob),
             GetIfConnected<ICurveFunction<double>>(ByWidthKnob),
             GetIfConnected<ICurveFunction<double>>(PatternScalingKnob),
-            GetIfConnected<ICurveFunction<double>>(SideBalanceKnob),
-            SupplierOrFallback(WidthLossKnob, WidthLoss)
+            GetIfConnected<ICurveFunction<double>>(SideBalanceKnob)
         ));
         return true;
     }
@@ -129,7 +107,6 @@ public class NodePathWidth : NodeBase
         private readonly ISupplier<ICurveFunction<double>> _byWidth;
         private readonly ISupplier<ICurveFunction<double>> _patternScaling;
         private readonly ISupplier<ICurveFunction<double>> _sideBalance;
-        private readonly ISupplier<double> _widthLoss;
 
         public Output(
             ISupplier<Path> input,
@@ -137,8 +114,7 @@ public class NodePathWidth : NodeBase
             ISupplier<ICurveFunction<double>> byPattern,
             ISupplier<ICurveFunction<double>> byWidth,
             ISupplier<ICurveFunction<double>> patternScaling,
-            ISupplier<ICurveFunction<double>> sideBalance,
-            ISupplier<double> widthLoss)
+            ISupplier<ICurveFunction<double>> sideBalance)
         {
             _input = input;
             _byPosition = byPosition;
@@ -146,7 +122,6 @@ public class NodePathWidth : NodeBase
             _byWidth = byWidth;
             _patternScaling = patternScaling;
             _sideBalance = sideBalance;
-            _widthLoss = widthLoss;
         }
 
         public Path Get()
@@ -175,8 +150,6 @@ public class NodePathWidth : NodeBase
                     false
                 );
 
-                extParams.WidthLoss = _widthLoss.Get();
-
                 segment.ExtendWithParams(extParams);
             }
 
@@ -191,7 +164,6 @@ public class NodePathWidth : NodeBase
             _byWidth?.ResetState();
             _patternScaling?.ResetState();
             _sideBalance?.ResetState();
-            _widthLoss.ResetState();
         }
     }
 

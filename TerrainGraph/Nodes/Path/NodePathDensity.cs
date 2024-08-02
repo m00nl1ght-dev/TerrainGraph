@@ -21,16 +21,11 @@ public class NodePathDensity : NodeBase
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
-    [ValueConnectionKnob("Density loss", Direction.In, ValueFunctionConnection.Id)]
-    public ValueConnectionKnob DensityLossKnob;
-
     [ValueConnectionKnob("Output", Direction.Out, PathFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
 
     public ValueConnectionKnob ByPositionKnob;
     public ValueConnectionKnob ByExtentKnob;
-
-    public double DensityLoss;
 
     public override void RefreshDynamicKnobs()
     {
@@ -61,26 +56,10 @@ public class NodePathDensity : NodeBase
 
         ByExtentKnob.SetPosition();
 
-        KnobValueField(DensityLossKnob, ref DensityLoss);
-
         GUILayout.EndVertical();
 
         if (GUI.changed)
             canvas.OnNodeChange(this);
-    }
-
-    public override void RefreshPreview()
-    {
-        var densityLoss = GetIfConnected<double>(DensityLossKnob);
-
-        densityLoss?.ResetState();
-
-        if (densityLoss != null) DensityLoss = densityLoss.Get();
-    }
-
-    public override void CleanUpGUI()
-    {
-        if (DensityLossKnob.connected()) DensityLoss = 0;
     }
 
     public override bool Calculate()
@@ -88,8 +67,7 @@ public class NodePathDensity : NodeBase
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
             GetIfConnected<IGridFunction<double>>(ByPositionKnob),
-            GetIfConnected<ICurveFunction<double>>(ByExtentKnob),
-            SupplierOrFallback(DensityLossKnob, DensityLoss)
+            GetIfConnected<ICurveFunction<double>>(ByExtentKnob)
         ));
         return true;
     }
@@ -99,18 +77,15 @@ public class NodePathDensity : NodeBase
         private readonly ISupplier<Path> _input;
         private readonly ISupplier<IGridFunction<double>> _byPosition;
         private readonly ISupplier<ICurveFunction<double>> _byExtent;
-        private readonly ISupplier<double> _densityLoss;
 
         public Output(
             ISupplier<Path> input,
             ISupplier<IGridFunction<double>> byPosition,
-            ISupplier<ICurveFunction<double>> byExtent,
-            ISupplier<double> densityLoss)
+            ISupplier<ICurveFunction<double>> byExtent)
         {
             _input = input;
             _byPosition = byPosition;
             _byExtent = byExtent;
-            _densityLoss = densityLoss;
         }
 
         public Path Get()
@@ -123,7 +98,6 @@ public class NodePathDensity : NodeBase
 
                 extParams.DensityLeft = new ParamFunc(_byPosition?.Get(), _byExtent?.Get(), true);
                 extParams.DensityRight = new ParamFunc(_byPosition?.Get(), _byExtent?.Get(), false);
-                extParams.DensityLoss = _densityLoss.Get();
 
                 segment.ExtendWithParams(extParams);
             }
@@ -136,7 +110,6 @@ public class NodePathDensity : NodeBase
             _input.ResetState();
             _byPosition?.ResetState();
             _byExtent?.ResetState();
-            _densityLoss.ResetState();
         }
     }
 

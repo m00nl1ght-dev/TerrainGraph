@@ -19,15 +19,10 @@ public class NodePathSpeed : NodeBase
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
     public ValueConnectionKnob InputKnob;
 
-    [ValueConnectionKnob("Speed loss", Direction.In, ValueFunctionConnection.Id)]
-    public ValueConnectionKnob SpeedLossKnob;
-
     [ValueConnectionKnob("Output", Direction.Out, PathFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
 
     public ValueConnectionKnob ByPositionKnob;
-
-    public double SpeedLoss;
 
     public override void RefreshDynamicKnobs()
     {
@@ -51,34 +46,17 @@ public class NodePathSpeed : NodeBase
 
         ByPositionKnob.SetPosition();
 
-        KnobValueField(SpeedLossKnob, ref SpeedLoss);
-
         GUILayout.EndVertical();
 
         if (GUI.changed)
             canvas.OnNodeChange(this);
     }
 
-    public override void RefreshPreview()
-    {
-        var speedLoss = GetIfConnected<double>(SpeedLossKnob);
-
-        speedLoss?.ResetState();
-
-        if (speedLoss != null) SpeedLoss = speedLoss.Get();
-    }
-
-    public override void CleanUpGUI()
-    {
-        if (SpeedLossKnob.connected()) SpeedLoss = 0;
-    }
-
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
-            SupplierOrFallback(ByPositionKnob, GridFunction.One),
-            SupplierOrFallback(SpeedLossKnob, SpeedLoss)
+            SupplierOrFallback(ByPositionKnob, GridFunction.One)
         ));
         return true;
     }
@@ -87,16 +65,13 @@ public class NodePathSpeed : NodeBase
     {
         private readonly ISupplier<Path> _input;
         private readonly ISupplier<IGridFunction<double>> _byPosition;
-        private readonly ISupplier<double> _speedLoss;
 
         public Output(
             ISupplier<Path> input,
-            ISupplier<IGridFunction<double>> byPosition,
-            ISupplier<double> speedLoss)
+            ISupplier<IGridFunction<double>> byPosition)
         {
             _input = input;
             _byPosition = byPosition;
-            _speedLoss = speedLoss;
         }
 
         public Path Get()
@@ -108,7 +83,6 @@ public class NodePathSpeed : NodeBase
                 var extParams = segment.TraceParams;
 
                 extParams.Speed = new FromGrid(_byPosition.Get());
-                extParams.SpeedLoss = _speedLoss.Get();
 
                 segment.ExtendWithParams(extParams);
             }
@@ -120,7 +94,6 @@ public class NodePathSpeed : NodeBase
         {
             _input.ResetState();
             _byPosition.ResetState();
-            _speedLoss.ResetState();
         }
     }
 }
