@@ -65,6 +65,12 @@ public class NodeGridKernel : NodeBase
         if (stepSupplier != null) Step = stepSupplier.Get();
     }
 
+    public override void CleanUpGUI()
+    {
+        if (SizeKnob.connected()) Size = 0;
+        if (StepKnob.connected()) Step = 0;
+    }
+
     public override void FillNodeActionsMenu(NodeEditorInputInfo inputInfo, GenericMenu menu)
     {
         base.FillNodeActionsMenu(inputInfo, menu);

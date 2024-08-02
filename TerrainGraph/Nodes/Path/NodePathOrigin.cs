@@ -77,13 +77,7 @@ public class NodePathOrigin : NodeBase
         var density = GetIfConnected<double>(DensityKnob);
         var count = GetIfConnected<double>(CountKnob);
 
-        posX?.ResetState();
-        posZ?.ResetState();
-        direction?.ResetState();
-        width?.ResetState();
-        speed?.ResetState();
-        density?.ResetState();
-        count?.ResetState();
+        foreach (var supplier in new[] { posX, posZ, direction, width, speed, density, count }) supplier?.ResetState();
 
         if (posX != null) PosX = posX.Get();
         if (posZ != null) PosZ = posZ.Get();
@@ -92,6 +86,17 @@ public class NodePathOrigin : NodeBase
         if (speed != null) Speed = speed.Get();
         if (density != null) Density = density.Get();
         if (count != null) Count = count.Get();
+    }
+
+    public override void CleanUpGUI()
+    {
+        if (PosXKnob.connected()) PosX = 0;
+        if (PosZKnob.connected()) PosZ = 0;
+        if (DirectionKnob.connected()) Direction = 0;
+        if (WidthKnob.connected()) Width = 0;
+        if (SpeedKnob.connected()) Speed = 0;
+        if (DensityKnob.connected()) Density = 0;
+        if (CountKnob.connected()) Count = 0;
     }
 
     public override bool Calculate()

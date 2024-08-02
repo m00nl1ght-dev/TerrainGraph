@@ -21,7 +21,7 @@ namespace NodeEditorFramework
 		public List<ConnectionPort> dynamicConnectionPorts = [];
 		// Static connection ports stored in the actual declaration variables
 		[NonSerialized] public List<ConnectionPort> staticConnectionPorts = [];
-		// Representative lists of static port declarations aswell as dynamic ports
+		// Representative lists of static port declarations as well as dynamic ports
 		[NonSerialized] public List<ConnectionPort> connectionPorts = [];
 		[NonSerialized] public List<ConnectionPort> inputPorts = [];
 		[NonSerialized] public List<ConnectionPort> outputPorts = [];

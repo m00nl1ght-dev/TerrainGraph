@@ -181,6 +181,13 @@ public abstract class NodeOperatorBase : NodeBase
         if (smooth != null) Smoothness = smooth.Get();
     }
 
+    public override void CleanUpGUI()
+    {
+        if (ApplyChanceKnob?.connected() ?? false) ApplyChance = 0;
+        if (StackCountKnob?.connected() ?? false) StackCount = 0;
+        if (SmoothnessKnob?.connected() ?? false) Smoothness = 0;
+    }
+
     public enum Operation
     {
         Add,

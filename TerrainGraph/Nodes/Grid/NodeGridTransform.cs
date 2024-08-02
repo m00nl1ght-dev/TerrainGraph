@@ -76,6 +76,14 @@ public class NodeGridTransform : NodeBase
         if (scaleZ != null) ScaleZ = scaleZ.Get();
     }
 
+    public override void CleanUpGUI()
+    {
+        if (DisplaceXKnob.connected()) DisplaceX = 0;
+        if (DisplaceZKnob.connected()) DisplaceZ = 0;
+        if (ScaleXKnob.connected()) ScaleX = 0;
+        if (ScaleZKnob.connected()) ScaleZ = 0;
+    }
+
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output(

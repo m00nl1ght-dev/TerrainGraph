@@ -3,12 +3,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace NodeEditorFramework 
+namespace NodeEditorFramework
 {
 	/// <summary>
 	/// Base class for all canvas types
 	/// </summary>
-	public abstract class NodeCanvas : ScriptableObject 
+	public abstract class NodeCanvas : ScriptableObject
 	{
 		public virtual string canvasName { get { return "DEFAULT"; } }
 
@@ -27,7 +27,7 @@ namespace NodeEditorFramework
 
 		public List<Node> nodes = [];
 		public List<NodeGroup> groups = [];
-		
+
 		[NonSerialized]
 		public List<ScriptableObject> SOMemoryDump = [];
 
@@ -80,9 +80,9 @@ namespace NodeEditorFramework
 		public virtual void OnBeforeSavingCanvas () { }
 
 		public virtual bool CanAddNode (string nodeID, bool isEditorAction) { return true; }
-		
+
 		public virtual bool CanDeleteNode (Node node) { return true; }
-		
+
 		public virtual bool CanOpenContextMenu(ContextType type) { return true; }
 
 		// GUI
@@ -111,8 +111,15 @@ namespace NodeEditorFramework
 		/// </summary>
 		public void TraverseAll ()
 		{
-			if (Traversal != null)
-				Traversal.TraverseAll ();
+			Traversal?.TraverseAll ();
+		}
+
+		/// <summary>
+		/// Fully clear calculation data of the whole canvas
+		/// </summary>
+		public void ClearAll ()
+		{
+			Traversal?.ClearAll ();
 		}
 
 		/// <summary>
@@ -189,7 +196,7 @@ namespace NodeEditorFramework
 		/// <summary>
 		/// Updates the source of this canvas to the specified path, updating saveName and savePath aswell as livesInScene when prefixed with "SCENE/"
 		/// </summary>
-		public void UpdateSource (string path) 
+		public void UpdateSource (string path)
 		{
 			if (path == savePath)
 				return;

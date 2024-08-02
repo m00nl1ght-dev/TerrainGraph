@@ -33,7 +33,6 @@ public class NodeValueOperator : NodeOperatorBase
 
     public override void RefreshPreview()
     {
-        base.RefreshPreview();
         List<ISupplier<double>> suppliers = [];
 
         for (int i = 0; i < Math.Min(Values.Count, InputKnobs.Count); i++)
@@ -47,6 +46,14 @@ public class NodeValueOperator : NodeOperatorBase
         for (var i = 0; i < suppliers.Count; i++)
         {
             if (suppliers[i] != null) Values[i] = suppliers[i].Get();
+        }
+    }
+
+    public override void CleanUpGUI()
+    {
+        for (var i = 0; i < InputKnobs.Count; i++)
+        {
+            if (InputKnobs[i].connected()) Values[i] = 0;
         }
     }
 

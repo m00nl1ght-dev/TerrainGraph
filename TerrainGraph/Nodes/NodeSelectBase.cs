@@ -124,8 +124,6 @@ public abstract class NodeSelectBase<TKey, TVal> : NodeBase
 
     protected void RefreshPreview<T>(Func<T, TVal> conversion)
     {
-        base.RefreshPreview();
-
         List<ISupplier<T>> suppliers = [];
 
         for (int i = 0; i < Math.Min(Values.Count, OptionKnobs.Count); i++)
@@ -139,6 +137,14 @@ public abstract class NodeSelectBase<TKey, TVal> : NodeBase
         for (var i = 0; i < suppliers.Count; i++)
         {
             if (suppliers[i] != null) Values[i] = conversion(suppliers[i].Get());
+        }
+    }
+
+    public override void CleanUpGUI()
+    {
+        for (var i = 0; i < OptionKnobs.Count; i++)
+        {
+            if (OptionKnobs[i].connected()) Values[i] = default;
         }
     }
 

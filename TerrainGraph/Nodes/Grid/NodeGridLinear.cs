@@ -145,6 +145,19 @@ public class NodeGridLinear : NodeBase
         if (sNz != null) SpanNz = sNz.Get();
     }
 
+    public override void CleanUpGUI()
+    {
+        if (BiasKnob?.connected() ?? false) Bias = 0;
+        if (ClampMinKnob?.connected() ?? false) ClampMin = 0;
+        if (ClampMaxKnob?.connected() ?? false) ClampMax = 0;
+        if (OriginXKnob?.connected() ?? false) OriginX = 0;
+        if (OriginZKnob?.connected() ?? false) OriginZ = 0;
+        if (SpanPxKnob?.connected() ?? false) SpanPx = 0;
+        if (SpanNxKnob?.connected() ?? false) SpanNx = 0;
+        if (SpanPzKnob?.connected() ?? false) SpanPz = 0;
+        if (SpanNzKnob?.connected() ?? false) SpanNz = 0;
+    }
+
     public override void FillNodeActionsMenu(NodeEditorInputInfo inputInfo, GenericMenu menu)
     {
         base.FillNodeActionsMenu(inputInfo, menu);

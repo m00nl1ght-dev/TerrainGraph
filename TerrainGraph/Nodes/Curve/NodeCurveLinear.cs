@@ -89,6 +89,14 @@ public class NodeCurveLinear : NodeBase
         if (slope != null) Slope = slope.Get();
     }
 
+    public override void CleanUpGUI()
+    {
+        if (BiasKnob?.connected() ?? false) Bias = 0;
+        if (ClampMinKnob?.connected() ?? false) ClampMin = 0;
+        if (ClampMaxKnob?.connected() ?? false) ClampMax = 0;
+        if (SlopeKnob?.connected() ?? false) Slope = 0;
+    }
+
     public override void FillNodeActionsMenu(NodeEditorInputInfo inputInfo, GenericMenu menu)
     {
         base.FillNodeActionsMenu(inputInfo, menu);

@@ -45,8 +45,16 @@ public class NodeGridSlice : NodeBase
 
     public override void RefreshPreview()
     {
-        var supplier = GetIfConnected<double>(PositionKnob);
-        if (supplier != null) Position = supplier.ResetAndGet();
+        var pos = GetIfConnected<double>(PositionKnob);
+
+        pos?.ResetState();
+
+        if (pos != null) Position = pos.Get();
+    }
+
+    public override void CleanUpGUI()
+    {
+        if (PositionKnob.connected()) Position = 0;
     }
 
     public override bool Calculate()

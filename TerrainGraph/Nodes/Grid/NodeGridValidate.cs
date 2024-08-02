@@ -84,6 +84,14 @@ public class NodeGridValidate : NodeBase
         if (maxCells != null) MaxCells = maxCells.Get();
     }
 
+    public override void CleanUpGUI()
+    {
+        if (MinValueKnob.connected()) MinValue = 0;
+        if (MaxValueKnob.connected()) MaxValue = 0;
+        if (MinCellsKnob.connected()) MinCells = 0;
+        if (MaxCellsKnob.connected()) MaxCells = 0;
+    }
+
     public override void FillNodeActionsMenu(NodeEditorInputInfo inputInfo, GenericMenu menu)
     {
         base.FillNodeActionsMenu(inputInfo, menu);

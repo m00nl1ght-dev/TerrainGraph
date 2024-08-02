@@ -60,6 +60,12 @@ public class NodeCurveTransform : NodeBase
         if (scale != null) Scale = scale.Get();
     }
 
+    public override void CleanUpGUI()
+    {
+        if (DisplaceKnob.connected()) Displace = 0;
+        if (ScaleKnob.connected()) Scale = 0;
+    }
+
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<ICurveFunction<double>>>(new Output(

@@ -70,6 +70,13 @@ public class NodePathCollide : NodeBase
         if (stableRange != null) StableRange = stableRange.Get();
     }
 
+    public override void CleanUpGUI()
+    {
+        if (ArcRangeKnob.connected()) ArcRange = 0;
+        if (ArcIntensityKnob.connected()) ArcIntensity = 0;
+        if (StableRangeKnob.connected()) StableRange = 0;
+    }
+
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(

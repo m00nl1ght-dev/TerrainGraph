@@ -81,6 +81,11 @@ public class NodeValueValidatePosition : NodeBase
         if (exclusionRadius != null) ExclusionRadius = exclusionRadius.Get();
     }
 
+    public override void CleanUpGUI()
+    {
+        if (ExclusionRadiusKnob.connected()) ExclusionRadius = 0;
+    }
+
     public override bool Calculate()
     {
         var cache = new List<Vector2d>(5);

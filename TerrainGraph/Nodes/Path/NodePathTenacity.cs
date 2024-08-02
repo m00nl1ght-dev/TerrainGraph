@@ -71,6 +71,13 @@ public class NodePathTenacity : NodeBase
         if (angleLimitAbs != null) AngleLimitAbs = angleLimitAbs.Get();
     }
 
+    public override void CleanUpGUI()
+    {
+        if (AngleTenacityKnob.connected()) AngleTenacity = 0;
+        if (SplitTenacityKnob.connected()) SplitTenacity = 0;
+        if (AngleLimitAbsKnob.connected()) AngleLimitAbs = 0;
+    }
+
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(

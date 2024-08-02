@@ -53,6 +53,12 @@ public class NodeValueAngleDelta : NodeBase
         if (second != null) Second = second.Get();
     }
 
+    public override void CleanUpGUI()
+    {
+        if (FirstKnob.connected()) First = 0;
+        if (SecondKnob.connected()) Second = 0;
+    }
+
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<double>>(new Output(

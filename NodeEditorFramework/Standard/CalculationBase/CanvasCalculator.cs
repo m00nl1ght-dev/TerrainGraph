@@ -13,10 +13,10 @@ namespace NodeEditorFramework.Standard
 		/// <summary>
 		/// Recalculate from every node regarded as an input node
 		/// </summary>
-		public override void TraverseAll () 
+		public override void TraverseAll ()
 		{
 			workList = [];
-			for (int i = 0; i < nodeCanvas.nodes.Count; i++) 
+			for (int i = 0; i < nodeCanvas.nodes.Count; i++)
 			{
 				Node node = nodeCanvas.nodes[i];
 				if (node.isInput ())
@@ -29,9 +29,32 @@ namespace NodeEditorFramework.Standard
 		}
 
 		/// <summary>
+		/// Fully clear calculation data from all nodes
+		/// </summary>
+		public override void ClearAll()
+		{
+			foreach (var node in nodeCanvas.nodes)
+			{
+				node.calculated = false;
+
+				foreach (var port in node.outputPorts)
+				{
+					if (port is ValueConnectionKnob knob)
+						knob.ResetValue();
+				}
+
+				foreach (var port in node.inputKnobs)
+				{
+					if (port is ValueConnectionKnob knob)
+						knob.ResetValue();
+				}
+			}
+		}
+
+		/// <summary>
 		/// Recalculate from the specified node
 		/// </summary>
-		public override void OnChange (Node node) 
+		public override void OnChange (Node node)
 		{
 			node.ClearCalculation ();
 			workList = [node];
@@ -41,11 +64,11 @@ namespace NodeEditorFramework.Standard
 		/// <summary>
 		/// Iteratively calculates all nodes from the worklist, including child nodes, until no further calculation is possible
 		/// </summary>
-		private void StartCalculation () 
+		private void StartCalculation ()
 		{
 			if (workList == null || workList.Count == 0)
 				return;
-			
+
 			bool limitReached = false;
 			while (!limitReached)
 			{ // Runs until the whole workList is calculated thoroughly or no further calculation is possible
@@ -69,7 +92,7 @@ namespace NodeEditorFramework.Standard
 		/// All nodes that could not be calculated in the current state are added to the workList for later calculation
 		/// Returns whether calculation could advance at all
 		/// </summary>
-		private bool ContinueCalculation (Node node) 
+		private bool ContinueCalculation (Node node)
 		{
 			if (node.calculated)
 			{ // Already calculated
@@ -91,7 +114,8 @@ namespace NodeEditorFramework.Standard
 				}
 				return true;
 			}
-			else if (!workList.Contains (node)) 
+
+			if (!workList.Contains (node))
 			{ // Calculation failed, record to calculate later on
 				workList.Add (node);
 			}

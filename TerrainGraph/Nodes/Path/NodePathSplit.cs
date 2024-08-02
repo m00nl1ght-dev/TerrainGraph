@@ -141,6 +141,19 @@ public class NodePathSplit : NodeBase
         }
     }
 
+    public override void CleanUpGUI()
+    {
+        for (int i = 0; i < WidthKnobs.Count; i++)
+        {
+            if (WidthKnobs[i].connected()) Widths[i] = 0;
+        }
+
+        for (int i = 0; i < SpeedKnobs.Count; i++)
+        {
+            if (SpeedKnobs[i].connected()) Speeds[i] = 0;
+        }
+    }
+
     public override bool Calculate()
     {
         var input = SupplierOrFallback(InputKnob, Path.Empty);

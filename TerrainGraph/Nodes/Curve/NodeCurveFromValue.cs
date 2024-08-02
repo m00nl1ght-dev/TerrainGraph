@@ -60,6 +60,11 @@ public class NodeCurveFromValue : NodeBase
         if (input != null) Value = input.Get();
     }
 
+    public override void CleanUpGUI()
+    {
+        if (InputKnob.connected()) Value = 0;
+    }
+
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<ICurveFunction<double>>>(new Output<double>(

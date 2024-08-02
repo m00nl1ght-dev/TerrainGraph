@@ -78,6 +78,11 @@ public class NodePathDensity : NodeBase
         if (densityLoss != null) DensityLoss = densityLoss.Get();
     }
 
+    public override void CleanUpGUI()
+    {
+        if (DensityLossKnob.connected()) DensityLoss = 0;
+    }
+
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(

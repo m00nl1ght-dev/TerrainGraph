@@ -69,6 +69,13 @@ public class NodeValuePolarRectPosition : NodeBase
         if (margin != null) Margin = margin.Get();
     }
 
+    public override void CleanUpGUI()
+    {
+        if (AngleKnob.connected()) Angle = 0;
+        if (OffsetKnob.connected()) Offset = 0;
+        if (MarginKnob.connected()) Margin = 0;
+    }
+
     public override bool Calculate()
     {
         var cache = new List<Vector2d>(5);

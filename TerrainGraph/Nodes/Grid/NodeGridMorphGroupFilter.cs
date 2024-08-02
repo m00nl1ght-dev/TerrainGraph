@@ -79,6 +79,14 @@ public class NodeGridMorphGroupFilter : NodeBase
         if (thinLimit != null) ThinLimit = thinLimit.Get();
     }
 
+    public override void CleanUpGUI()
+    {
+        if (ThresholdKnob.connected()) Threshold = 0;
+        if (MinGroupSizeKnob.connected()) MinGroupSize = 0;
+        if (MaxGroupSizeKnob.connected()) MaxGroupSize = 0;
+        if (ThinLimitKnob.connected()) ThinLimit = 0;
+    }
+
     public override bool Calculate()
     {
         var cache = new List<IGridFunction<double>>(5);

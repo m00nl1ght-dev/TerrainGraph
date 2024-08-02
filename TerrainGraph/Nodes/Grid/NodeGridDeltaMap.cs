@@ -45,8 +45,16 @@ public class NodeGridDeltaMap : NodeBase
 
     public override void RefreshPreview()
     {
-        var supplier = GetIfConnected<double>(StepKnob);
-        if (supplier != null) Step = supplier.ResetAndGet();
+        var step = GetIfConnected<double>(StepKnob);
+
+        step?.ResetState();
+
+        if (step != null) Step = step.Get();
+    }
+
+    public override void CleanUpGUI()
+    {
+        if (StepKnob.connected()) Step = 0;
     }
 
     public override bool Calculate()

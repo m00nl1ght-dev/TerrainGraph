@@ -63,6 +63,12 @@ public class NodePathExtend : NodeBase
         if (stepSize != null) StepSize = stepSize.Get();
     }
 
+    public override void CleanUpGUI()
+    {
+        if (LengthKnob.connected()) Length = 0;
+        if (StepSizeKnob.connected()) StepSize = 0;
+    }
+
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(

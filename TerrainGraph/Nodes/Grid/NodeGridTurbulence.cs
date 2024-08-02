@@ -51,8 +51,17 @@ public class NodeGridTurbulence : NodeBase
         var intensityX = GetIfConnected<double>(IntensityXKnob);
         var intensityZ = GetIfConnected<double>(IntensityZKnob);
 
-        if (intensityX != null) IntensityX = intensityX.ResetAndGet();
-        if (intensityZ != null) IntensityZ = intensityZ.ResetAndGet();
+        intensityX?.ResetState();
+        intensityZ?.ResetState();
+
+        if (intensityX != null) IntensityX = intensityX.Get();
+        if (intensityZ != null) IntensityZ = intensityZ.Get();
+    }
+
+    public override void CleanUpGUI()
+    {
+        if (IntensityXKnob.connected()) IntensityX = 0;
+        if (IntensityZKnob.connected()) IntensityZ = 0;
     }
 
     public override bool Calculate()

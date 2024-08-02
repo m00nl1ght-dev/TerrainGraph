@@ -78,6 +78,12 @@ public class NodeValueRandom : NodeBase
         if (dev != null) Deviation = dev.Get();
     }
 
+    public override void CleanUpGUI()
+    {
+        if (AverageKnob.connected()) Average = 0;
+        if (DeviationKnob.connected()) Deviation = 0;
+    }
+
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<double>>(new Output(

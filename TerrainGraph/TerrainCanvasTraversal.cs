@@ -36,6 +36,29 @@ public class TerrainCanvasTraversal : NodeCanvasTraversal
     }
 
     /// <summary>
+    /// Fully clear calculation data from all nodes
+    /// </summary>
+    public override void ClearAll()
+    {
+        foreach (var node in nodeCanvas.nodes)
+        {
+            node.calculated = false;
+
+            foreach (var port in node.outputPorts)
+            {
+                if (port is ValueConnectionKnob knob)
+                    knob.ResetValue();
+            }
+
+            foreach (var port in node.inputKnobs)
+            {
+                if (port is ValueConnectionKnob knob)
+                    knob.ResetValue();
+            }
+        }
+    }
+
+    /// <summary>
     /// Recalculate from the specified node
     /// </summary>
     public override void OnChange(Node node)

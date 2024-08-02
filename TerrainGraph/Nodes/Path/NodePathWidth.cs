@@ -102,6 +102,11 @@ public class NodePathWidth : NodeBase
         if (widthLoss != null) WidthLoss = widthLoss.Get();
     }
 
+    public override void CleanUpGUI()
+    {
+        if (WidthLossKnob.connected()) WidthLoss = 0;
+    }
+
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(

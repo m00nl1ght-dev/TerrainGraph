@@ -68,6 +68,11 @@ public class NodePathSpeed : NodeBase
         if (speedLoss != null) SpeedLoss = speedLoss.Get();
     }
 
+    public override void CleanUpGUI()
+    {
+        if (SpeedLossKnob.connected()) SpeedLoss = 0;
+    }
+
     public override bool Calculate()
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
