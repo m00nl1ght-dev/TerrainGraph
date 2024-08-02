@@ -38,6 +38,9 @@ public class NodePathTrace : NodeBase
     [ValueConnectionKnob("Main Output", Direction.Out, GridFunctionConnection.Id)]
     public ValueConnectionKnob MainOutputKnob;
 
+    [ValueConnectionKnob("Side Output", Direction.Out, GridFunctionConnection.Id)]
+    public ValueConnectionKnob SideOutputKnob;
+
     [ValueConnectionKnob("Value Output", Direction.Out, GridFunctionConnection.Id)]
     public ValueConnectionKnob ValueOutputKnob;
 
@@ -59,6 +62,11 @@ public class NodePathTrace : NodeBase
         GUILayout.Label("Main Grid", BoxLayout);
         InputKnob.SetPosition();
         MainOutputKnob.SetPosition();
+        GUILayout.EndHorizontal();
+
+        GUILayout.BeginHorizontal(BoxStyle);
+        GUILayout.Label("Side Grid", BoxLayout);
+        SideOutputKnob.SetPosition();
         GUILayout.EndHorizontal();
 
         GUILayout.BeginHorizontal(BoxStyle);
@@ -103,6 +111,10 @@ public class NodePathTrace : NodeBase
 
         MainOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
             new Supplier.CompoundCached<PathTracer,IGridFunction<double>>(output, t => t.MainGrid, cache)
+        );
+
+        SideOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
+            new Supplier.CompoundCached<PathTracer,IGridFunction<double>>(output, t => t.SideGrid, cache)
         );
 
         ValueOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(

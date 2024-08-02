@@ -31,6 +31,7 @@ public class PathTracer
     public readonly double TraceOuterMargin;
 
     private readonly double[,] _mainGrid;
+    private readonly double[,] _sideGrid;
     private readonly double[,] _valueGrid;
     private readonly double[,] _offsetGrid;
     private readonly double[,] _distanceGrid;
@@ -41,6 +42,7 @@ public class PathTracer
     #endif
 
     public IGridFunction<double> MainGrid => BuildGridFunction(_mainGrid);
+    public IGridFunction<double> SideGrid => BuildGridFunction(_sideGrid);
     public IGridFunction<double> ValueGrid => BuildGridFunction(_valueGrid);
     public IGridFunction<double> OffsetGrid => BuildGridFunction(_offsetGrid);
     public IGridFunction<double> DistanceGrid => BuildGridFunction(_distanceGrid, TraceOuterMargin);
@@ -83,6 +85,7 @@ public class PathTracer
         GridOuterSize = new Vector2d(outerSizeX, outerSizeZ);
 
         _mainGrid = new double[outerSizeX, outerSizeZ];
+        _sideGrid = new double[outerSizeX, outerSizeZ];
         _valueGrid = new double[outerSizeX, outerSizeZ];
         _offsetGrid = new double[outerSizeX, outerSizeZ];
         _distanceGrid = new double[outerSizeX, outerSizeZ];
@@ -169,6 +172,7 @@ public class PathTracer
             for (int z = 0; z < GridOuterSize.z; z++)
             {
                 _mainGrid[x, z] = 0;
+                _sideGrid[x, z] = 0;
                 _valueGrid[x, z] = 0;
                 _offsetGrid[x, z] = 0;
                 _distanceGrid[x, z] = TraceOuterMargin;
@@ -695,6 +699,7 @@ public class PathTracer
                                     if (nowDist <= 0)
                                     {
                                         _mainGrid[x, z] = progress.Lerp(a.width, b.width);
+                                        _sideGrid[x, z] = shift;
 
                                         #if DEBUG
                                         _debugGrid[x, z] = task.segment.Id;
@@ -776,8 +781,10 @@ public class PathTracer
         }
 
         var relWidthC = relPos < 0 ? relWidthA : relWidthB;
+        var shiftC = relPos < 0 ? relPos + relWidthA / 2 : relPos - relWidthB / 2;
         var fracSmooth = distance / (MainGridSmoothLength * info.baseWidth);
         _mainGrid[x, z] = fracSmooth.LerpClamped(info.baseWidth * relWidthC, _mainGrid[x, z]);
+        _sideGrid[x, z] = fracSmooth.LerpClamped(-shiftC * info.baseWidth, _sideGrid[x, z]);
     }
 
     private ForkInfo FindNextSplit(TraceTask task, double maxDistance)
