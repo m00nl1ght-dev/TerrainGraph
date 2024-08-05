@@ -47,9 +47,9 @@ public class TraceTask
     /// </summary>
     internal readonly IEnumerable<TraceCollision> simulated;
 
-    public double WidthAt(double dist) => baseFrame.width * segment.RelWidth - dist * segment.TraceParams.WidthLoss;
-    public double DensityAt(double dist) => baseFrame.density * segment.RelDensity - dist * segment.TraceParams.DensityLoss;
-    public double SpeedAt(double dist) => baseFrame.speed * segment.RelSpeed - dist * segment.TraceParams.SpeedLoss;
+    public double WidthAt(double dist) => baseFrame.width * segment.RelWidth - dist.InRange(0, segment.Length) * segment.TraceParams.WidthLoss;
+    public double DensityAt(double dist) => baseFrame.density * segment.RelDensity - dist.InRange(0, segment.Length) * segment.TraceParams.DensityLoss;
+    public double SpeedAt(double dist) => baseFrame.speed * segment.RelSpeed - dist.InRange(0, segment.Length) * segment.TraceParams.SpeedLoss;
 
     public double TurnLockRight => baseFrame.width * 2 * segment.Siblings().Where(b => b.RelShift < segment.RelShift).Sum(b => b.RelWidth);
     public double TurnLockLeft => baseFrame.width * 2 * segment.Siblings().Where(b => b.RelShift > segment.RelShift).Sum(b => b.RelWidth);

@@ -341,7 +341,8 @@ public class PathTracer
 
             (double, double) AngleLimitFunc(Vector2d pos, double dist)
             {
-                var width = extParams.StaticAngleTenacity ? initialFrame.width : initialFrame.width - dist * extParams.WidthLoss;
+                var cdist = dist.WithMax(task.segment.Length);
+                var width = extParams.StaticAngleTenacity ? initialFrame.width : initialFrame.width - cdist * extParams.WidthLoss;
                 var limit = task.AngleLimitAt(dist, width * extParams.MaxExtentFactor(this, task, pos - GridMargin, dist));
                 if (extParams.AngleLimitAbs > 0 && limit > extParams.AngleLimitAbs) limit = extParams.AngleLimitAbs;
                 return (dist < turnLockLeft ? 0 : limit, dist < turnLockRight ? 0 : limit);
