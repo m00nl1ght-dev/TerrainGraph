@@ -19,7 +19,8 @@ public class PathTracer
     public double CollisionMinValueDiffM = 5;
     public double CollisionMinOffsetDiffM = 5;
     public double CollisionMinParentDist = 2;
-    public double MainGridSmoothLength = 1; // TODO tweak
+    public double MainGridSmoothLength = 1;
+    public double WidthPatternResolution = 1;
 
     public bool StopWhenOutOfBounds = true;
 
@@ -394,6 +395,14 @@ public class PathTracer
 
         var a = initialFrame;
 
+        var patternRes = WidthPatternResolution.WithMax(stepSize);
+        var patternSteps = (int) Math.Ceiling(stepSize / patternRes) + 1;
+
+        var extentLeftCache = new double[patternSteps];
+        var extentRightCache = new double[patternSteps];
+        var densityLeftCache = new double[patternSteps];
+        var densityRightCache = new double[patternSteps];
+
         _frameBuffer.Clear();
 
         while (a.dist < length + task.marginHead)
@@ -533,21 +542,47 @@ public class PathTracer
                 distDelta -= a.dist;
             }
 
+            var radial = Math.Abs(angleDelta) >= RadialThreshold;
+
             var b = a.Advance(
                 this, task, distDelta,
                 angleDelta, extraValue, extraOffset,
-                out var pivotPoint, out var pivotOffset,
-                Math.Abs(angleDelta) >= RadialThreshold
+                out var pivotPoint, out var pivotOffset, radial
             );
 
-            var extentLeftA = a.extentLeftMul;
-            var extentRightA = a.extentRightMul;
-            var extentLeftB = b.extentLeftMul;
-            var extentRightB = b.extentRightMul;
+            extentLeftCache[0] = a.extentLeftMul;
+            extentRightCache[0] = a.extentRightMul;
 
-            var extentMax = Math.Max(Math.Max(extentLeftA, extentRightA), Math.Max(extentLeftB, extentRightB));
+            densityLeftCache[0] = a.densityLeftMul;
+            densityRightCache[0] = a.densityRightMul;
 
-            if (extentLeftA + extentRightA < 1 && a.dist >= 0)
+            var extentMax = Math.Max(extentLeftCache[0], extentRightCache[0]);
+
+            for (int i = 1; i < patternSteps; i++)
+            {
+                var dist = a.dist + i * patternRes;
+                var progress = i * patternRes / distDelta;
+
+                extentLeftCache[i] = extentRightCache[i] = progress.Lerp(a.width, b.width) / 2;
+                densityLeftCache[i] = densityRightCache[i] = progress.Lerp(a.density, b.density);
+
+                var scalar = progress.Lerp(a.factors.scalar, b.factors.scalar);
+                var pos = distDelta <= 0 ? a.pos : a.AdvancePos(i * patternRes, angleDelta * progress, radial);
+
+                if (task.segment.TraceParams.ExtentLeft != null)
+                    extentLeftCache[i] *= task.segment.TraceParams.ExtentLeft.ValueFor(this, task, pos, dist).ScaleAround(1, scalar);
+                if (task.segment.TraceParams.ExtentRight != null)
+                    extentRightCache[i] *= task.segment.TraceParams.ExtentRight.ValueFor(this, task, pos, dist).ScaleAround(1, scalar);
+                if (task.segment.TraceParams.DensityLeft != null)
+                    densityLeftCache[i] *= task.segment.TraceParams.DensityLeft.ValueFor(this, task, pos, dist).ScaleAround(1, scalar);
+                if (task.segment.TraceParams.DensityRight != null)
+                    densityRightCache[i] *= task.segment.TraceParams.DensityRight.ValueFor(this, task, pos, dist).ScaleAround(1, scalar);
+
+                if (extentLeftCache[i] > extentMax) extentMax = extentLeftCache[i];
+                if (extentRightCache[i] > extentMax) extentMax = extentRightCache[i];
+            }
+
+            if (extentLeftCache[0] + extentRightCache[0] < 1 && a.dist >= 0)
             {
                 length = Math.Min(length, b.dist);
 
@@ -572,10 +607,10 @@ public class PathTracer
                 everFullyInBounds = true;
             }
 
-            var boundP1 = a.pos + a.perpCCW * (extentLeftA + TraceOuterMargin);
-            var boundP2 = a.pos + a.perpCW * (extentRightA + TraceOuterMargin);
-            var boundP3 = b.pos + b.perpCCW * (extentLeftB + TraceOuterMargin);
-            var boundP4 = b.pos + b.perpCW * (extentRightB + TraceOuterMargin);
+            var boundP1 = a.pos + a.perpCCW * (extentMax + TraceOuterMargin);
+            var boundP2 = a.pos + a.perpCW * (extentMax + TraceOuterMargin);
+            var boundP3 = b.pos + b.perpCCW * (extentMax + TraceOuterMargin);
+            var boundP4 = b.pos + b.perpCW * (extentMax + TraceOuterMargin);
 
             var boundMin = Vector2d.Min(Vector2d.Min(boundP1, boundP2), Vector2d.Min(boundP3, boundP4));
             var boundMax = Vector2d.Max(Vector2d.Max(boundP1, boundP2), Vector2d.Max(boundP3, boundP4));
@@ -595,144 +630,140 @@ public class PathTracer
                     var dotA = Vector2d.Dot(a.normal, pos - a.pos);
                     var dotB = Vector2d.Dot(b.normal, pos - b.pos);
 
-                    if (dotA >= 0 && dotB < 0)
+                    if (dotA < 0 || dotB >= 0) continue;
+
+                    var shift = pivotOffset != 0
+                        ? Math.Sign(-angleDelta) * ((pos - pivotPoint).Magnitude - Math.Abs(pivotOffset))
+                        : -Vector2d.PerpDot(a.normal, pos - a.pos);
+
+                    var shiftAbs = Math.Abs(shift);
+
+                    if (shiftAbs > extentMax + TraceOuterMargin) continue;
+
+                    var progress = pivotOffset != 0
+                        ? Vector2d.Angle(a.pos - pivotPoint, pos - pivotPoint) / Math.Abs(angleDelta)
+                        : dotA / distDelta;
+
+                    var patternStep = (int) Math.Floor(progress * distDelta / patternRes);
+                    var patternLerp = (progress * distDelta) % patternRes / patternRes;
+
+                    if (patternStep >= patternSteps - 1)
                     {
-                        double shift;
-                        double shiftAbs;
+                        patternStep = patternSteps - 2;
+                        patternLerp = 1d;
+                    }
 
-                        double progress = 0.5;
+                    var extent = shift < 0
+                        ? patternLerp.Lerp(extentLeftCache[patternStep], extentLeftCache[patternStep + 1])
+                        : patternLerp.Lerp(extentRightCache[patternStep], extentRightCache[patternStep + 1]);
 
-                        if (pivotOffset != 0)
+                    var nowDist = shiftAbs - extent;
+
+                    if (nowDist > TraceOuterMargin) continue;
+
+                    var preDist = _distanceGrid[x, z];
+
+                    if (nowDist < preDist)
+                    {
+                        _distanceGrid[x, z] = nowDist;
+                    }
+
+                    if (nowDist > TraceInnerMargin) continue;
+
+                    var dist = a.dist + distDelta * progress;
+
+                    var density = shift < 0
+                        ? patternLerp.Lerp(densityLeftCache[patternStep], densityLeftCache[patternStep + 1])
+                        : patternLerp.Lerp(densityRightCache[patternStep], densityRightCache[patternStep + 1]);
+
+                    var value = progress.Lerp(a.value, b.value);
+                    var offset = progress.Lerp(a.offset, b.offset) + shift * density;
+
+                    if (nowDist <= CollisionCheckMargin && dist >= 0 && dist <= length)
+                    {
+                        if (_mainGrid[x, z] > 0)
                         {
-                            var pivotVec = pos - pivotPoint;
+                            var valueDiff = Math.Abs(value - _valueGrid[x, z]);
+                            var offsetDiff = Math.Abs(offset - _offsetGrid[x, z]);
 
-                            shift = Math.Sign(-angleDelta) * (pivotVec.Magnitude - Math.Abs(pivotOffset));
-                            shiftAbs = Math.Abs(shift);
+                            var valueThr = nowDist <= 0 ? CollisionMinValueDiff : CollisionMinValueDiffM;
+                            var offsetThr = nowDist <= 0 ? CollisionMinOffsetDiff : CollisionMinOffsetDiffM;
 
-                            if (shiftAbs <= extentMax + TraceInnerMargin)
+                            var otherTask = _taskGrid[x, z];
+
+                            if (valueDiff >= valueThr || offsetDiff >= offsetThr)
                             {
-                                progress = Vector2d.Angle(a.pos - pivotPoint, pivotVec) / Math.Abs(angleDelta);
-                            }
-                        }
-                        else
-                        {
-                            shift = -Vector2d.PerpDot(a.normal, pos - a.pos);
-                            shiftAbs = Math.Abs(shift);
-
-                            progress = dotA / distDelta;
-                        }
-
-                        var extent = shift < 0 ?
-                            progress.Lerp(extentLeftA, extentLeftB) :
-                            progress.Lerp(extentRightA, extentRightB);
-
-                        var nowDist = shiftAbs - extent;
-
-                        if (nowDist <= TraceOuterMargin)
-                        {
-                            var preDist = _distanceGrid[x, z];
-
-                            if (nowDist < preDist)
-                            {
-                                _distanceGrid[x, z] = nowDist;
-                            }
-
-                            if (nowDist <= TraceInnerMargin)
-                            {
-                                var dist = a.dist + distDelta * progress;
-
-                                var value = progress.Lerp(a.value, b.value);
-                                var densityA = shift < 0 ? a.densityLeftMul : a.densityRightMul;
-                                var densityB = shift < 0 ? b.densityLeftMul : b.densityRightMul;
-                                var density = progress.Lerp(densityA, densityB);
-                                var offset = progress.Lerp(a.offset, b.offset) + shift * density;
-
-                                if (nowDist <= CollisionCheckMargin && dist >= 0 && dist <= length)
+                                if (dist >= CollisionMinParentDist || !task.segment.Parents.Contains(otherTask.segment))
                                 {
-                                    if (_mainGrid[x, z] > 0)
+                                    #if DEBUG
+                                    DebugOutput($"Collision {task.segment.Id} vs {otherTask.segment.Id} at {pos} dist {dist} with value diff {valueDiff:F2} and offset diff {offsetDiff:F2}");
+                                    DebugLine(new TraceDebugLine(this, new(x, z), 1));
+                                    #endif
+
+                                    return new TraceResult(initialFrame, a, everFullyInBounds, new TraceCollision
                                     {
-                                        var valueDiff = Math.Abs(value - _valueGrid[x, z]);
-                                        var offsetDiff = Math.Abs(offset - _offsetGrid[x, z]);
-
-                                        var valueThr = nowDist <= 0 ? CollisionMinValueDiff : CollisionMinValueDiffM;
-                                        var offsetThr = nowDist <= 0 ? CollisionMinOffsetDiff : CollisionMinOffsetDiffM;
-
-                                        var otherTask = _taskGrid[x, z];
-
-                                        if (valueDiff >= valueThr || offsetDiff >= offsetThr)
-                                        {
-                                            if (dist >= CollisionMinParentDist || !task.segment.Parents.Contains(otherTask.segment))
-                                            {
-                                                #if DEBUG
-                                                DebugOutput($"Collision {task.segment.Id} vs {otherTask.segment.Id} at {pos} dist {dist} with value diff {valueDiff:F2} and offset diff {offsetDiff:F2}");
-                                                DebugLine(new TraceDebugLine(this, new(x, z), 1));
-                                                #endif
-
-                                                return new TraceResult(initialFrame, a, everFullyInBounds, new TraceCollision
-                                                {
-                                                    taskA = task,
-                                                    taskB = otherTask,
-                                                    framesA = ExchangeFrameBuffer(),
-                                                    position = pos
-                                                });
-                                            }
-                                        }
-
-                                        #if DEBUG
-                                        DebugOutput($"Ignoring collision {task.segment.Id} vs {otherTask.segment.Id} at {pos} with value diff {valueDiff:F2} and offset diff {offsetDiff:F2}");
-                                        DebugLine(new TraceDebugLine(this, new(x, z), 4, 0, $"{dist:F2}"));
-                                        #endif
-                                    }
-
-                                    if (task.simulated != null)
-                                    {
-                                        foreach (var simulated in task.simulated)
-                                        {
-                                            if (simulated.position == pos && simulated.framesB == null)
-                                            {
-                                                simulated.framesB = ExchangeFrameBuffer(true);
-                                            }
-                                        }
-                                    }
-
-                                    _taskGrid[x, z] = task;
-
-                                    if (nowDist <= 0)
-                                    {
-                                        _mainGrid[x, z] = progress.Lerp(a.width, b.width);
-                                        _sideGrid[x, z] = shift;
-
-                                        #if DEBUG
-                                        _debugGrid[x, z] = task.segment.Id;
-                                        #endif
-
-                                        if (nextSplit.relWidths != null)
-                                        {
-                                            var splitDistance = nextSplit.distance + (length - dist);
-                                            if (splitDistance <= MainGridSmoothLength.WithMin(1) * nextSplit.baseWidth)
-                                            {
-                                                ApplySmoothBranching(x, z, shift, extent, splitDistance, nextSplit);
-                                            }
-                                        }
-
-                                        if (lastMerge.relWidths != null)
-                                        {
-                                            var mergeDistance = lastMerge.distance + dist;
-                                            if (mergeDistance <= MainGridSmoothLength.WithMin(1) * nextSplit.baseWidth)
-                                            {
-                                                ApplySmoothBranching(x, z, shift, extent, mergeDistance, lastMerge);
-                                            }
-                                        }
-                                    }
+                                        taskA = task,
+                                        taskB = otherTask,
+                                        framesA = ExchangeFrameBuffer(),
+                                        position = pos
+                                    });
                                 }
+                            }
 
-                                if (nowDist < preDist)
+                            #if DEBUG
+                            DebugOutput($"Ignoring collision {task.segment.Id} vs {otherTask.segment.Id} at {pos} with value diff {valueDiff:F2} and offset diff {offsetDiff:F2}");
+                            DebugLine(new TraceDebugLine(this, new(x, z), 4, 0, $"{dist:F2}"));
+                            #endif
+                        }
+
+                        if (task.simulated != null)
+                        {
+                            foreach (var simulated in task.simulated)
+                            {
+                                if (simulated.position == pos && simulated.framesB == null)
                                 {
-                                    _valueGrid[x, z] = value;
-                                    _offsetGrid[x, z] = offset;
+                                    simulated.framesB = ExchangeFrameBuffer(true);
                                 }
                             }
                         }
+
+                        _taskGrid[x, z] = task;
+
+                        if (nowDist <= 0)
+                        {
+                            _mainGrid[x, z] = progress.Lerp(a.width, b.width);
+                            _sideGrid[x, z] = shift;
+
+                            #if DEBUG
+                            _debugGrid[x, z] = task.segment.Id;
+                            #endif
+
+                            if (nextSplit.relWidths != null)
+                            {
+                                _mainGrid[x, z] = _mainGrid[x, z].WithMax(task.branchParent.WidthAt(0));
+
+                                var splitDistance = nextSplit.distance + (length - dist);
+                                if (splitDistance <= MainGridSmoothLength.WithMin(1) * nextSplit.baseWidth)
+                                {
+                                    ApplySmoothBranching(x, z, shift, extent, splitDistance, nextSplit);
+                                }
+                            }
+
+                            if (lastMerge.relWidths != null)
+                            {
+                                var mergeDistance = lastMerge.distance + dist;
+                                if (mergeDistance <= MainGridSmoothLength.WithMin(1) * nextSplit.baseWidth)
+                                {
+                                    ApplySmoothBranching(x, z, shift, extent, mergeDistance, lastMerge);
+                                }
+                            }
+                        }
+                    }
+
+                    if (nowDist < preDist)
+                    {
+                        _valueGrid[x, z] = value;
+                        _offsetGrid[x, z] = offset;
                     }
                 }
             }
@@ -767,7 +798,7 @@ public class PathTracer
             if (relPos < -relWidthA / 2) break;
             if (relPos > relWidthB / 2) continue;
 
-            var coneLength = info.baseWidth * (relWidthA + relWidthB); // TODO tweak
+            var coneLength = info.baseWidth * (relWidthA + relWidthB);
             if (distance <= coneLength)
             {
                 var lerp = relPos.Abs() * info.baseWidth + extent * (distance / coneLength);

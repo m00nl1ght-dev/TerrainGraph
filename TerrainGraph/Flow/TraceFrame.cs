@@ -245,6 +245,29 @@ public readonly struct TraceFrame
         );
     }
 
+    /// <summary>
+    /// Move the frame forward in its current direction, returning the resulting position.
+    /// </summary>
+    /// <param name="distDelta">Distance to move forward in the current direction</param>
+    /// <param name="angleDelta">Total angle change to be applied continuously while advancing</param>
+    /// <param name="radial">If true, the path will advance along a circle arc, otherwise linearly</param>
+    /// <returns></returns>
+    public Vector2d AdvancePos(double distDelta, double angleDelta, bool radial)
+    {
+        var newAngle = (angle + angleDelta).NormalizeDeg();
+        var newNormal = Vector2d.Direction(-newAngle);
+
+        if (radial && angleDelta != 0)
+        {
+            var pivotOffset = 180 * distDelta / (Math.PI * -angleDelta);
+            var pivotPoint = pos + perpCCW * pivotOffset;
+
+            return pivotPoint - newNormal.PerpCCW * pivotOffset;
+        }
+
+        return pos + distDelta * normal;
+    }
+
     public bool PossiblyInBounds(Vector2d minI, Vector2d maxE)
     {
         var p1 = pos + perpCW * extentRightMul;
