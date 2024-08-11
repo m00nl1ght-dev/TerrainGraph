@@ -642,6 +642,17 @@ public class Path
             ).WithMin(1);
         }
 
+        /// <summary>
+        /// Calculate the maximum expected extent multiplier at the given position, with local stability applied.
+        /// Never lower than 1 because of additional local stability that could potentially be applied later.
+        /// </summary>
+        public double MaxExtentFactorScaled(PathTracer tracer, TraceTask task, Vector2d pos, double dist)
+        {
+            var progress = task.segment.Length <= 0 ? 0 : (dist / task.segment.Length).InRange01();
+            var scalar = 1 - task.segment.LocalStabilityAt(progress);
+            return MaxExtentFactor(tracer, task, pos, dist).ScaleAround(1, scalar);
+        }
+
         public void ApplyFixedAngle(double angleDelta, bool stable)
         {
             Swerve = new FromGrid(Of(angleDelta));
