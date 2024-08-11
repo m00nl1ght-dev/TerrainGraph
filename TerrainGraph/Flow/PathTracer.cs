@@ -21,6 +21,7 @@ public class PathTracer
     public double CollisionMinParentDist = 2;
     public double MainGridSmoothLength = 1;
     public double WidthPatternResolution = 1;
+    public double TraceLengthTolerance = 0.5;
 
     public bool StopWhenOutOfBounds = true;
 
@@ -679,7 +680,7 @@ public class PathTracer
                     var value = progress.Lerp(a.value, b.value);
                     var offset = progress.Lerp(a.offset, b.offset) + shift * density;
 
-                    if (nowDist <= CollisionCheckMargin && dist >= 0 && dist <= length)
+                    if (nowDist <= CollisionCheckMargin && dist >= 0 && dist <= length + TraceLengthTolerance)
                     {
                         if (_mainGrid[x, z] > 0)
                         {
