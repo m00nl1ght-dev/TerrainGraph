@@ -84,6 +84,13 @@ public abstract class NodeBase : Node
         knob.SetPosition();
     }
 
+    protected void KnobIntField(ValueConnectionKnob knob, ref int value, string label = null)
+    {
+        var valueDouble = (double) value;
+        KnobValueField(knob, ref valueDouble, label);
+        value = (int) valueDouble;
+    }
+
     protected void ValueField(string label, ref double value)
     {
         GUILayout.BeginHorizontal(BoxStyle);

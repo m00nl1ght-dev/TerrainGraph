@@ -50,6 +50,15 @@ public class NodePathTrace : NodeBase
     [ValueConnectionKnob("Distance Output", Direction.Out, GridFunctionConnection.Id)]
     public ValueConnectionKnob DistanceOutputKnob;
 
+    [ValueConnectionKnob("Grid Margin", Direction.In, ValueFunctionConnection.Id)]
+    public ValueConnectionKnob GridMarginKnob;
+
+    [ValueConnectionKnob("Inner Margin", Direction.In, ValueFunctionConnection.Id)]
+    public ValueConnectionKnob TraceMarginInnerKnob;
+
+    [ValueConnectionKnob("Outer Margin", Direction.In, ValueFunctionConnection.Id)]
+    public ValueConnectionKnob TraceMarginOuterKnob;
+
     public int GridMargin = GridMarginDefault;
     public double TraceMarginInner = TraceMarginInnerDefault;
     public double TraceMarginOuter = TraceMarginOuterDefault;
@@ -84,9 +93,9 @@ public class NodePathTrace : NodeBase
         DistanceOutputKnob.SetPosition();
         GUILayout.EndHorizontal();
 
-        IntField("Grid Margin", ref GridMargin);
-        ValueField("Inner Margin", ref TraceMarginInner);
-        ValueField("Outer Margin", ref TraceMarginOuter);
+        KnobIntField(GridMarginKnob, ref GridMargin);
+        KnobValueField(TraceMarginInnerKnob, ref TraceMarginInner);
+        KnobValueField(TraceMarginOuterKnob, ref TraceMarginOuter);
 
         GUILayout.EndVertical();
 
@@ -99,14 +108,38 @@ public class NodePathTrace : NodeBase
         }
     }
 
+    public override void RefreshPreview()
+    {
+        var gridMargin = GetIfConnected<double>(GridMarginKnob);
+        var innerMargin = GetIfConnected<double>(TraceMarginInnerKnob);
+        var outerMargin = GetIfConnected<double>(TraceMarginOuterKnob);
+
+        gridMargin?.ResetState();
+        innerMargin?.ResetState();
+        outerMargin?.ResetState();
+
+        if (gridMargin != null) GridMargin = (int) Math.Ceiling(gridMargin.Get());
+        if (innerMargin != null) TraceMarginInner = innerMargin.Get();
+        if (outerMargin != null) TraceMarginOuter = outerMargin.Get();
+    }
+
+    public override void CleanUpGUI()
+    {
+        if (GridMarginKnob.connected()) GridMargin = 0;
+        if (TraceMarginInnerKnob.connected()) TraceMarginInner = 0;
+        if (TraceMarginOuterKnob.connected()) TraceMarginOuter = 0;
+    }
+
     public override bool Calculate()
     {
         var cache = new List<PathTracer>(5);
 
         var output = new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
-            TerrainCanvas.GridFullSize, GridMargin,
-            TraceMarginInner, TraceMarginOuter
+            SupplierOrFallback(GridMarginKnob, (double) GridMargin),
+            SupplierOrFallback(TraceMarginInnerKnob, TraceMarginInner),
+            SupplierOrFallback(TraceMarginOuterKnob, TraceMarginOuter),
+            TerrainCanvas.GridFullSize
         );
 
         MainOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
@@ -135,25 +168,30 @@ public class NodePathTrace : NodeBase
     private class Output : ISupplier<PathTracer>
     {
         private readonly ISupplier<Path> _input;
+        private readonly ISupplier<double> _gridMargin;
+        private readonly ISupplier<double> _traceMarginInner;
+        private readonly ISupplier<double> _traceMarginOuter;
         private readonly int _gridSize;
-        private readonly int _gridMargin;
-        private readonly double _traceMarginInner;
-        private readonly double _traceMarginOuter;
 
-        public Output(ISupplier<Path> input, int gridSize, int gridMargin, double traceMarginInner, double traceMarginOuter)
+        public Output(
+            ISupplier<Path> input,
+            ISupplier<double> gridMargin,
+            ISupplier<double> traceMarginInner,
+            ISupplier<double> traceMarginOuter,
+            int gridSize)
         {
             _input = input;
-            _gridSize = gridSize;
             _gridMargin = gridMargin;
             _traceMarginInner = traceMarginInner;
             _traceMarginOuter = traceMarginOuter;
+            _gridSize = gridSize;
         }
 
         public PathTracer Get()
         {
             var tracer = new PathTracer(
-                _gridSize, _gridSize, _gridMargin,
-                _traceMarginInner, _traceMarginOuter
+                _gridSize, _gridSize, (int) Math.Ceiling(_gridMargin.Get()).InRange(0, 1000),
+                _traceMarginInner.Get().InRange(0, 1000), _traceMarginOuter.Get().InRange(0, 1000)
             );
 
             var maxAttempts = 50;
@@ -206,6 +244,9 @@ public class NodePathTrace : NodeBase
         public void ResetState()
         {
             _input.ResetState();
+            _gridMargin.ResetState();
+            _traceMarginInner.ResetState();
+            _traceMarginOuter.ResetState();
         }
     }
 }
