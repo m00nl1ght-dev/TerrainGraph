@@ -300,7 +300,7 @@ public class PathTracer
 
             if (collisionList is { Count: 0 }) collisionList = null;
 
-            var marginHead = branch.IsLeaf ? TraceInnerMargin : 0;
+            var marginHead = branch.IsLeaf ? 2 * TraceInnerMargin : 0;
             var marginTail = branch.IsRoot ? TraceInnerMargin : 0;
 
             taskQueue.Enqueue(new TraceTask(
@@ -345,7 +345,7 @@ public class PathTracer
             {
                 var cdist = dist.WithMax(task.segment.Length);
                 var width = extParams.StaticAngleTenacity ? initialFrame.width : initialFrame.width - cdist * extParams.WidthLoss;
-                var limit = task.AngleLimitAt(dist, width * extParams.MaxExtentFactor(this, task, pos - GridMargin, dist));
+                var limit = task.AngleLimitAt(dist, (width * extParams.MaxExtentFactor(this, task, pos - GridMargin, dist)).WithMin(1));
                 if (extParams.AngleLimitAbs > 0 && limit > extParams.AngleLimitAbs) limit = extParams.AngleLimitAbs;
                 return (dist < turnLockLeft ? 0 : limit, dist < turnLockRight ? 0 : limit);
             }
@@ -662,6 +662,19 @@ public class PathTracer
 
                     if (nowDist > TraceOuterMargin) continue;
 
+                    var dist = a.dist + distDelta * progress;
+
+                    if (dist > length)
+                    {
+                        nowDist += dist - length;
+                        if (nowDist > TraceOuterMargin) continue;
+                    }
+                    else if (dist < 0)
+                    {
+                        nowDist -= dist;
+                        if (nowDist > TraceOuterMargin) continue;
+                    }
+
                     var preDist = _distanceGrid[x, z];
 
                     if (nowDist < preDist)
@@ -670,8 +683,6 @@ public class PathTracer
                     }
 
                     if (nowDist > TraceInnerMargin) continue;
-
-                    var dist = a.dist + distDelta * progress;
 
                     var density = shift < 0
                         ? patternLerp.Lerp(densityLeftCache[patternStep], densityLeftCache[patternStep + 1])
