@@ -345,7 +345,7 @@ public class TraceCollisionHandler
                 segment.Length = arcLength;
 
                 #if DEBUG
-                PathTracer.DebugOutput($"Inserted arc {segment.Id} with length {arcLength}");
+                PathTracer.DebugOutput($"Inserted arc {segment.Id} with length {arcLength} and angle {arcAngle}");
                 #endif
             }
 

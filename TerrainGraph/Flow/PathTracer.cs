@@ -764,7 +764,7 @@ public class PathTracer
                             if (lastMerge.relWidths != null)
                             {
                                 var mergeDistance = lastMerge.distance + dist;
-                                if (mergeDistance <= MainGridSmoothLength.WithMin(1) * nextSplit.baseWidth)
+                                if (mergeDistance <= MainGridSmoothLength.WithMin(1) * lastMerge.baseWidth)
                                 {
                                     ApplySmoothBranching(x, z, shift, extent, mergeDistance, lastMerge);
                                 }

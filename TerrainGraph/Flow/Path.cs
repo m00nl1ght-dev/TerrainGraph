@@ -655,7 +655,8 @@ public class Path
 
         public void ApplyFixedAngle(double angleDelta, bool stable)
         {
-            Swerve = new FromGrid(Of(angleDelta));
+            Swerve = new FromGrid(Of((double) Math.Sign(angleDelta)));
+            AngleLimitAbs = angleDelta.Abs();
 
             AngleTenacity = 0;
             SplitTenacity = 0;
