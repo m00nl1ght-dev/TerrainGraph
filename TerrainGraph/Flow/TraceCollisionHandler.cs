@@ -455,6 +455,7 @@ public class TraceCollisionHandler
         var merged = new Segment(endA.Path)
         {
             TraceParams = frameA.width > frameB.width ? a.TraceParams : b.TraceParams,
+            StabilityAtHead = b.StabilityAtHead,
             Length = remainingLength
         };
 
