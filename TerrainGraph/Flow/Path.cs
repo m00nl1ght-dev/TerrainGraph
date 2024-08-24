@@ -609,10 +609,11 @@ public class Path
         public double AngleTenacity;
         public double SplitTenacity;
         public double AngleLimitAbs;
-
         public double ArcRetraceFactor;
         public double ArcRetraceRange;
         public double ArcStableRange;
+        public double MergeResultTrim;
+        public double SplitTurnLock;
 
         public bool StaticAngleTenacity;
         public bool AdjustmentPriority;
@@ -690,6 +691,8 @@ public class Path
             ArcRetraceFactor.Equals(other.ArcRetraceFactor) &&
             ArcRetraceRange.Equals(other.ArcRetraceRange) &&
             ArcStableRange.Equals(other.ArcStableRange) &&
+            MergeResultTrim.Equals(other.MergeResultTrim) &&
+            SplitTurnLock.Equals(other.SplitTurnLock) &&
             StaticAngleTenacity == other.StaticAngleTenacity &&
             AdjustmentPriority == other.AdjustmentPriority &&
             Equals(Cost, other.Cost) &&
@@ -713,6 +716,8 @@ public class Path
             $"{nameof(ArcRetraceFactor)}: {ArcRetraceFactor:F2}, " +
             $"{nameof(ArcRetraceRange)}: {ArcRetraceRange:F2}, " +
             $"{nameof(ArcStableRange)}: {ArcStableRange:F2}, " +
+            $"{nameof(MergeResultTrim)}: {MergeResultTrim:F2}, " +
+            $"{nameof(SplitTurnLock)}: {SplitTurnLock:F2}, " +
             $"{nameof(StaticAngleTenacity)}: {StaticAngleTenacity}, " +
             $"{nameof(AdjustmentPriority)}: {AdjustmentPriority}, " +
             $"{nameof(Cost)}: {Cost}, " +

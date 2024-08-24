@@ -27,12 +27,20 @@ public class NodePathCollide : NodeBase
     [ValueConnectionKnob("Stable range", Direction.In, ValueFunctionConnection.Id)]
     public ValueConnectionKnob StableRangeKnob;
 
+    [ValueConnectionKnob("Trim merged", Direction.In, ValueFunctionConnection.Id)]
+    public ValueConnectionKnob MergeResultTrimKnob;
+
+    [ValueConnectionKnob("Split turn lock", Direction.In, ValueFunctionConnection.Id)]
+    public ValueConnectionKnob SplitTurnLockKnob;
+
     [ValueConnectionKnob("Output", Direction.Out, PathFunctionConnection.Id)]
     public ValueConnectionKnob OutputKnob;
 
     public double ArcRange;
     public double ArcIntensity;
     public double StableRange;
+    public double MergeResultTrim;
+    public double SplitTurnLock;
 
     public override void NodeGUI()
     {
@@ -48,6 +56,8 @@ public class NodePathCollide : NodeBase
         KnobValueField(ArcRangeKnob, ref ArcRange);
         KnobValueField(ArcIntensityKnob, ref ArcIntensity);
         KnobValueField(StableRangeKnob, ref StableRange);
+        KnobValueField(MergeResultTrimKnob, ref MergeResultTrim);
+        KnobValueField(SplitTurnLockKnob, ref SplitTurnLock);
 
         GUILayout.EndVertical();
 
@@ -60,14 +70,20 @@ public class NodePathCollide : NodeBase
         var arcRange = GetIfConnected<double>(ArcRangeKnob);
         var arcIntensity = GetIfConnected<double>(ArcIntensityKnob);
         var stableRange = GetIfConnected<double>(StableRangeKnob);
+        var mergeResultTrim = GetIfConnected<double>(MergeResultTrimKnob);
+        var splitTurnLock = GetIfConnected<double>(SplitTurnLockKnob);
 
         arcRange?.ResetState();
         arcIntensity?.ResetState();
         stableRange?.ResetState();
+        mergeResultTrim?.ResetState();
+        splitTurnLock?.ResetState();
 
         if (arcRange != null) ArcRange = arcRange.Get();
         if (arcIntensity != null) ArcIntensity = arcIntensity.Get();
         if (stableRange != null) StableRange = stableRange.Get();
+        if (mergeResultTrim != null) MergeResultTrim = mergeResultTrim.Get();
+        if (splitTurnLock != null) SplitTurnLock = splitTurnLock.Get();
     }
 
     public override void CleanUpGUI()
@@ -75,6 +91,8 @@ public class NodePathCollide : NodeBase
         if (ArcRangeKnob.connected()) ArcRange = 0;
         if (ArcIntensityKnob.connected()) ArcIntensity = 0;
         if (StableRangeKnob.connected()) StableRange = 0;
+        if (MergeResultTrimKnob.connected()) MergeResultTrim = 0;
+        if (SplitTurnLockKnob.connected()) SplitTurnLock = 0;
     }
 
     public override bool Calculate()
@@ -83,7 +101,9 @@ public class NodePathCollide : NodeBase
             SupplierOrFallback(InputKnob, Path.Empty),
             SupplierOrFallback(ArcRangeKnob, ArcRange),
             SupplierOrFallback(ArcIntensityKnob, ArcIntensity),
-            SupplierOrFallback(StableRangeKnob, StableRange)
+            SupplierOrFallback(StableRangeKnob, StableRange),
+            SupplierOrFallback(MergeResultTrimKnob, MergeResultTrim),
+            SupplierOrFallback(SplitTurnLockKnob, SplitTurnLock)
         ));
         return true;
     }
@@ -94,17 +114,23 @@ public class NodePathCollide : NodeBase
         private readonly ISupplier<double> _arcRange;
         private readonly ISupplier<double> _arcIntensity;
         private readonly ISupplier<double> _stableRange;
+        private readonly ISupplier<double> _mergeResultTrim;
+        private readonly ISupplier<double> _splitTurnLock;
 
         public Output(
             ISupplier<Path> input,
             ISupplier<double> arcRange,
             ISupplier<double> arcIntensity,
-            ISupplier<double> stableRange)
+            ISupplier<double> stableRange,
+            ISupplier<double> mergeResultTrim,
+            ISupplier<double> splitTurnLock)
         {
             _input = input;
             _arcRange = arcRange;
             _arcIntensity = arcIntensity;
             _stableRange = stableRange;
+            _mergeResultTrim = mergeResultTrim;
+            _splitTurnLock = splitTurnLock;
         }
 
         public Path Get()
@@ -118,6 +144,8 @@ public class NodePathCollide : NodeBase
                 extParams.ArcRetraceRange = _arcRange.Get();
                 extParams.ArcRetraceFactor = _arcIntensity.Get();
                 extParams.ArcStableRange = _stableRange.Get();
+                extParams.MergeResultTrim = _mergeResultTrim.Get();
+                extParams.SplitTurnLock = _splitTurnLock.Get();
 
                 segment.ExtendWithParams(extParams);
             }
@@ -131,6 +159,8 @@ public class NodePathCollide : NodeBase
             _arcRange.ResetState();
             _arcIntensity.ResetState();
             _stableRange.ResetState();
+            _mergeResultTrim.ResetState();
+            _splitTurnLock.ResetState();
         }
     }
 }

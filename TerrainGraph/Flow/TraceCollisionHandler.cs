@@ -442,6 +442,16 @@ public class TraceCollisionHandler
             if (endB.Length > 0) endB.TraceParams.DensityLoss = (frameB.density - targetDensity) / endB.Length;
         }
 
+        var resultTrimA = a.TraceParams.MergeResultTrim;
+        var resultTrimB = b.TraceParams.MergeResultTrim;
+
+        if (resultTrimA < 0 || resultTrimB < 0) remainingLength = 0;
+        else
+        {
+            if (resultTrimA > 0 && remainingLength > resultTrimA) remainingLength = resultTrimA;
+            if (resultTrimB > 0 && remainingLength > resultTrimB) remainingLength = resultTrimB;
+        }
+
         var merged = new Segment(endA.Path)
         {
             TraceParams = frameA.width > frameB.width ? a.TraceParams : b.TraceParams,
