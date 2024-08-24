@@ -4,6 +4,7 @@ using System.Linq;
 using NodeEditorFramework;
 using NodeEditorFramework.Utilities;
 using TerrainGraph.Flow;
+using TerrainGraph.Util;
 using UnityEngine;
 
 namespace TerrainGraph;
@@ -166,92 +167,107 @@ public class NodePathSplit : NodeBase
             speeds[i] = SupplierOrFallback(SpeedKnobs[i], Speeds[i]);
         }
 
+        var cache = new List<Path[]>(5);
+
+        var output = new Output(input, widths, speeds);
+
         for (int i = 0; i < OutputKnobs.Count; i++)
         {
-            OutputKnobs[i].SetValue<ISupplier<Path>>(new Output(
-                input, widths, speeds, i
-            ));
+            var index = i;
+            OutputKnobs[i].SetValue<ISupplier<Path>>(new Supplier.CompoundCached<Path[],Path>(output, t => t[index], cache));
         }
 
         return true;
     }
 
     [HotSwappable]
-    private class Output : ISupplier<Path>
+    private class Output : ISupplier<Path[]>
     {
         private readonly ISupplier<Path> _input;
         private readonly ISupplier<double>[] _widths;
         private readonly ISupplier<double>[] _speeds;
-        private readonly int _index;
 
         public Output(
             ISupplier<Path> input,
             ISupplier<double>[] widths,
-            ISupplier<double>[] speeds,
-            int index)
+            ISupplier<double>[] speeds)
         {
             _input = input;
             _widths = widths;
             _speeds = speeds;
-            _index = index;
         }
 
-        public Path Get()
+        public Path[] Get()
         {
             var branchCount = _widths.Length;
 
-            var path = new Path(_input.ResetAndGet());
+            var input = _input.Get();
+            var paths = new Path[branchCount];
+
+            for (int i = 0; i < branchCount; i++) paths[i] = new Path(input);
 
             var widths = new double[branchCount];
             var speeds = new double[branchCount];
 
-            for (int i = 0; i < branchCount; i++)
+            var leafIds = input.Leaves.Select(s => s.Id);
+
+            foreach (var leafId in leafIds)
             {
-                widths[i] = _widths[i].Get();
-                speeds[i] = _speeds[i].Get();
+                for (int i = 0; i < branchCount; i++)
+                {
+                    widths[i] = _widths[i].Get();
+                    speeds[i] = _speeds[i].Get();
+                }
+
+                for (int i = 0; i < branchCount; i++)
+                {
+                    if (widths[i] < 0)
+                    {
+                        widths[i] = 1 - widths.Where(w => w > 0).Sum().WithMax(1);
+                    }
+                }
+
+                var rwEnds = widths[0] + widths[branchCount - 1];
+                var rwMid = widths.Sum() - rwEnds;
+
+                var rwPos = 0d;
+
+                for (var i = 0; i < branchCount; i++)
+                {
+                    var width = widths[i];
+
+                    double mdPos;
+
+                    if (i == 0)
+                    {
+                        mdPos = rwPos + width / 2;
+                        rwPos += width;
+                    }
+                    else if (i == branchCount - 1)
+                    {
+                        mdPos = 1 - width / 2;
+                    }
+                    else
+                    {
+                        var rw = width * (1 - rwEnds) / rwMid;
+                        mdPos = rwPos + rw / 2;
+                        rwPos += rw;
+                    }
+
+                    var branch = paths[i].Segments[leafId].AttachNew();
+
+                    branch.RelWidth = widths[i];
+                    branch.RelSpeed = speeds[i];
+                    branch.RelShift = mdPos - 0.5;
+                }
             }
 
-            var rwEnds = widths[0] + widths[branchCount - 1];
-            var rwMid = widths.Sum() - rwEnds;
-
-            var rwPos = 0d;
-            var mdPos = 0d;
-
-            for (var i = 0; i <= _index; i++)
-            {
-                var width = widths[i];
-
-                if (i == 0)
-                {
-                    mdPos = rwPos + width / 2;
-                    rwPos += width;
-                }
-                else if (i == branchCount - 1)
-                {
-                    mdPos = 1 - width / 2;
-                }
-                else
-                {
-                    var rw = width * (1 - rwEnds) / rwMid;
-                    mdPos = rwPos + rw / 2;
-                    rwPos += rw;
-                }
-            }
-
-            foreach (var segment in path.Leaves.ToList())
-            {
-                var branch = segment.AttachNew();
-
-                branch.RelWidth = widths[_index];
-                branch.RelSpeed = speeds[_index];
-                branch.RelShift = mdPos - 0.5;
-            }
-
-            return path;
+            return paths;
         }
 
         public void ResetState()
         {
+            _input.ResetState();
             foreach (var supplier in _widths) supplier.ResetState();
             foreach (var supplier in _speeds) supplier.ResetState();
         }
