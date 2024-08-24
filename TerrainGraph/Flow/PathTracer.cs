@@ -676,10 +676,12 @@ public class PathTracer
                     }
 
                     var preDist = _distanceGrid[x, z];
+                    var preTask = _taskGrid[x, z];
 
                     if (nowDist < preDist)
                     {
                         _distanceGrid[x, z] = nowDist;
+                        _taskGrid[x, z] = task;
                     }
 
                     if (nowDist > TraceInnerMargin) continue;
@@ -701,21 +703,19 @@ public class PathTracer
                             var valueThr = nowDist <= 0 ? CollisionMinValueDiff : CollisionMinValueDiffM;
                             var offsetThr = nowDist <= 0 ? CollisionMinOffsetDiff : CollisionMinOffsetDiffM;
 
-                            var otherTask = _taskGrid[x, z];
-
                             if (valueDiff >= valueThr || offsetDiff >= offsetThr)
                             {
-                                if (dist >= CollisionMinParentDist || !task.segment.Parents.Contains(otherTask.segment))
+                                if (dist >= CollisionMinParentDist || !task.segment.Parents.Contains(preTask.segment))
                                 {
                                     #if DEBUG
-                                    DebugOutput($"Collision {task.segment.Id} vs {otherTask.segment.Id} at {pos} dist {dist} with value diff {valueDiff:F2} and offset diff {offsetDiff:F2}");
+                                    DebugOutput($"Collision {task.segment.Id} vs {preTask.segment.Id} at {pos} dist {dist} with value diff {valueDiff:F2} and offset diff {offsetDiff:F2}");
                                     DebugLine(new TraceDebugLine(this, new(x, z), 1));
                                     #endif
 
                                     return new TraceResult(initialFrame, a, everFullyInBounds, new TraceCollision
                                     {
                                         taskA = task,
-                                        taskB = otherTask,
+                                        taskB = preTask,
                                         framesA = ExchangeFrameBuffer(),
                                         position = pos
                                     });
@@ -723,7 +723,7 @@ public class PathTracer
                             }
 
                             #if DEBUG
-                            DebugOutput($"Ignoring collision {task.segment.Id} vs {otherTask.segment.Id} at {pos} with value diff {valueDiff:F2} and offset diff {offsetDiff:F2}");
+                            DebugOutput($"Ignoring collision {task.segment.Id} vs {preTask.segment.Id} at {pos} with value diff {valueDiff:F2} and offset diff {offsetDiff:F2}");
                             DebugLine(new TraceDebugLine(this, new(x, z), 4, 0, $"{dist:F2}"));
                             #endif
                         }
@@ -738,8 +738,6 @@ public class PathTracer
                                 }
                             }
                         }
-
-                        _taskGrid[x, z] = task;
 
                         if (nowDist <= 0)
                         {

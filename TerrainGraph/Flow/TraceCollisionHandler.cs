@@ -186,8 +186,8 @@ public class TraceCollisionHandler
         var b = c.taskB.segment;
 
         if (c.cyclic || c.hasMergeA || c.hasMergeB) return false;
-        if (a.TraceParams.PreventPathMerge || b.TraceParams.PreventPathMerge) return false;
-
+        if (a.AnyParentsMatch(s => s.TraceParams.ResultUnstable, true)) return false;
+        if (b.AnyParentsMatch(s => s.TraceParams.ResultUnstable, true)) return false;
         if (a.TraceParams.AdjustmentPriority != b.TraceParams.AdjustmentPriority) return false;
 
         var dot = Vector2d.Dot(c.frameA.normal, c.frameB.normal);

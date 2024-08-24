@@ -91,9 +91,8 @@ public class Path
                         {
                             ownBranch = new Segment(this);
                             ownBranch.CopyFrom(otherBranch);
+                            ownSegment.Attach(ownBranch);
                         }
-
-                        ownSegment.Attach(ownBranch);
 
                         segIdMap[otherBranch.Id] = ownBranch;
                         _ts_queue.Enqueue(otherBranch);
@@ -617,7 +616,7 @@ public class Path
 
         public bool StaticAngleTenacity;
         public bool AdjustmentPriority;
-        public bool PreventPathMerge;
+        public bool ResultUnstable;
 
         public Vector2d? Target;
 
@@ -662,6 +661,7 @@ public class Path
             AngleTenacity = 0;
             SplitTenacity = 0;
 
+            ResultUnstable = false;
             DiversionPoints = null;
             Cost = null;
             Target = null;
