@@ -188,7 +188,7 @@ public class NodePathSwerve : NodeBase
             _patternScaling = patternScaling;
         }
 
-        public override double ValueFor(PathTracer tracer, TraceTask task, Vector2d pos, double dist)
+        public override double ValueFor(PathTracer tracer, TraceTask task, Vector2d pos, double dist, double stability)
         {
             var value = 1d;
 
@@ -205,7 +205,7 @@ public class NodePathSwerve : NodeBase
                 value *= _byWidth.ValueAt(task.WidthAt(dist));
 
             if (_byCost != null)
-                value *= _byCost.ValueAt(task.segment.TraceParams.Cost?.ValueFor(tracer, task, pos, dist) ?? 0);
+                value *= _byCost.ValueAt(task.segment.TraceParams.Cost?.ValueFor(tracer, task, pos, dist, stability) ?? 0);
 
             return value;
         }

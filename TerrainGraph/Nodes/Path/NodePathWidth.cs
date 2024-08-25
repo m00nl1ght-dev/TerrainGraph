@@ -192,7 +192,7 @@ public class NodePathWidth : NodeBase
             _leftSide = leftSide;
         }
 
-        public override double ValueFor(PathTracer tracer, TraceTask task, Vector2d pos, double dist)
+        public override double ValueFor(PathTracer tracer, TraceTask task, Vector2d pos, double dist, double stability)
         {
             var value = 1d;
 
@@ -211,7 +211,7 @@ public class NodePathWidth : NodeBase
             if (_byWidth != null)
                 value = value.ScaleAround(1, _byWidth.ValueAt(task.WidthAt(dist)));
 
-            return value;
+            return value.ScaleAround(1, 1 - stability);
         }
 
         public override bool Equals(object obj)

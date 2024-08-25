@@ -53,34 +53,14 @@ public readonly struct TraceFrame
     public readonly double dist;
 
     /// <summary>
-    /// Multipliers based on the trace parameters at the current position.
+    /// Local multiplier for the extent to the left at the current position.
     /// </summary>
-    public readonly TraceFactors factors;
+    public readonly double emLeft = 1;
 
     /// <summary>
-    /// The path`s left extent at the current position, with local multiplier applied.
+    /// Local multiplier for the extent to the right at the current position.
     /// </summary>
-    public double extentLeftMul => width / 2 * factors.extentLeft.ScaleAround(1, factors.scalar);
-
-    /// <summary>
-    /// The path`s right extent at the current position, with local multiplier applied.
-    /// </summary>
-    public double extentRightMul => width / 2 * factors.extentRight.ScaleAround(1, factors.scalar);
-
-    /// <summary>
-    /// The rate of value change at the current position, with local multiplier applied.
-    /// </summary>
-    public double speedMul => speed * factors.speed.ScaleAround(1, factors.scalar);
-
-    /// <summary>
-    /// The left offset density at the current position, with local multiplier applied.
-    /// </summary>
-    public double densityLeftMul => density * factors.densityLeft.ScaleAround(1, factors.scalar);
-
-    /// <summary>
-    /// The right offset density at the current position, with local multiplier applied.
-    /// </summary>
-    public double densityRightMul => density * factors.densityRight.ScaleAround(1, factors.scalar);
+    public readonly double emRight = 1;
 
     /// <summary>
     /// The unit vector perpendicular clockwise to the current direction.
@@ -102,7 +82,6 @@ public readonly struct TraceFrame
         this.density = 1;
         this.pos = pos;
         this.normal = new Vector2d(1, 0);
-        this.factors = new TraceFactors();
     }
 
     /// <summary>
@@ -116,18 +95,16 @@ public readonly struct TraceFrame
         var b = task.baseFrame;
         var s = task.segment;
 
-        var shiftExtent = s.RelShift > 0 ? b.extentLeftMul : b.extentRightMul;
-        var shiftDensity = s.RelShift > 0 ? b.densityLeftMul : b.densityRightMul;
-
         this.angle = (b.angle + s.RelAngle).NormalizeDeg();
         this.width = task.WidthAt(distOffset);
         this.density = task.DensityAt(distOffset);
         this.speed = task.SpeedAt(distOffset);
         this.value = b.value + s.RelValue + distOffset * (distOffset < 0 ? speed : b.speed);
-        this.offset = b.offset + s.RelOffset - s.RelShift * shiftExtent * 2 * shiftDensity;
+        this.offset = b.offset + s.RelOffset - s.RelShift * b.width * b.density;
         this.normal = Vector2d.Direction(-angle);
-        this.pos = b.pos + s.RelPosition + s.RelShift * b.perpCCW * shiftExtent * 2 + distOffset * normal;
-        this.factors = new TraceFactors(tracer, task, pos - tracer.GridMargin, distOffset);
+        this.pos = b.pos + s.RelPosition + s.RelShift * b.perpCCW * b.width + distOffset * normal;
+        this.emLeft = task.segment.TraceParams.ExtentLeft?.ValueFor(tracer, task, pos, distOffset, 0) ?? 1;
+        this.emRight = task.segment.TraceParams.ExtentRight?.ValueFor(tracer, task, pos, distOffset, 0) ?? 1;
         this.dist = distOffset;
     }
 
@@ -172,14 +149,13 @@ public readonly struct TraceFrame
         this.pos += this.normal * minDot;
 
         this.angle = -Vector2d.SignedAngle(Vector2d.AxisX, this.normal);
-        this.factors = new TraceFactors();
     }
 
     private TraceFrame(
         Vector2d pos, Vector2d normal,
         double angle, double width, double speed,
         double density, double value, double offset,
-        double dist, TraceFactors factors)
+        double dist, double emLeft, double emRight)
     {
         this.pos = pos;
         this.normal = normal;
@@ -190,7 +166,8 @@ public readonly struct TraceFrame
         this.value = value;
         this.offset = offset;
         this.dist = dist;
-        this.factors = factors;
+        this.emLeft = emLeft;
+        this.emRight = emRight;
     }
 
     /// <summary>
@@ -234,14 +211,17 @@ public readonly struct TraceFrame
         var newValue = value + extraValue;
         var newOffset = offset + extraOffset;
 
-        newValue += distDelta * (dist >= 0 ? speedMul : speed);
+        var mLeft = task.segment.TraceParams.ExtentLeft?.ValueFor(tracer, task, newPos, newDist, 0) ?? 1;
+        var mRight = task.segment.TraceParams.ExtentRight?.ValueFor(tracer, task, newPos, newDist, 0) ?? 1;
+        var mSpeed = task.segment.TraceParams.Speed?.ValueFor(tracer, task, newPos, newDist, 0) ?? 1;
+
+        newValue += distDelta * (dist >= 0 ? speed * mSpeed : speed);
 
         return new TraceFrame(newPos, newNormal, newAngle,
             width - distDelta * task.segment.TraceParams.WidthLoss,
             speed - distDelta * task.segment.TraceParams.SpeedLoss,
             density - distDelta * task.segment.TraceParams.DensityLoss,
-            newValue, newOffset, newDist,
-            new TraceFactors(tracer, task, newPos - tracer.GridMargin, newDist)
+            newValue, newOffset, newDist, mLeft, mRight
         );
     }
 
@@ -270,8 +250,8 @@ public readonly struct TraceFrame
 
     public bool PossiblyInBounds(Vector2d minI, Vector2d maxE)
     {
-        var p1 = pos + perpCW * extentRightMul;
-        var p2 = pos + perpCCW * extentLeftMul;
+        var p1 = pos + perpCW * width / 2 * emRight;
+        var p2 = pos + perpCCW * width / 2 * emLeft;
 
         if (p1.x < minI.x && p2.x < minI.x) return false;
         if (p1.z < minI.z && p2.z < minI.z) return false;
@@ -283,8 +263,8 @@ public readonly struct TraceFrame
 
     public bool PossiblyOutOfBounds(Vector2d minI, Vector2d maxE)
     {
-        var p1 = pos + perpCW * extentRightMul;
-        var p2 = pos + perpCCW * extentLeftMul;
+        var p1 = pos + perpCW * width / 2 * emRight;
+        var p2 = pos + perpCCW * width / 2 * emLeft;
 
         return !p1.InBounds(minI, maxE) || !p2.InBounds(minI, maxE);
     }
@@ -298,6 +278,7 @@ public readonly struct TraceFrame
         $"{nameof(value)}: {value:F2}, " +
         $"{nameof(offset)}: {offset:F2}, " +
         $"{nameof(density)}: {density:F2}, " +
-        $"{nameof(dist)}: {dist:F2}, " +
-        $"{nameof(factors)}: [{factors}]";
+        $"{nameof(emLeft)}: {emLeft:F2}, " +
+        $"{nameof(emRight)}: {emRight:F2}, " +
+        $"{nameof(dist)}: {dist:F2}";
 }

@@ -116,8 +116,6 @@ public class PathTracer
     /// <returns>True if an attempt was successful, otherwise false</returns>
     public bool Trace(Path path, int maxAttempts = 50)
     {
-        Preprocess(path);
-
         _totalFramesCalculated = 0;
 
         #if DEBUG
@@ -183,39 +181,6 @@ public class PathTracer
                 #if DEBUG
                 _debugGrid[x, z] = 0;
                 #endif
-            }
-        }
-    }
-
-    /// <summary>
-    /// Adjust stability values within the given path for smoother splitting and merging.
-    /// </summary>
-    private void Preprocess(Path path)
-    {
-        foreach (var segment in path.Segments.ToList())
-        {
-            if (segment.BranchCount > 1)
-            {
-                foreach (var branch in segment.Branches)
-                {
-                    var rangeBranch = branch.TraceParams.ArcStableRange;
-                    branch.ApplyLocalStabilityAtTail(rangeBranch / 2, rangeBranch / 2);
-                }
-
-                var rangeMain = segment.TraceParams.ArcStableRange;
-                segment.ApplyLocalStabilityAtHead(0, rangeMain);
-            }
-
-            if (segment.ParentCount > 1)
-            {
-                foreach (var parent in segment.Parents)
-                {
-                    var rangeParent = parent.TraceParams.ArcStableRange;
-                    parent.ApplyLocalStabilityAtHead(rangeParent / 2, rangeParent / 2);
-                }
-
-                var rangeMain = segment.TraceParams.ArcStableRange;
-                segment.ApplyLocalStabilityAtTail(0, rangeMain / 2);
             }
         }
     }
@@ -319,13 +284,39 @@ public class PathTracer
         var extParams = task.segment.TraceParams;
         var turnLockLeft = task.TurnLockLeft;
         var turnLockRight = task.TurnLockRight;
-
-        var stepSize = task.segment.TraceParams.StepSize.WithMin(1);
+        var stepSize = extParams.StepSize.WithMin(1);
 
         var initialFrame = new TraceFrame(this, task, -task.marginTail);
 
-        var nextSplit = FindNextSplit(task, MainGridSmoothLength.WithMin(1) * task.WidthAt(length));
-        var lastMerge = FindLastMerge(task, MainGridSmoothLength.WithMin(1) * task.WidthAt(0));
+        var nextFork = FindNextFork(task, Math.Max(extParams.ArcStableRange, MainGridSmoothLength.WithMin(1) * task.WidthAt(length)));
+        var lastFork = FindLastFork(task, Math.Max(extParams.ArcStableRange, MainGridSmoothLength.WithMin(1) * task.WidthAt(0)));
+
+        double StabilityAtDist(double dist)
+        {
+            var fromLast = 0d;
+            var fromNext = 0d;
+
+            var range = extParams.ArcStableRange;
+            var toEnd = task.segment.Length - dist;
+
+            if (lastFork.type != ForkInfo.Type.None && dist < range)
+            {
+                if (lastFork.type == ForkInfo.Type.Split)
+                    fromLast = dist <= range / 2 ? 1 : 1 - (2 * dist - range) / range;
+                else if (dist < range / 2)
+                    fromLast = dist <= 0 ? 1 : 1 - dist / (range / 2);
+            }
+
+            if (nextFork.type != ForkInfo.Type.None && toEnd < range)
+            {
+                if (nextFork.type == ForkInfo.Type.Merge)
+                    fromNext = toEnd <= range / 2 ? 1 : 1 - (2 * toEnd - range) / range;
+                else if (toEnd < range / 2)
+                    fromNext = toEnd <= 0 ? 1 : 1 - toEnd / (range / 2);
+            }
+
+            return Math.Max(fromLast, fromNext);
+        }
 
         #if DEBUG
         DebugOutput($"Segment {task.segment.Id} with length {length:F2} started with initial frame [{initialFrame}] and params {task.segment.TraceParams}");
@@ -346,7 +337,18 @@ public class PathTracer
                 var cdist = dist.WithMax(task.segment.Length);
                 var width = extParams.StaticAngleTenacity ? initialFrame.width : initialFrame.width - cdist * extParams.WidthLoss;
                 var limit = task.AngleLimitAt(dist, (width * extParams.MaxExtentFactor(this, task, pos - GridMargin, dist)).WithMin(1));
-                if (extParams.AngleLimitAbs > 0 && limit > extParams.AngleLimitAbs) limit = extParams.AngleLimitAbs;
+
+                if (extParams.AngleLimitAbs > 0 && limit > extParams.AngleLimitAbs)
+                    limit = extParams.AngleLimitAbs;
+
+                if (dist <= 0)
+                {
+                    if (task.segment.InitialAngleDeltaMin < 0)
+                        return (limit, task.segment.InitialAngleDeltaMin.WithMin(-limit));
+                    if (task.segment.InitialAngleDeltaMin > 0)
+                        return (-task.segment.InitialAngleDeltaMin.WithMax(limit), limit);
+                }
+
                 return (dist < turnLockLeft ? 0 : limit, dist < turnLockRight ? 0 : limit);
             }
 
@@ -369,12 +371,12 @@ public class PathTracer
 
             if (extParams.Cost != null)
             {
-                pathFinder.LocalPathCost = (pos, dist) => extParams.Cost.ValueFor(this, task, pos - GridMargin, dist);
+                pathFinder.LocalPathCost = (pos, dist) => extParams.Cost.ValueFor(this, task, pos - GridMargin, dist, StabilityAtDist(dist));
             }
 
             if (extParams.Swerve != null)
             {
-                pathFinder.DirectionBias = (pos, dist) => extParams.Swerve.ValueFor(this, task, pos - GridMargin, dist);
+                pathFinder.DirectionBias = (pos, dist) => extParams.Swerve.ValueFor(this, task, pos - GridMargin, dist, StabilityAtDist(dist));
             }
 
             for (int i = 0; i <= 3; i++)
@@ -455,7 +457,7 @@ public class PathTracer
                     if (extParams.Cost != null)
                     {
                         followVec = _followGridKernel.CalculateFlowVecAt(
-                            new(1, 0), new(0, 1), a.pos, pos => extParams.Cost.ValueFor(this, task, pos - GridMargin, newDist)
+                            new(1, 0), new(0, 1), a.pos, pos => extParams.Cost.ValueFor(this, task, pos - GridMargin, newDist, StabilityAtDist(newDist))
                         );
                     }
 
@@ -485,11 +487,19 @@ public class PathTracer
 
                     if (extParams.Swerve != null)
                     {
-                        angleDelta += angleLimit * extParams.Swerve.ValueFor(this, task, a.pos - GridMargin, a.dist);
+                        angleDelta += angleLimit * extParams.Swerve.ValueFor(this, task, a.pos - GridMargin, a.dist, StabilityAtDist(a.dist));
                     }
 
                     if (a.dist < turnLockRight && angleDelta > 0) angleDelta = 0;
                     if (a.dist < turnLockLeft && angleDelta < 0) angleDelta = 0;
+
+                    if (a.dist <= 0)
+                    {
+                        if (task.segment.InitialAngleDeltaMin < 0)
+                            angleDelta = angleDelta.WithMax(task.segment.InitialAngleDeltaMin);
+                        else if (task.segment.InitialAngleDeltaMin > 0)
+                            angleDelta = angleDelta.WithMin(task.segment.InitialAngleDeltaMin);
+                    }
 
                     angleDelta = (distDelta * angleDelta.InRange(-angleLimit, angleLimit)).NormalizeDeg();
                 }
@@ -551,33 +561,27 @@ public class PathTracer
                 out var pivotPoint, out var pivotOffset, radial
             );
 
-            extentLeftCache[0] = a.extentLeftMul;
-            extentRightCache[0] = a.extentRightMul;
+            var extentMax = 0d;
 
-            densityLeftCache[0] = a.densityLeftMul;
-            densityRightCache[0] = a.densityRightMul;
-
-            var extentMax = Math.Max(extentLeftCache[0], extentRightCache[0]);
-
-            for (int i = 1; i < patternSteps; i++)
+            for (int i = 0; i < patternSteps; i++)
             {
                 var dist = a.dist + i * patternRes;
                 var progress = i * patternRes / distDelta;
+                var stability = StabilityAtDist(dist);
 
                 extentLeftCache[i] = extentRightCache[i] = progress.Lerp(a.width, b.width) / 2;
                 densityLeftCache[i] = densityRightCache[i] = progress.Lerp(a.density, b.density);
 
-                var scalar = progress.Lerp(a.factors.scalar, b.factors.scalar);
-                var pos = distDelta <= 0 ? a.pos : a.AdvancePos(i * patternRes, angleDelta * progress, radial);
+                var pos = i == 0 || distDelta <= 0 ? a.pos : a.AdvancePos(i * patternRes, angleDelta * progress, radial);
 
-                if (task.segment.TraceParams.ExtentLeft != null)
-                    extentLeftCache[i] *= task.segment.TraceParams.ExtentLeft.ValueFor(this, task, pos, dist).ScaleAround(1, scalar);
-                if (task.segment.TraceParams.ExtentRight != null)
-                    extentRightCache[i] *= task.segment.TraceParams.ExtentRight.ValueFor(this, task, pos, dist).ScaleAround(1, scalar);
-                if (task.segment.TraceParams.DensityLeft != null)
-                    densityLeftCache[i] *= task.segment.TraceParams.DensityLeft.ValueFor(this, task, pos, dist).ScaleAround(1, scalar);
-                if (task.segment.TraceParams.DensityRight != null)
-                    densityRightCache[i] *= task.segment.TraceParams.DensityRight.ValueFor(this, task, pos, dist).ScaleAround(1, scalar);
+                if (extParams.ExtentLeft != null)
+                    extentLeftCache[i] *= extParams.ExtentLeft.ValueFor(this, task, pos, dist, stability);
+                if (extParams.ExtentRight != null)
+                    extentRightCache[i] *= extParams.ExtentRight.ValueFor(this, task, pos, dist, stability);
+                if (extParams.DensityLeft != null)
+                    densityLeftCache[i] *= extParams.DensityLeft.ValueFor(this, task, pos, dist, stability);
+                if (extParams.DensityRight != null)
+                    densityRightCache[i] *= extParams.DensityRight.ValueFor(this, task, pos, dist, stability);
 
                 if (extentLeftCache[i] > extentMax) extentMax = extentLeftCache[i];
                 if (extentRightCache[i] > extentMax) extentMax = extentRightCache[i];
@@ -745,26 +749,26 @@ public class PathTracer
                             _sideGrid[x, z] = shift;
 
                             #if DEBUG
-                            _debugGrid[x, z] = task.segment.Id;
+                            _debugGrid[x, z] = StabilityAtDist(dist);
                             #endif
 
-                            if (nextSplit.relWidths != null)
+                            if (nextFork.type == ForkInfo.Type.Split)
                             {
-                                _mainGrid[x, z] = _mainGrid[x, z].WithMax(task.branchParent.WidthAt(0));
+                                _mainGrid[x, z] = _mainGrid[x, z].WithMax(task.WidthAt(0));
 
-                                var splitDistance = nextSplit.distance + (length - dist);
-                                if (splitDistance <= MainGridSmoothLength.WithMin(1) * nextSplit.baseWidth)
+                                var splitDistance = nextFork.distance + (length - dist);
+                                if (splitDistance <= MainGridSmoothLength.WithMin(1) * nextFork.baseWidth)
                                 {
-                                    ApplySmoothBranching(x, z, shift, extent, splitDistance, nextSplit);
+                                    ApplySmoothBranching(x, z, shift, extent, splitDistance, nextFork);
                                 }
                             }
 
-                            if (lastMerge.relWidths != null)
+                            if (lastFork.type == ForkInfo.Type.Merge)
                             {
-                                var mergeDistance = lastMerge.distance + dist;
-                                if (mergeDistance <= MainGridSmoothLength.WithMin(1) * lastMerge.baseWidth)
+                                var mergeDistance = lastFork.distance + dist;
+                                if (mergeDistance <= MainGridSmoothLength.WithMin(1) * lastFork.baseWidth)
                                 {
-                                    ApplySmoothBranching(x, z, shift, extent, mergeDistance, lastMerge);
+                                    ApplySmoothBranching(x, z, shift, extent, mergeDistance, lastFork);
                                 }
                             }
                         }
@@ -829,7 +833,7 @@ public class PathTracer
         _sideGrid[x, z] = fracSmooth.LerpClamped(-shiftC * info.baseWidth, _sideGrid[x, z]);
     }
 
-    private ForkInfo FindNextSplit(TraceTask task, double maxDistance)
+    private ForkInfo FindNextFork(TraceTask task, double maxDistance)
     {
         var distance = 0d;
         var width = task.WidthAt(task.segment.Length);
@@ -849,48 +853,70 @@ public class PathTracer
                 }
                 else
                 {
-                    return default;
+                    return new ForkInfo(ForkInfo.Type.Merge, distance, width, null);
                 }
             }
             else if (current.BranchCount > 1)
             {
                 var relWidths = current.Branches.Select(s => s.RelWidth).ToArray();
-                return new ForkInfo(distance, width, relWidths);
+                return new ForkInfo(ForkInfo.Type.Split, distance, width, relWidths);
             }
         }
 
         return default;
     }
 
-    private ForkInfo FindLastMerge(TraceTask task, double maxDistance)
+    private ForkInfo FindLastFork(TraceTask task, double maxDistance)
     {
-        if (task.branchParent.segment.ParentCount <= 1) return default;
+        var distance = task.distFromRoot - task.branchParent.distFromRoot;
+        if (distance > maxDistance) return default;
 
         var baseWidth = task.branchParent.WidthAt(0);
+        if (baseWidth <= 0) return default;
+
+        if (task.branchParent.segment.ParentCount > 1)
+        {
+            var relWidths = task.branchParent.segment.Parents
+                .Select(s => _traceResults[s])
+                .Where(r => r != null)
+                .Select(r => r.finalFrame.width / baseWidth)
+                .ToArray();
+
+            return new ForkInfo(ForkInfo.Type.Merge, distance, baseWidth, relWidths);
+        }
+
+        if (task.branchParent.segment.Siblings().Any())
+        {
+            return new ForkInfo(ForkInfo.Type.Split, distance, baseWidth, null);
+        }
+
+        return default;
+    }
+
+    private double DistanceToLastSplit(TraceTask task, double maxDistance)
+    {
         var distance = task.distFromRoot - task.branchParent.distFromRoot;
-
-        if (distance > maxDistance || baseWidth <= 0) return default;
-
-        var relWidths = task.branchParent.segment.Parents
-            .Select(s => _traceResults[s])
-            .Where(r => r != null)
-            .Select(r => r.finalFrame.width / baseWidth)
-            .ToArray();
-
-        return new ForkInfo(distance, baseWidth, relWidths);
+        return task.branchParent.segment.Siblings().Any() && distance <= maxDistance ? distance : -1;
     }
 
     private readonly struct ForkInfo
     {
+        public readonly Type type;
         public readonly double distance;
         public readonly double baseWidth;
         public readonly double[] relWidths;
 
-        public ForkInfo(double distance, double baseWidth, double[] relWidths)
+        public ForkInfo(Type type, double distance, double baseWidth, double[] relWidths)
         {
+            this.type = type;
             this.distance = distance;
             this.baseWidth = baseWidth;
             this.relWidths = relWidths;
+        }
+
+        public enum Type
+        {
+            None, Split, Merge
         }
     }
 

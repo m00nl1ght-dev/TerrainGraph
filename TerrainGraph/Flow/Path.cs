@@ -22,9 +22,6 @@ public class Path
     private static Queue<Segment> _ts_queue;
 
     [ThreadStatic]
-    private static Queue<double> _ts_values;
-
-    [ThreadStatic]
     private static List<Segment> _ts_visited;
 
     public Path()
@@ -131,14 +128,13 @@ public class Path
 
         public Vector2d RelPosition;
 
-        public LocalStability StabilityAtHead;
-        public LocalStability StabilityAtTail;
-
         public IReadOnlyList<SmoothDelta> ExtraDelta;
 
         public TraceParams TraceParams;
 
         public int AdjustmentCount = 0;
+
+        public double InitialAngleDeltaMin;
 
         public IEnumerable<Segment> Parents => _parents.Select(id => Path._segments[id]);
         public IEnumerable<Segment> Branches => _branches.Select(id => Path._segments[id]);
@@ -172,8 +168,7 @@ public class Path
             RelWidth = other.RelWidth;
             RelSpeed = other.RelSpeed;
             RelDensity = other.RelDensity;
-            StabilityAtTail = other.StabilityAtTail;
-            StabilityAtHead = other.StabilityAtHead;
+            InitialAngleDeltaMin = other.InitialAngleDeltaMin;
             RelPosition = other.RelPosition;
             ExtraDelta = other.ExtraDelta;
             TraceParams = other.TraceParams;
@@ -269,99 +264,6 @@ public class Path
         public void ApplyDelta(SmoothDelta delta)
         {
             ExtraDelta = ExtraDelta != null ? [..ExtraDelta, delta] : [delta];
-        }
-
-        public void ApplyLocalStabilityAtTail(double constantRange, double linearRange)
-        {
-            ApplyLocalStability(constantRange, linearRange, false);
-        }
-
-        public void ApplyLocalStabilityAtHead(double constantRange, double linearRange)
-        {
-            ApplyLocalStability(constantRange, linearRange, true);
-        }
-
-        private void ApplyLocalStability(double constantRange, double linearRange, bool backwards)
-        {
-            constantRange = constantRange.WithMin(0);
-            linearRange = linearRange.WithMin(1);
-
-            var totalRange = constantRange + linearRange;
-            var initialValue = 1 + constantRange / linearRange;
-
-            _ts_queue ??= new Queue<Segment>(8);
-            _ts_visited ??= new List<Segment>(8);
-            _ts_values ??= new Queue<double>(8);
-
-            try
-            {
-                _ts_queue.Enqueue(this);
-                _ts_values.Enqueue(0);
-
-                while (_ts_queue.Count > 0)
-                {
-                    var segment = _ts_queue.Dequeue();
-                    var distance = _ts_values.Dequeue();
-
-                    if (_ts_visited.AddUnique(segment))
-                    {
-                        var a = (1 - distance / totalRange) * initialValue;
-
-                        distance += segment.Length;
-
-                        var b = (1 - distance / totalRange) * initialValue;
-
-                        if (b > 0)
-                        {
-                            foreach (var next in backwards ? segment.Parents : segment.Branches)
-                            {
-                                _ts_queue.Enqueue(next);
-                                _ts_values.Enqueue(distance);
-                            }
-                        }
-
-                        if (backwards)
-                        {
-                            if (segment.StabilityAtHead == null || segment.StabilityAtHead.Value < a)
-                            {
-                                segment.StabilityAtHead = new LocalStability(a, a - b);
-                            }
-                        }
-                        else
-                        {
-                            if (segment.StabilityAtTail == null || segment.StabilityAtTail.Value < a)
-                            {
-                                segment.StabilityAtTail = new LocalStability(a, a - b);
-                            }
-                        }
-                    }
-                }
-            }
-            finally
-            {
-                _ts_queue.Clear();
-                _ts_visited.Clear();
-                _ts_values.Clear();
-            }
-        }
-
-        public double LocalStabilityAt(double progress)
-        {
-            var value = 0d;
-
-            if (StabilityAtTail != null)
-            {
-                var atTail = StabilityAtTail.Value - StabilityAtTail.Loss * progress;
-                if (atTail > value) value = atTail;
-            }
-
-            if (StabilityAtHead != null)
-            {
-                var atHead = StabilityAtHead.Value - StabilityAtHead.Loss * (1 - progress);
-                if (atHead > value) value = atHead;
-            }
-
-            return value.WithMax(1);
         }
 
         public bool IsParentOf(Segment other, bool includeSelf)
@@ -520,30 +422,9 @@ public class Path
             RelSpeed.Equals(other.RelSpeed) &&
             RelDensity.Equals(other.RelDensity) &&
             RelPosition.Equals(other.RelPosition) &&
-            Equals(StabilityAtHead, other.StabilityAtHead) &&
-            Equals(StabilityAtTail, other.StabilityAtTail) &&
+            InitialAngleDeltaMin.Equals(other.InitialAngleDeltaMin) &&
             Equals(ExtraDelta, other.ExtraDelta) &&
             TraceParams.Equals(other.TraceParams);
-    }
-
-    public class LocalStability
-    {
-        public readonly double Value;
-        public readonly double Loss;
-
-        public LocalStability(double value, double loss)
-        {
-            Value = value;
-            Loss = loss;
-        }
-
-        protected bool Equals(LocalStability other) =>
-            Value.Equals(other.Value) &&
-            Loss.Equals(other.Loss);
-
-        public override string ToString() =>
-            $"{nameof(Value)}: {Value}, " +
-            $"{nameof(Loss)}: {Loss}";
     }
 
     public class SmoothDelta
@@ -637,20 +518,9 @@ public class Path
         public double MaxExtentFactor(PathTracer tracer, TraceTask task, Vector2d pos, double dist)
         {
             return Math.Max(
-                ExtentLeft?.ValueFor(tracer, task, pos, dist) ?? 1,
-                ExtentRight?.ValueFor(tracer, task, pos, dist) ?? 1
+                ExtentLeft?.ValueFor(tracer, task, pos, dist, 0) ?? 1,
+                ExtentRight?.ValueFor(tracer, task, pos, dist, 0) ?? 1
             ).WithMin(1);
-        }
-
-        /// <summary>
-        /// Calculate the maximum expected extent multiplier at the given position, with local stability applied.
-        /// Never lower than 1 because of additional local stability that could potentially be applied later.
-        /// </summary>
-        public double MaxExtentFactorScaled(PathTracer tracer, TraceTask task, Vector2d pos, double dist)
-        {
-            var progress = task.segment.Length <= 0 ? 0 : (dist / task.segment.Length).InRange01();
-            var scalar = 1 - task.segment.LocalStabilityAt(progress);
-            return MaxExtentFactor(tracer, task, pos, dist).ScaleAround(1, scalar);
         }
 
         public void ApplyFixedAngle(double angleDelta, bool stable)

@@ -248,9 +248,6 @@ public class TraceCollisionHandler
 
         if (result != ArcCalcResult.Success) return false;
 
-        var stabilityRangeA = a.TraceParams.ArcStableRange.WithMin(1);
-        var stabilityRangeB = b.TraceParams.ArcStableRange.WithMin(1);
-
         var valueAtMergeA = frameA.value + frameA.speed * (arcA + ductA);
         var valueAtMergeB = frameB.value + frameB.speed * (arcB + ductB);
 
@@ -354,9 +351,6 @@ public class TraceCollisionHandler
 
         var remainingLength = Math.Max(orgLengthA - a.Length, orgLengthB - b.Length);
 
-        endA.ApplyLocalStabilityAtHead(stabilityRangeA / 2, stabilityRangeA / 2);
-        endB.ApplyLocalStabilityAtHead(stabilityRangeB / 2, stabilityRangeB / 2);
-
         if (valueDelta != 0 || offsetDelta != 0)
         {
             if (interconnected)
@@ -455,11 +449,8 @@ public class TraceCollisionHandler
         var merged = new Segment(endA.Path)
         {
             TraceParams = frameA.width > frameB.width ? a.TraceParams : b.TraceParams,
-            StabilityAtHead = b.StabilityAtHead,
             Length = remainingLength
         };
-
-        merged.ApplyLocalStabilityAtTail(0, 0.5.Lerp(stabilityRangeA, stabilityRangeB) / 2);
 
         if (shift < 0) // order matters for TraceCollision.TraverseEnclosed
         {

@@ -30,6 +30,7 @@ public class NodePathTrace : NodeBase
 
     #if DEBUG
     public static IGridFunction<double> DebugGrid;
+    public static IGridFunction<TraceTask> TaskGrid;
     #endif
 
     [ValueConnectionKnob("Input", Direction.In, PathFunctionConnection.Id)]
@@ -226,6 +227,7 @@ public class NodePathTrace : NodeBase
             #if DEBUG
 
             DebugGrid = tracer.DebugGrid;
+            TaskGrid = tracer.TaskGrid;
 
             if (Input.GetKey(KeyCode.LeftShift))
             {

@@ -144,7 +144,7 @@ public class NodePathCost : NodeBase
             _byOverlapParent = byOverlapParent;
         }
 
-        public override double ValueFor(PathTracer tracer, TraceTask task, Vector2d pos, double dist)
+        public override double ValueFor(PathTracer tracer, TraceTask task, Vector2d pos, double dist, double stability)
         {
             var value = 0d;
 
@@ -162,7 +162,7 @@ public class NodePathCost : NodeBase
                     if (avoidCurve != null)
                     {
                         var factor = task.segment.TraceParams.Target != null ? 100 : 10;
-                        var mefs = task.segment.TraceParams.MaxExtentFactorScaled(tracer, task, pos, dist);
+                        var mefs = task.segment.TraceParams.MaxExtentFactor(tracer, task, pos, dist).ScaleAround(1, 1 - stability);
                         value += factor * avoidCurve.ValueAt(gridValue - task.WidthAt(dist) / 2 * mefs);
                     }
                 }
