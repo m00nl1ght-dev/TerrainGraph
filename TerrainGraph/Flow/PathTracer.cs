@@ -32,15 +32,15 @@ public class PathTracer
     public readonly double TraceInnerMargin;
     public readonly double TraceOuterMargin;
 
-    private readonly double[,] _mainGrid;
-    private readonly double[,] _sideGrid;
-    private readonly double[,] _valueGrid;
-    private readonly double[,] _offsetGrid;
-    private readonly double[,] _distanceGrid;
-    private readonly TraceTask[,] _taskGrid;
+    internal readonly double[,] _mainGrid;
+    internal readonly double[,] _sideGrid;
+    internal readonly double[,] _valueGrid;
+    internal readonly double[,] _offsetGrid;
+    internal readonly double[,] _distanceGrid;
+    internal readonly TraceTask[,] _taskGrid;
 
     #if DEBUG
-    private readonly double[,] _debugGrid;
+    internal readonly double[,] _debugGrid;
     #endif
 
     public IGridFunction<double> MainGrid => BuildGridFunction(_mainGrid);
@@ -442,10 +442,6 @@ public class PathTracer
                         length = a.dist + distDelta;
                         pathNodes = null;
                     }
-
-                    #if DEBUG
-                    DebugLine(new TraceDebugLine(this, node.Parent.Position, node.Position, 1, 0, $"{angleDelta / distDelta:F2}"));
-                    #endif
                 }
                 else
                 {
@@ -477,6 +473,10 @@ public class PathTracer
                     if (followVec != Vector2d.Zero)
                     {
                         angleDelta -= Vector2d.SignedAngle(a.normal, a.normal + followVec);
+
+                        #if DEBUG
+                        DebugLine(new TraceDebugLine(this, a.pos, a.pos + followVec.Normalized, 4));
+                        #endif
                     }
 
                     var widthForTenacity = extParams.StaticAngleTenacity ? initialFrame.width : a.width;
@@ -560,6 +560,10 @@ public class PathTracer
                 angleDelta, extraValue, extraOffset,
                 out var pivotPoint, out var pivotOffset, radial
             );
+
+            #if DEBUG
+            DebugLine(new TraceDebugLine(this, a.pos, b.pos, 1, 0, $"{angleDelta / distDelta:F2}"));
+            #endif
 
             var extentMax = 0d;
 

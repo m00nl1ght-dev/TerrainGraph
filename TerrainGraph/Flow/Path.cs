@@ -498,6 +498,7 @@ public class Path
         public bool StaticAngleTenacity;
         public bool AdjustmentPriority;
         public bool ResultUnstable;
+        public bool PreventMerge;
 
         public Vector2d? Target;
 

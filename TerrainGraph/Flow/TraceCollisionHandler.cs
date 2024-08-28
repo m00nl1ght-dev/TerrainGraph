@@ -186,6 +186,7 @@ public class TraceCollisionHandler
         var b = c.taskB.segment;
 
         if (c.cyclic || c.hasMergeA || c.hasMergeB) return false;
+        if (a.TraceParams.PreventMerge || b.TraceParams.PreventMerge) return false;
         if (a.AnyParentsMatch(s => s.TraceParams.ResultUnstable, true)) return false;
         if (b.AnyParentsMatch(s => s.TraceParams.ResultUnstable, true)) return false;
         if (a.TraceParams.AdjustmentPriority != b.TraceParams.AdjustmentPriority) return false;
@@ -232,6 +233,7 @@ public class TraceCollisionHandler
             #endif
 
             if (result == ArcCalcResult.Success) break;
+            if (result == ArcCalcResult.Obstructed) return false;
 
             result = TryCalcArcs(
                 c.taskB, c.taskA, normal, -shift, ref frameB, ref frameA,
@@ -243,6 +245,7 @@ public class TraceCollisionHandler
             #endif
 
             if (result == ArcCalcResult.Success) break;
+            if (result == ArcCalcResult.Obstructed) return false;
         }
         while (MathUtil.BalancedTraversal(ref fA, ref fB, ref ptr, c.framesA.Count - 1, c.framesB.Count - 1));
 
@@ -328,6 +331,7 @@ public class TraceCollisionHandler
             {
                 segment = segment.InsertNew();
                 segment.TraceParams.ApplyFixedAngle(0, true);
+                segment.TraceParams.PreventMerge = true;
                 segment.Length = ductLength;
 
                 #if DEBUG
@@ -339,6 +343,7 @@ public class TraceCollisionHandler
             {
                 segment = segment.InsertNew();
                 segment.TraceParams.ApplyFixedAngle(arcAngle / arcLength, true);
+                segment.TraceParams.PreventMerge = true;
                 segment.Length = arcLength;
 
                 #if DEBUG
@@ -680,9 +685,33 @@ public class TraceCollisionHandler
             return ArcCalcResult.ExcMaxAngle;
         }
 
+        // check that the end points of the arcs are not obstructed
+
+        var cap1 = arcEndPosA - shiftDir * (0.5 * frameA.width + 1);
+        var cap2 = arcEndPosA + shiftDir * 0.5 * frameA.width;
+        var cap3 = arcEndPosA + shiftDir * (0.5 * frameA.width + frameB.width + 1);
+        var cap4 = cap1 + normal * 2 * (frameA.width + frameB.width);
+        var cap5 = cap3 + normal * 2 * (frameA.width + frameB.width);
+
+        if ((from cap in new[] {cap1, cap2, cap3, cap4, cap5}
+                let rx = (int) Math.Round(cap.x)
+                let rz = (int) Math.Round(cap.z)
+                where rx >= 0 && rz >= 0 && rx < _tracer.GridOuterSize.x && rz < _tracer.GridOuterSize.z
+                where _tracer._mainGrid[rx, rz] > 0
+                select _tracer._taskGrid[rx, rz].segment)
+            .Any(other => !a.IsParentOf(other, true) && !b.IsParentOf(other, true)))
+            return ArcCalcResult.Obstructed;
+
+        // everything is good
+
         #if DEBUG
         PathTracer.DebugOutput($"Success with arc1 {arcLengthA} duct1 {ductLengthB} arc2 {arcLengthB} duct2 {ductLengthB}");
         PathTracer.DebugOutput($"Target for arc1 is {arcEndPosA} and target for arc2 is {pointC}");
+        PathTracer.DebugLine(new TraceDebugLine(_tracer, cap1, 2, 0, "C1"));
+        PathTracer.DebugLine(new TraceDebugLine(_tracer, cap2, 2, 0, "C2"));
+        PathTracer.DebugLine(new TraceDebugLine(_tracer, cap3, 2, 0, "C3"));
+        PathTracer.DebugLine(new TraceDebugLine(_tracer, cap4, 2, 0, "C4"));
+        PathTracer.DebugLine(new TraceDebugLine(_tracer, cap5, 2, 0, "C5"));
         #endif
 
         return ArcCalcResult.Success;
@@ -699,7 +728,8 @@ public class TraceCollisionHandler
         ArcLengthNaN, // something went very wrong, likely some angle was 0 -> go back in frames, hoping that fixes it
         ExcMaxAngle, // arc radius is too small for this segment width -> go back in frames, hoping to get more space between the arms
         ExcAngleLock, // arc angle would violate angle delta lock of the segment -> go back in frames
-        ArcOverlap // arcs curve in the same direction and are located is such a way that they would overlap -> go back in frames
+        ArcOverlap, // arcs curve in the same direction and are located is such a way that they would overlap -> go back in frames
+        Obstructed // the end point of at least one point is obstructed by another segment that has already been traced -> abort merge attempt
     }
 
     /// <summary>
