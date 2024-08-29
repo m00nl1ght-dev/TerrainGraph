@@ -685,6 +685,11 @@ public class TraceCollisionHandler
             return ArcCalcResult.ExcMaxAngle;
         }
 
+        // check that ducts are not excessively long
+
+        if (ductLengthA > a.TraceParams.ArcStableRange.WithMin(a.TraceParams.StepSize)) return ArcCalcResult.ExcessiveDuct;
+        if (ductLengthB > b.TraceParams.ArcStableRange.WithMin(b.TraceParams.StepSize)) return ArcCalcResult.ExcessiveDuct;
+
         // check that the end points of the arcs are not obstructed
 
         var cap1 = arcEndPosA - shiftDir * (0.5 * frameA.width + 1);
@@ -729,6 +734,7 @@ public class TraceCollisionHandler
         ExcMaxAngle, // arc radius is too small for this segment width -> go back in frames, hoping to get more space between the arms
         ExcAngleLock, // arc angle would violate angle delta lock of the segment -> go back in frames
         ArcOverlap, // arcs curve in the same direction and are located is such a way that they would overlap -> go back in frames
+        ExcessiveDuct, // the length of at least one duct is excessive -> go back in frames
         Obstructed // the end point of at least one point is obstructed by another segment that has already been traced -> abort merge attempt
     }
 
