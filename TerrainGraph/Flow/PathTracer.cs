@@ -472,10 +472,11 @@ public class PathTracer
 
                     if (followVec != Vector2d.Zero)
                     {
-                        angleDelta -= Vector2d.SignedAngle(a.normal, a.normal + followVec);
+                        angleDelta -= Vector2d.SignedAngle(a.normal, a.normal + followVec * distDelta) / distDelta;
 
                         #if DEBUG
-                        DebugLine(new TraceDebugLine(this, a.pos, a.pos + followVec.Normalized, 4));
+                        DebugLine(new TraceDebugLine(this, a.pos, a.pos + a.normal, 4, 0, $"{angleDelta:F2}"));
+                        DebugLine(new TraceDebugLine(this, a.pos + a.normal, a.pos + a.normal + followVec * distDelta, 5));
                         #endif
                     }
 
