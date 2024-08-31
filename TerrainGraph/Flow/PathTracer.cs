@@ -303,16 +303,16 @@ public class PathTracer
             {
                 if (lastFork.type == ForkInfo.Type.Split)
                     fromLast = dist <= range / 2 ? 1 : 1 - (2 * dist - range) / range;
-                else if (dist < range / 2)
-                    fromLast = dist <= 0 ? 1 : 1 - dist / (range / 2);
+                else if (dist < range)
+                    fromLast = dist <= 0 ? 1 : 1 - dist / range;
             }
 
             if (nextFork.type != ForkInfo.Type.None && toEnd < range)
             {
                 if (nextFork.type == ForkInfo.Type.Merge)
                     fromNext = toEnd <= range / 2 ? 1 : 1 - (2 * toEnd - range) / range;
-                else if (toEnd < range / 2)
-                    fromNext = toEnd <= 0 ? 1 : 1 - toEnd / (range / 2);
+                else if (toEnd < range)
+                    fromNext = toEnd <= 0 ? 1 : 1 - toEnd / range;
             }
 
             return Math.Max(fromLast, fromNext);
