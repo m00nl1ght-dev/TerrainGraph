@@ -82,7 +82,7 @@ internal class TraceCollision
 
     public List<Segment> FindEnclosedSegments()
     {
-        if (taskA.segment == taskB.segment) return [];
+        if (taskA.segment == taskB.segment || !complete) return [];
 
         var enclosed = new List<Segment>();
 
