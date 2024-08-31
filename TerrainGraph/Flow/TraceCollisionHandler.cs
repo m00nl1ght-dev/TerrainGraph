@@ -772,7 +772,8 @@ public class TraceCollisionHandler
         if (segmentD.TraceParams.ArcRetraceRange <= 0) return false;
         if (segmentD.TraceParams.ArcRetraceFactor <= 0) return false;
 
-        if ((segmentD.TraceParams.DiversionPoints?.Count ?? 0) >= MaxDiversionPoints) return false;
+        var existingCount = segmentD.TraceParams.DiversionPoints?.Count ?? 0;
+        if (existingCount >= MaxDiversionPoints) return false;
 
         var divertableSegments = segmentD.ConnectedSegments(false, true,
             s => s.BranchCount == 1 || !s.AnyBranchesMatch(b => b == segmentP || b.ParentCount > 1, false),
@@ -792,7 +793,7 @@ public class TraceCollisionHandler
         var perpScore = 0.5 * (perpDotD.Abs() + perpDotP.Abs());
 
         var factor = segmentD.TraceParams.ArcRetraceFactor;
-        var range = segmentD.TraceParams.ArcRetraceRange;
+        var range = segmentD.TraceParams.ArcRetraceRange * (1 + existingCount / (double) MaxDiversionPoints);
 
         var diversion = normal;
 
