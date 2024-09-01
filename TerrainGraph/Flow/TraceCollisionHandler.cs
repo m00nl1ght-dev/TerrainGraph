@@ -687,8 +687,8 @@ public class TraceCollisionHandler
 
         // check that ducts are not excessively long
 
-        if (ductLengthA > a.TraceParams.ArcStableRange.WithMin(a.TraceParams.StepSize)) return ArcCalcResult.ExcessiveDuct;
-        if (ductLengthB > b.TraceParams.ArcStableRange.WithMin(b.TraceParams.StepSize)) return ArcCalcResult.ExcessiveDuct;
+        if (ductLengthA > Math.Max(0.5 * a.TraceParams.ArcStableRange, a.TraceParams.StepSize)) return ArcCalcResult.ExcessiveDuct;
+        if (ductLengthB > Math.Max(0.5 * b.TraceParams.ArcStableRange, b.TraceParams.StepSize)) return ArcCalcResult.ExcessiveDuct;
 
         // check that the end points of the arcs are not obstructed
 

@@ -297,22 +297,24 @@ public class PathTracer
             var fromNext = 0d;
 
             var range = extParams.ArcStableRange;
-            var toEnd = task.segment.Length - dist;
 
-            if (lastFork.type != ForkInfo.Type.None && dist < range)
+            var distLast = lastFork.distance + dist;
+            var distNext = nextFork.distance + task.segment.Length - dist;
+
+            if (lastFork.type != ForkInfo.Type.None && distLast < range)
             {
                 if (lastFork.type == ForkInfo.Type.Split)
-                    fromLast = dist <= range / 2 ? 1 : 1 - (2 * dist - range) / range;
-                else if (dist < range)
-                    fromLast = dist <= 0 ? 1 : 1 - dist / range;
+                    fromLast = distLast <= range / 2 ? 1 : 1 - (2 * distLast - range) / range;
+                else if (distLast < range)
+                    fromLast = distLast <= 0 ? 1 : 1 - distLast / range;
             }
 
-            if (nextFork.type != ForkInfo.Type.None && toEnd < range)
+            if (nextFork.type != ForkInfo.Type.None && distNext < range)
             {
                 if (nextFork.type == ForkInfo.Type.Merge)
-                    fromNext = toEnd <= range / 2 ? 1 : 1 - (2 * toEnd - range) / range;
-                else if (toEnd < range)
-                    fromNext = toEnd <= 0 ? 1 : 1 - toEnd / range;
+                    fromNext = distNext <= range / 2 ? 1 : 1 - (2 * distNext - range) / range;
+                else if (distNext < range)
+                    fromNext = distNext <= 0 ? 1 : 1 - distNext / range;
             }
 
             return Math.Max(fromLast, fromNext);
