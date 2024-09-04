@@ -545,10 +545,10 @@ public class TraceCollisionHandler
 
         // check angle locks of each segment
 
-        if (frameA.dist < taskA.TurnLockRight && arcAngleA > 0) return ArcCalcResult.ExcAngleLock;
-        if (frameA.dist < taskA.TurnLockLeft && arcAngleA < 0) return ArcCalcResult.ExcAngleLock;
-        if (frameB.dist < taskB.TurnLockRight && arcAngleB > 0) return ArcCalcResult.ExcAngleLock;
-        if (frameB.dist < taskB.TurnLockLeft && arcAngleB < 0) return ArcCalcResult.ExcAngleLock;
+        if (frameA.dist < taskA.TurnLockRight(false) && arcAngleA > 0) return ArcCalcResult.ExcAngleLock;
+        if (frameA.dist < taskA.TurnLockLeft(false) && arcAngleA < 0) return ArcCalcResult.ExcAngleLock;
+        if (frameB.dist < taskB.TurnLockRight(false) && arcAngleB > 0) return ArcCalcResult.ExcAngleLock;
+        if (frameB.dist < taskB.TurnLockLeft(false) && arcAngleB < 0) return ArcCalcResult.ExcAngleLock;
 
         // calculate chord vector that spans arc B at its minimum length
 
@@ -712,33 +712,40 @@ public class TraceCollisionHandler
         if (ductLengthA > Math.Max(0.5 * a.TraceParams.ArcStableRange, a.TraceParams.StepSize)) return ArcCalcResult.ExcessiveDuct;
         if (ductLengthB > Math.Max(0.5 * b.TraceParams.ArcStableRange, b.TraceParams.StepSize)) return ArcCalcResult.ExcessiveDuct;
 
-        // check that the end points of the arcs are not obstructed
+        // check that the end points of the arcs and the area beyond are not obstructed
 
         var cap1 = arcEndPosA - shiftDir * (0.5 * frameA.width + 1);
         var cap2 = arcEndPosA + shiftDir * 0.5 * frameA.width;
         var cap3 = arcEndPosA + shiftDir * (0.5 * frameA.width + frameB.width + 1);
-        var cap4 = cap1 + normal * 2 * (frameA.width + frameB.width);
-        var cap5 = cap3 + normal * 2 * (frameA.width + frameB.width);
 
-        if ((from cap in new[] {cap1, cap2, cap3, cap4, cap5}
-                let rx = (int) Math.Round(cap.x)
-                let rz = (int) Math.Round(cap.z)
-                where rx >= 0 && rz >= 0 && rx < _tracer.GridOuterSize.x && rz < _tracer.GridOuterSize.z
-                where _tracer._mainGrid[rx, rz] > 0
-                select _tracer._taskGrid[rx, rz].segment)
-            .Any(other => !a.IsParentOf(other, true) && !b.IsParentOf(other, true)))
-            return ArcCalcResult.Obstructed;
+        for (int s = 0; s < 2 * (frameA.width + frameB.width); s += 5)
+        {
+            if (CheckForObstruction(cap1 + normal * s)) return ArcCalcResult.Obstructed;
+            if (CheckForObstruction(cap2 + normal * s)) return ArcCalcResult.Obstructed;
+            if (CheckForObstruction(cap3 + normal * s)) return ArcCalcResult.Obstructed;
+        }
+
+        bool CheckForObstruction(Vector2d pos)
+        {
+            var rx = (int) Math.Round(pos.x);
+            var rz = (int) Math.Round(pos.z);
+
+            #if DEBUG
+            PathTracer.DebugLine(new TraceDebugLine(_tracer, pos, 2));
+            #endif
+
+            if (rx < 0 || rz < 0 || rx >= _tracer.GridOuterSize.x || rz >= _tracer.GridOuterSize.z) return false;
+            if (_tracer._mainGrid[rx, rz] <= 0) return false;
+
+            var other = _tracer._taskGrid[rx, rz].segment;
+            return other != null && !a.IsParentOf(other, true) && !b.IsParentOf(other, true);
+        }
 
         // everything is good
 
         #if DEBUG
         PathTracer.DebugOutput($"Success with arc1 {arcLengthA} duct1 {ductLengthB} arc2 {arcLengthB} duct2 {ductLengthB}");
         PathTracer.DebugOutput($"Target for arc1 is {arcEndPosA} and target for arc2 is {pointC}");
-        PathTracer.DebugLine(new TraceDebugLine(_tracer, cap1, 2, 0, "C1"));
-        PathTracer.DebugLine(new TraceDebugLine(_tracer, cap2, 2, 0, "C2"));
-        PathTracer.DebugLine(new TraceDebugLine(_tracer, cap3, 2, 0, "C3"));
-        PathTracer.DebugLine(new TraceDebugLine(_tracer, cap4, 2, 0, "C4"));
-        PathTracer.DebugLine(new TraceDebugLine(_tracer, cap5, 2, 0, "C5"));
         #endif
 
         return ArcCalcResult.Success;

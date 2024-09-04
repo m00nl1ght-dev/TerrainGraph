@@ -282,8 +282,8 @@ public class PathTracer
     {
         var length = task.segment.Length;
         var extParams = task.segment.TraceParams;
-        var turnLockLeft = task.TurnLockLeft;
-        var turnLockRight = task.TurnLockRight;
+        var turnLockLeft = task.TurnLockLeft(true);
+        var turnLockRight = task.TurnLockRight(true);
         var stepSize = extParams.StepSize.WithMin(1);
 
         var initialFrame = new TraceFrame(this, task, -task.marginTail);
