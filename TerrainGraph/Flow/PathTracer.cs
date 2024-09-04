@@ -211,46 +211,35 @@ public class PathTracer
 
             _traceResults[task.segment] = result;
 
-            if (result.collision == null && result.finalFrame.width > 0)
+            if (result.collision == null && !result.traceEnd && result.finalFrame.width > 0)
             {
-                var endInBounds = result.finalFrame.PossiblyInBounds(Vector2d.Zero, GridOuterSize);
-
-                if (endInBounds || !result.everInBounds || !StopWhenOutOfBounds)
+                foreach (var branch in task.segment.Branches.OrderByDescending(b => b.RelWidth))
                 {
-                    foreach (var branch in task.segment.Branches.OrderByDescending(b => b.RelWidth))
+                    if (branch.ParentCount <= 1)
                     {
-                        if (branch.ParentCount <= 1)
-                        {
-                            var distFromRoot = task.distFromRoot + result.finalFrame.dist;
-                            var branchParent = task.segment.Branches.Count() == 1 ? task.branchParent : null;
+                        var distFromRoot = task.distFromRoot + result.finalFrame.dist;
+                        var branchParent = task.segment.Branches.Count() == 1 ? task.branchParent : null;
 
-                            Enqueue(branch, result.finalFrame, branchParent, distFromRoot, result.everInBounds);
-                        }
-                        else
-                        {
-                            if (branch.Parents.Any(p => !_traceResults.ContainsKey(p))) continue;
-
-                            var parentResults = branch.Parents.Select(p => _traceResults[p]).ToList();
-
-                            if (parentResults.Any(r => r.collision != null)) continue;
-
-                            var maxDistFromRoot = task.distFromRoot + parentResults.Max(r => r.finalFrame.dist);
-
-                            var mergedFrame = new TraceFrame(parentResults);
-
-                            #if DEBUG
-                            DebugOutput($"Merged frames {string.Join(" + ", branch.Parents.Select(b => b.Id))} into {branch.Id}");
-                            #endif
-
-                            Enqueue(branch, mergedFrame, null, maxDistFromRoot, parentResults.Any(r => r.everInBounds));
-                        }
+                        Enqueue(branch, result.finalFrame, branchParent, distFromRoot, result.everInBounds);
                     }
-                }
-                else
-                {
-                    #if DEBUG
-                    DebugOutput($"End of segment {task.segment.Id} is out of bounds, no need to trace further");
-                    #endif
+                    else
+                    {
+                        if (branch.Parents.Any(p => !_traceResults.ContainsKey(p))) continue;
+
+                        var parentResults = branch.Parents.Select(p => _traceResults[p]).ToList();
+
+                        if (parentResults.Any(r => r.collision != null)) continue;
+
+                        var maxDistFromRoot = task.distFromRoot + parentResults.Max(r => r.finalFrame.dist);
+
+                        var mergedFrame = new TraceFrame(parentResults);
+
+                        #if DEBUG
+                        DebugOutput($"Merged frames {string.Join(" + ", branch.Parents.Select(b => b.Id))} into {branch.Id}");
+                        #endif
+
+                        Enqueue(branch, mergedFrame, null, maxDistFromRoot, parentResults.Any(r => r.everInBounds));
+                    }
                 }
             }
         }
@@ -326,9 +315,11 @@ public class PathTracer
 
         var everFullyInBounds = task.everInBounds || !initialFrame.PossiblyOutOfBounds(Vector2d.Zero, GridOuterSize);
 
-        if (length <= 0) return new TraceResult(initialFrame, initialFrame, everFullyInBounds);
+        if (length <= 0) return new TraceResult(initialFrame, initialFrame, everFullyInBounds, false);
 
         List<PathFinder.Node> pathNodes = null;
+
+        var traceEnd = false;
 
         if (extParams.Target != null)
         {
@@ -613,6 +604,7 @@ public class PathTracer
             if (extentLeftCache[0] + extentRightCache[0] < 1 && a.dist >= 0)
             {
                 length = Math.Min(length, b.dist);
+                traceEnd = true;
 
                 #if DEBUG
                 DebugOutput($"Extend is less than 1 at {a.pos} for segment {task.segment.Id}");
@@ -624,6 +616,7 @@ public class PathTracer
                 if (StopWhenOutOfBounds && !b.PossiblyInBounds(Vector2d.Zero, GridOuterSize))
                 {
                     length = Math.Min(length, b.dist);
+                    traceEnd = true;
 
                     #if DEBUG
                     DebugOutput($"Trace frame at {b.pos} for segment {task.segment.Id} is now out of bounds");
@@ -633,6 +626,16 @@ public class PathTracer
             else if (!b.PossiblyOutOfBounds(Vector2d.Zero, GridOuterSize))
             {
                 everFullyInBounds = true;
+            }
+
+            if (extParams.EndCondition != null && CheckEndCondition(ref b, extParams.EndCondition))
+            {
+                length = Math.Min(length, b.dist);
+                traceEnd = true;
+
+                #if DEBUG
+                DebugOutput($"End condition fulfilled at {b.pos} for segment {task.segment.Id}");
+                #endif
             }
 
             var boundP1 = a.pos + a.perpCCW * (extentMax + TraceOuterMargin);
@@ -742,7 +745,7 @@ public class PathTracer
                                     var frames = ExchangeFrameBuffer();
                                     frames.Add(b);
 
-                                    return new TraceResult(initialFrame, a, everFullyInBounds, new TraceCollision
+                                    return new TraceResult(initialFrame, a, everFullyInBounds, false, new TraceCollision
                                     {
                                         taskA = task,
                                         taskB = preTask,
@@ -827,7 +830,17 @@ public class PathTracer
         DebugOutput($"Segment {task.segment.Id} finished with final frame [{a}]");
         #endif
 
-        return new TraceResult(initialFrame, a, everFullyInBounds);
+        return new TraceResult(initialFrame, a, everFullyInBounds, traceEnd);
+    }
+
+    private bool CheckEndCondition(ref TraceFrame frame, IGridFunction<double> widthMask)
+    {
+        if (widthMask.ValueAt(frame.pos - GridMargin) < frame.width) return false;
+        for (int extent = 1; extent <= Math.Ceiling(frame.width / 2 * frame.emLeft); extent++)
+            if (widthMask.ValueAt(frame.pos - GridMargin + frame.perpCCW * extent) < frame.width) return false;
+        for (int extent = 1; extent <= Math.Ceiling(frame.width / 2 * frame.emRight); extent++)
+            if (widthMask.ValueAt(frame.pos - GridMargin + frame.perpCW * extent) < frame.width) return false;
+        return true;
     }
 
     private void ApplySmoothBranching(int x, int z, double shift, double extent, double distance, ForkInfo info)

@@ -22,11 +22,17 @@ internal class TraceResult
     /// </summary>
     public readonly bool everInBounds;
 
-    public TraceResult(TraceFrame initialFrame, TraceFrame finalFrame, bool everInBounds, TraceCollision collision = null)
+    /// <summary>
+    /// Whether any end condition was fulfilled and the trace task ended early.
+    /// </summary>
+    public readonly bool traceEnd;
+
+    public TraceResult(TraceFrame initialFrame, TraceFrame finalFrame, bool everInBounds, bool traceEnd, TraceCollision collision = null)
     {
         this.initialFrame = initialFrame;
         this.finalFrame = finalFrame;
         this.everInBounds = everInBounds;
+        this.traceEnd = traceEnd;
         this.collision = collision;
     }
 }
