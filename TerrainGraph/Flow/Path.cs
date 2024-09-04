@@ -479,6 +479,22 @@ public class Path
             $"{nameof(Range)}: {Range}";
     }
 
+    public readonly struct StabilityPoint
+    {
+        public readonly Vector2d Position;
+        public readonly double Range;
+
+        public StabilityPoint(Vector2d position, double range)
+        {
+            Position = position;
+            Range = range;
+        }
+
+        public override string ToString() =>
+            $"{nameof(Position)}: {Position}, " +
+            $"{nameof(Range)}: {Range}";
+    }
+
     [HotSwappable]
     public struct TraceParams
     {
@@ -511,6 +527,7 @@ public class Path
         public TraceParamFunction DensityRight;
 
         public IReadOnlyCollection<DiversionPoint> DiversionPoints;
+        public IReadOnlyCollection<StabilityPoint> StabilityPoints;
 
         /// <summary>
         /// Calculate the maximum expected extent multiplier at the given position, used for angle limit calculations.
@@ -551,6 +568,11 @@ public class Path
             DiversionPoints = DiversionPoints != null ? [..DiversionPoints, point] : [point];
         }
 
+        public void AddStabilityPoint(StabilityPoint point)
+        {
+            StabilityPoints = StabilityPoints != null ? [..StabilityPoints, point] : [point];
+        }
+
         public bool Equals(TraceParams other) =>
             StepSize.Equals(other.StepSize) &&
             WidthLoss.Equals(other.WidthLoss) &&
@@ -574,6 +596,7 @@ public class Path
             Equals(DensityLeft, other.DensityLeft) &&
             Equals(DensityRight, other.DensityRight) &&
             Equals(DiversionPoints, other.DiversionPoints) &&
+            Equals(StabilityPoints, other.StabilityPoints) &&
             Target == other.Target;
 
         public override string ToString() =>
@@ -599,6 +622,7 @@ public class Path
             $"{nameof(DensityLeft)}: {DensityLeft}, " +
             $"{nameof(DensityRight)}: {DensityRight}, " +
             $"{nameof(DiversionPoints)}: {DiversionPoints?.Count ?? 0}, " +
+            $"{nameof(StabilityPoints)}: {StabilityPoints?.Count ?? 0}, " +
             $"{nameof(Target)}: {Target}";
     }
 }

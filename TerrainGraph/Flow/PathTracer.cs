@@ -568,13 +568,29 @@ public class PathTracer
             DebugLine(new TraceDebugLine(this, a.pos, b.pos, 1, 0, $"{angleDelta / distDelta:F2}"));
             #endif
 
+            var pointStabilityA = 0d;
+            var pointStabilityB = 0d;
+
+            if (extParams.StabilityPoints != null)
+            {
+                foreach (var point in extParams.StabilityPoints)
+                {
+                    var distA = Vector2d.Distance(point.Position, a.pos);
+                    var distB = Vector2d.Distance(point.Position, b.pos);
+
+                    if (distA < point.Range) pointStabilityA = pointStabilityA.WithMin(1 - distA / point.Range);
+                    if (distB < point.Range) pointStabilityB = pointStabilityB.WithMin(1 - distB / point.Range);
+                }
+            }
+
             var extentMax = 0d;
 
             for (int i = 0; i < patternSteps; i++)
             {
                 var dist = a.dist + i * patternRes;
                 var progress = i * patternRes / distDelta;
-                var stability = StabilityAtDist(dist);
+
+                var stability = StabilityAtDist(dist).WithMin(progress.Lerp(pointStabilityA, pointStabilityB));
 
                 extentLeftCache[i] = extentRightCache[i] = progress.Lerp(a.width, b.width) / 2;
                 densityLeftCache[i] = densityRightCache[i] = progress.Lerp(a.density, b.density);
@@ -723,11 +739,16 @@ public class PathTracer
                                     DebugLine(new TraceDebugLine(this, new(x, z), 1));
                                     #endif
 
+                                    var frames = ExchangeFrameBuffer();
+                                    frames.Add(b);
+
                                     return new TraceResult(initialFrame, a, everFullyInBounds, new TraceCollision
                                     {
                                         taskA = task,
                                         taskB = preTask,
-                                        framesA = ExchangeFrameBuffer(),
+                                        framesA = frames,
+                                        progressA = progress,
+                                        shiftA = shift,
                                         position = pos
                                     });
                                 }
@@ -745,7 +766,12 @@ public class PathTracer
                             {
                                 if (simulated.position == pos && simulated.framesB == null)
                                 {
-                                    simulated.framesB = ExchangeFrameBuffer(true);
+                                    var frames = ExchangeFrameBuffer(true);
+                                    frames.Add(b);
+
+                                    simulated.framesB = frames;
+                                    simulated.progressB = progress;
+                                    simulated.shiftB = shift;
                                 }
                             }
                         }

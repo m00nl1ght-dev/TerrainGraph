@@ -24,6 +24,26 @@ internal class TraceCollision
     public Vector2d position;
 
     /// <summary>
+    /// The frame progress in the first segment at which the collision occured.
+    /// </summary>
+    public double progressA;
+
+    /// <summary>
+    /// The frame progress in the second segment at which the collision occured.
+    /// </summary>
+    public double progressB;
+
+    /// <summary>
+    /// The shift relative to the first segment at which the collision occured.
+    /// </summary>
+    public double shiftA;
+
+    /// <summary>
+    /// The shift relative to the second segment at which the collision occured.
+    /// </summary>
+    public double shiftB;
+
+    /// <summary>
     /// Trace frames of the first segment.
     /// </summary>
     public List<TraceFrame> framesA;
@@ -36,12 +56,12 @@ internal class TraceCollision
     /// <summary>
     /// Current trace frame of the first segment at the time of the collision.
     /// </summary>
-    public TraceFrame frameA => framesA[framesA.Count - 1];
+    public TraceFrame frameA => framesA[framesA.Count - 2];
 
     /// <summary>
     /// Current trace frame of the second segment at the time of the collision.
     /// </summary>
-    public TraceFrame frameB => framesB[framesB.Count - 1];
+    public TraceFrame frameB => framesB[framesB.Count - 2];
 
     /// <summary>
     /// Whether the trace frames of both involved segments are available.

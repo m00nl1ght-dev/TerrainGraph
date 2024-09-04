@@ -10,6 +10,7 @@ namespace TerrainGraph.Flow;
 public class TraceCollisionHandler
 {
     public int MaxDiversionPoints = 5;
+    public int MaxStabilityPoints = 3;
 
     public double MergeValueDeltaLimit = 0.45;
     public double MergeOffsetDeltaLimit = 0.45;
@@ -129,6 +130,27 @@ public class TraceCollisionHandler
         }
 
         passiveFirst = adjPrioA != adjPrioB ? adjPrioB
+            : c.frameA.width < c.frameB.width;
+
+        if (TryStabilizeExtent(c, passiveFirst))
+        {
+            #if DEBUG
+            PathTracer.DebugOutput("First extent stabilization attempt was successful");
+            #endif
+
+            return;
+        }
+
+        if (TryStabilizeExtent(c, !passiveFirst))
+        {
+            #if DEBUG
+            PathTracer.DebugOutput("Second extent stabilization attempt was successful");
+            #endif
+
+            return;
+        }
+
+        passiveFirst = adjPrioA != adjPrioB ? adjPrioB
             : c.frameA.width > c.frameB.width;
 
         if (TrySimplify(c, passiveFirst))
@@ -212,8 +234,8 @@ public class TraceCollisionHandler
 
         do
         {
-            frameA = c.framesA[c.framesA.Count - fA - 1];
-            frameB = c.framesB[c.framesB.Count - fB - 1];
+            frameA = c.framesA[c.framesA.Count - fA - 2];
+            frameB = c.framesB[c.framesB.Count - fB - 2];
 
             #if DEBUG
             var debugPoint1 = PathTracer.DebugLines.FirstOrDefault(dl => dl.IsPointAt(frameA.pos));
@@ -247,7 +269,7 @@ public class TraceCollisionHandler
             if (result == ArcCalcResult.Success) break;
             if (result == ArcCalcResult.Obstructed) return false;
         }
-        while (MathUtil.BalancedTraversal(ref fA, ref fB, ref ptr, c.framesA.Count - 1, c.framesB.Count - 1));
+        while (MathUtil.BalancedTraversal(ref fA, ref fB, ref ptr, c.framesA.Count - 2, c.framesB.Count - 2));
 
         if (result != ArcCalcResult.Success) return false;
 
@@ -793,7 +815,7 @@ public class TraceCollisionHandler
         var perpScore = 0.5 * (perpDotD.Abs() + perpDotP.Abs());
 
         var factor = segmentD.TraceParams.ArcRetraceFactor;
-        var range = segmentD.TraceParams.ArcRetraceRange * (1 + existingCount / (double) MaxDiversionPoints);
+        var range = frameD.width / 2 + segmentD.TraceParams.ArcRetraceRange * (1 + existingCount / (double) MaxDiversionPoints);
 
         var diversion = normal;
 
@@ -840,7 +862,7 @@ public class TraceCollisionHandler
         }
 
         #if DEBUG
-        PathTracer.DebugLine(new TraceDebugLine(_tracer, frameD.pos, 4, 0, $"DL {divertedLength:F2}\nPSC {perpScore:F2}"));
+        PathTracer.DebugLine(new TraceDebugLine(_tracer, frameD.pos, 4, 0, $"DL {divertedLength:F2}\nPSC {perpScore:F2}\nR {range:F2}"));
         PathTracer.DebugLine(new TraceDebugLine(_tracer, frameD.pos, frameD.pos + diversion, 4));
         PathTracer.DebugLine(new TraceDebugLine(_tracer, frameP.pos, frameP.pos + normal, 4));
         #endif
@@ -866,6 +888,59 @@ public class TraceCollisionHandler
 
             return segment.Length;
         }
+    }
+
+    /// <summary>
+    /// Attempt to stabilize the extent of one of the involved path segments in order to avoid the given collision.
+    /// </summary>
+    /// <returns>true if the segment was modified successfully, otherwise false</returns>
+    private bool TryStabilizeExtent(TraceCollision c, bool passiveBranch)
+    {
+        Segment segment;
+        List<TraceFrame> frames;
+        double progress;
+        double shift;
+
+        if (passiveBranch)
+        {
+            segment = c.taskB.segment;
+            frames = c.framesB;
+            progress = c.progressB;
+            shift = c.shiftB;
+        }
+        else
+        {
+            segment = c.taskA.segment;
+            frames = c.framesA;
+            progress = c.progressA;
+            shift = c.shiftA;
+        }
+
+        var existingCount = segment.TraceParams.StabilityPoints?.Count ?? 0;
+        if (existingCount >= MaxStabilityPoints) return false;
+
+        var frame1 = frames[frames.Count - 2];
+        var frame2 = frames[frames.Count - 1];
+
+        var baseExtent = progress.Lerp(frame1.width, frame2.width) / 2;
+        if (shift.Abs() <= baseExtent) return false;
+
+        var point1 = new StabilityPoint(frame1.pos, frame1.width / 4);
+        var point2 = new StabilityPoint(frame2.pos, frame2.width / 4);
+
+        foreach (var connectedSegment in segment.ConnectedSegments(true, false))
+        {
+            connectedSegment.TraceParams.AddStabilityPoint(point1);
+            connectedSegment.TraceParams.AddStabilityPoint(point2);
+        }
+
+        foreach (var connectedSegment in segment.ConnectedSegments(false))
+        {
+            connectedSegment.TraceParams.AddStabilityPoint(point1);
+            connectedSegment.TraceParams.AddStabilityPoint(point2);
+        }
+
+        return true;
     }
 
     /// <summary>
