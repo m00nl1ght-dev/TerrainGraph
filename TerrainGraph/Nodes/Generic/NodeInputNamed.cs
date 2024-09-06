@@ -40,6 +40,9 @@ public class NodeInputNamed : NodeBase
         ValueKnob?.SetPosition();
 
         GUILayout.EndVertical();
+
+        if (GUI.changed)
+            canvas.OnNodeChange(this);
     }
 
     public override void FillNodeActionsMenu(NodeEditorInputInfo inputInfo, GenericMenu menu)

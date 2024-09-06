@@ -29,6 +29,7 @@ public class NodePathWidth : NodeBase
     public ValueConnectionKnob ByWidthKnob;
     public ValueConnectionKnob PatternScalingKnob;
     public ValueConnectionKnob SideBalanceKnob;
+    public ValueConnectionKnob BuildupKnob;
 
     public override void RefreshDynamicKnobs()
     {
@@ -37,6 +38,7 @@ public class NodePathWidth : NodeBase
         ByWidthKnob = FindOrCreateDynamicKnob(new("Extent ~ Width", Direction.In, CurveFunctionConnection.Id));
         PatternScalingKnob = FindOrCreateDynamicKnob(new("Pattern ~ Stable width", Direction.In, CurveFunctionConnection.Id));
         SideBalanceKnob = FindOrCreateDynamicKnob(new("Side balance ~ Pattern", Direction.In, CurveFunctionConnection.Id));
+        BuildupKnob = FindOrCreateDynamicKnob(new("Buildup ~ Position", Direction.In, GridFunctionConnection.Id));
     }
 
     public override void NodeGUI()
@@ -80,6 +82,12 @@ public class NodePathWidth : NodeBase
 
         SideBalanceKnob.SetPosition();
 
+        GUILayout.BeginHorizontal(BoxStyle);
+        GUILayout.Label("Buildup", BoxLayout);
+        GUILayout.EndHorizontal();
+
+        BuildupKnob.SetPosition();
+
         GUILayout.EndVertical();
 
         if (GUI.changed)
@@ -94,7 +102,8 @@ public class NodePathWidth : NodeBase
             GetIfConnected<ICurveFunction<double>>(ByPatternKnob),
             GetIfConnected<ICurveFunction<double>>(ByWidthKnob),
             GetIfConnected<ICurveFunction<double>>(PatternScalingKnob),
-            GetIfConnected<ICurveFunction<double>>(SideBalanceKnob)
+            GetIfConnected<ICurveFunction<double>>(SideBalanceKnob),
+            GetIfConnected<IGridFunction<double>>(BuildupKnob)
         ));
         return true;
     }
@@ -107,6 +116,7 @@ public class NodePathWidth : NodeBase
         private readonly ISupplier<ICurveFunction<double>> _byWidth;
         private readonly ISupplier<ICurveFunction<double>> _patternScaling;
         private readonly ISupplier<ICurveFunction<double>> _sideBalance;
+        private readonly ISupplier<IGridFunction<double>> _buildup;
 
         public Output(
             ISupplier<Path> input,
@@ -114,7 +124,8 @@ public class NodePathWidth : NodeBase
             ISupplier<ICurveFunction<double>> byPattern,
             ISupplier<ICurveFunction<double>> byWidth,
             ISupplier<ICurveFunction<double>> patternScaling,
-            ISupplier<ICurveFunction<double>> sideBalance)
+            ISupplier<ICurveFunction<double>> sideBalance,
+            ISupplier<IGridFunction<double>> buildup)
         {
             _input = input;
             _byPosition = byPosition;
@@ -122,6 +133,7 @@ public class NodePathWidth : NodeBase
             _byWidth = byWidth;
             _patternScaling = patternScaling;
             _sideBalance = sideBalance;
+            _buildup = buildup;
         }
 
         public Path Get()
@@ -150,6 +162,8 @@ public class NodePathWidth : NodeBase
                     false
                 );
 
+                extParams.WidthBuildup = _buildup?.Get();
+
                 segment.ExtendWithParams(extParams);
             }
 
@@ -164,6 +178,7 @@ public class NodePathWidth : NodeBase
             _byWidth?.ResetState();
             _patternScaling?.ResetState();
             _sideBalance?.ResetState();
+            _buildup?.ResetState();
         }
     }
 

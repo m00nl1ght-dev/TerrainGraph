@@ -248,10 +248,10 @@ public readonly struct TraceFrame
         return pos + distDelta * normal;
     }
 
-    public bool PossiblyInBounds(Vector2d minI, Vector2d maxE)
+    public bool PossiblyInBounds(Vector2d minI, Vector2d maxE, double extraWidth)
     {
-        var p1 = pos + perpCW * width / 2 * emRight;
-        var p2 = pos + perpCCW * width / 2 * emLeft;
+        var p1 = pos + perpCW * (width / 2 * emRight + extraWidth / 2);
+        var p2 = pos + perpCCW * (width / 2 * emLeft + extraWidth / 2);
 
         if (p1.x < minI.x && p2.x < minI.x) return false;
         if (p1.z < minI.z && p2.z < minI.z) return false;
@@ -261,10 +261,10 @@ public readonly struct TraceFrame
         return true;
     }
 
-    public bool PossiblyOutOfBounds(Vector2d minI, Vector2d maxE)
+    public bool PossiblyOutOfBounds(Vector2d minI, Vector2d maxE, double extraWidth)
     {
-        var p1 = pos + perpCW * width / 2 * emRight;
-        var p2 = pos + perpCCW * width / 2 * emLeft;
+        var p1 = pos + perpCW * (width / 2 * emRight + extraWidth / 2);
+        var p2 = pos + perpCCW * (width / 2 * emLeft + extraWidth / 2);
 
         return !p1.InBounds(minI, maxE) || !p2.InBounds(minI, maxE);
     }

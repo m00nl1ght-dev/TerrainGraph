@@ -18,6 +18,11 @@ internal class TraceResult
     public readonly TraceCollision collision;
 
     /// <summary>
+    /// Extra width buildup applied before the local extent multipliers.
+    /// </summary>
+    public readonly double widthBuildup;
+
+    /// <summary>
     /// Whether this or any previous segment has any frames fully within the bounds of the outer grid.
     /// </summary>
     public readonly bool everInBounds;
@@ -27,10 +32,14 @@ internal class TraceResult
     /// </summary>
     public readonly bool traceEnd;
 
-    public TraceResult(TraceFrame initialFrame, TraceFrame finalFrame, bool everInBounds, bool traceEnd, TraceCollision collision = null)
+    public TraceResult(
+        TraceFrame initialFrame, TraceFrame finalFrame,
+        double widthBuildup, bool everInBounds, bool traceEnd,
+        TraceCollision collision = null)
     {
         this.initialFrame = initialFrame;
         this.finalFrame = finalFrame;
+        this.widthBuildup = widthBuildup;
         this.everInBounds = everInBounds;
         this.traceEnd = traceEnd;
         this.collision = collision;

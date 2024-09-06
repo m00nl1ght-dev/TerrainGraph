@@ -38,6 +38,11 @@ public class TraceTask
     public readonly double distFromRoot;
 
     /// <summary>
+    /// Extra width buildup applied before the local extent multipliers.
+    /// </summary>
+    public readonly double widthBuildup;
+
+    /// <summary>
     /// Whether any previous segment has any frames fully within the bounds of the outer grid.
     /// </summary>
     public readonly bool everInBounds;
@@ -70,7 +75,7 @@ public class TraceTask
 
     internal TraceTask(
         Path.Segment segment, TraceFrame baseFrame, TraceTask branchParent, IEnumerable<TraceCollision> simulated,
-        double marginHead, double marginTail, double distFromRoot, bool everInBounds)
+        double marginHead, double marginTail, double distFromRoot, double widthBuildup, bool everInBounds)
     {
         this.segment = segment;
         this.baseFrame = baseFrame;
@@ -78,6 +83,7 @@ public class TraceTask
         this.marginHead = marginHead;
         this.marginTail = marginTail;
         this.distFromRoot = distFromRoot;
+        this.widthBuildup = widthBuildup;
         this.branchParent = branchParent ?? this;
         this.everInBounds = everInBounds;
     }

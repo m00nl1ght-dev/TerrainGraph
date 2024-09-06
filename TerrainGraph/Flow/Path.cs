@@ -526,6 +526,7 @@ public class Path
         public TraceParamFunction DensityLeft;
         public TraceParamFunction DensityRight;
 
+        public IGridFunction<double> WidthBuildup;
         public IGridFunction<double> EndCondition;
 
         public IReadOnlyCollection<DiversionPoint> DiversionPoints;
@@ -597,6 +598,7 @@ public class Path
             Equals(Speed, other.Speed) &&
             Equals(DensityLeft, other.DensityLeft) &&
             Equals(DensityRight, other.DensityRight) &&
+            Equals(WidthBuildup, other.WidthBuildup) &&
             Equals(EndCondition, other.EndCondition) &&
             Equals(DiversionPoints, other.DiversionPoints) &&
             Equals(StabilityPoints, other.StabilityPoints) &&
