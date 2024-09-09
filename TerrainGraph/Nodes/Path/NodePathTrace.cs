@@ -140,27 +140,29 @@ public class NodePathTrace : NodeBase
             SupplierOrFallback(GridMarginKnob, (double) GridMargin),
             SupplierOrFallback(TraceMarginInnerKnob, TraceMarginInner),
             SupplierOrFallback(TraceMarginOuterKnob, TraceMarginOuter),
-            TerrainCanvas.GridFullSize
+            TerrainCanvas.GridPathSize
         );
 
+        var scale = TerrainCanvas.GridPathSize / (double) TerrainCanvas.GridFullSize;
+
         MainOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
-            new Supplier.CompoundCached<PathTracer,IGridFunction<double>>(output, t => t.MainGrid, cache)
+            new Supplier.CompoundCached<PathTracer,IGridFunction<double>>(output, t => t.MainGrid.Scaled(scale), cache)
         );
 
         SideOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
-            new Supplier.CompoundCached<PathTracer,IGridFunction<double>>(output, t => t.SideGrid, cache)
+            new Supplier.CompoundCached<PathTracer,IGridFunction<double>>(output, t => t.SideGrid.Scaled(scale), cache)
         );
 
         ValueOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
-            new Supplier.CompoundCached<PathTracer,IGridFunction<double>>(output, t => t.ValueGrid, cache)
+            new Supplier.CompoundCached<PathTracer,IGridFunction<double>>(output, t => t.ValueGrid.Scaled(scale), cache)
         );
 
         OffsetOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
-            new Supplier.CompoundCached<PathTracer,IGridFunction<double>>(output, t => t.OffsetGrid, cache)
+            new Supplier.CompoundCached<PathTracer,IGridFunction<double>>(output, t => t.OffsetGrid.Scaled(scale), cache)
         );
 
         DistanceOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
-            new Supplier.CompoundCached<PathTracer,IGridFunction<double>>(output, t => t.DistanceGrid, cache)
+            new Supplier.CompoundCached<PathTracer,IGridFunction<double>>(output, t => t.DistanceGrid.Scaled(scale), cache)
         );
 
         return true;

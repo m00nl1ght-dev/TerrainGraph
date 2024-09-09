@@ -109,7 +109,7 @@ public class NodePathOrigin : NodeBase
             SupplierOrFallback(SpeedKnob, Speed),
             SupplierOrFallback(DensityKnob, Density),
             SupplierOrFallback(CountKnob, Count),
-            TerrainCanvas.GridFullSize
+            TerrainCanvas.GridPathSize
         ));
 
         return true;

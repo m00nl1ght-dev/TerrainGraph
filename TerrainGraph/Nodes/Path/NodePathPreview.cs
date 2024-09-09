@@ -101,8 +101,8 @@ public class NodePathPreview : NodeBase
             var path = supplier.ResetAndGet();
 
             var tracer = new PathTracer(
-                TerrainCanvas.GridFullSize,
-                TerrainCanvas.GridFullSize,
+                TerrainCanvas.GridPathSize,
+                TerrainCanvas.GridPathSize,
                 NodePathTrace.GridMarginDefault,
                 NodePathTrace.TraceMarginInnerDefault,
                 NodePathTrace.TraceMarginOuterDefault
@@ -110,7 +110,7 @@ public class NodePathPreview : NodeBase
 
             tracer.Trace(path);
 
-            var previewFunction = tracer.MainGrid;
+            var previewFunction = tracer.MainGrid.Scaled(TerrainCanvas.GridPathSize / (double) TerrainCanvas.GridFullSize);
 
             for (int x = 0; x < previewSize; x++)
             {

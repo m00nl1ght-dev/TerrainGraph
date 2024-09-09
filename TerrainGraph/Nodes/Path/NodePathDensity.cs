@@ -67,7 +67,8 @@ public class NodePathDensity : NodeBase
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
             GetIfConnected<IGridFunction<double>>(ByPositionKnob),
-            GetIfConnected<ICurveFunction<double>>(ByExtentKnob)
+            GetIfConnected<ICurveFunction<double>>(ByExtentKnob),
+            TerrainCanvas.GridFullSize / (double) TerrainCanvas.GridPathSize
         ));
         return true;
     }
@@ -77,15 +78,18 @@ public class NodePathDensity : NodeBase
         private readonly ISupplier<Path> _input;
         private readonly ISupplier<IGridFunction<double>> _byPosition;
         private readonly ISupplier<ICurveFunction<double>> _byExtent;
+        private readonly double _gridScale;
 
         public Output(
             ISupplier<Path> input,
             ISupplier<IGridFunction<double>> byPosition,
-            ISupplier<ICurveFunction<double>> byExtent)
+            ISupplier<ICurveFunction<double>> byExtent,
+            double gridScale)
         {
             _input = input;
             _byPosition = byPosition;
             _byExtent = byExtent;
+            _gridScale = gridScale;
         }
 
         public Path Get()
@@ -96,8 +100,8 @@ public class NodePathDensity : NodeBase
             {
                 var extParams = segment.TraceParams;
 
-                extParams.DensityLeft = new ParamFunc(_byPosition?.Get(), _byExtent?.Get(), true);
-                extParams.DensityRight = new ParamFunc(_byPosition?.Get(), _byExtent?.Get(), false);
+                extParams.DensityLeft = new ParamFunc(_byPosition?.Get().Scaled(_gridScale), _byExtent?.Get(), true);
+                extParams.DensityRight = new ParamFunc(_byPosition?.Get().Scaled(_gridScale), _byExtent?.Get(), false);
 
                 segment.ExtendWithParams(extParams);
             }

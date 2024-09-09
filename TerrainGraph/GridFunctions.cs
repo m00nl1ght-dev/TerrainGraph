@@ -830,6 +830,18 @@ public static class GridFunction
         public override string ToString() => $"TRANSFORM {{ {Input} by {TranslateX:F2} | {TranslateZ:F2} scaled {ScaleX:F2} | {ScaleZ:F2} }}";
     }
 
+    public static IGridFunction<T> Scaled<T>(this IGridFunction<T> grid, double scale)
+        => grid == null || scale == 1d ? grid : new Transform<T>(grid, 0, 0, scale, scale);
+
+    public static IGridFunction<T> Scaled<T>(this IGridFunction<T> grid, double scaleX, double scaleZ)
+        => grid == null || (scaleX == 1d && scaleZ == 1d) ? grid : new Transform<T>(grid, 0, 0, scaleX, scaleZ);
+
+    public static IGridFunction<T> Translated<T>(this IGridFunction<T> grid, double translate)
+        => grid == null || translate == 0d ? grid : new Transform<T>(grid, translate, translate);
+
+    public static IGridFunction<T> Translated<T>(this IGridFunction<T> grid, double translateX, double translateZ)
+        => grid == null || (translateX == 0d && translateZ == 0d) ? grid : new Transform<T>(grid, translateX, translateZ);
+
     public class Cache<T> : IGridFunction<T>
     {
         public readonly int SizeX;

@@ -51,7 +51,8 @@ public class NodePathEndCondition : NodeBase
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
-            SupplierOrFallback(WidthMaskKnob, GridFunction.Zero)
+            SupplierOrFallback(WidthMaskKnob, GridFunction.Zero),
+            TerrainCanvas.GridFullSize / (double) TerrainCanvas.GridPathSize
         ));
         return true;
     }
@@ -60,11 +61,13 @@ public class NodePathEndCondition : NodeBase
     {
         private readonly ISupplier<Path> _input;
         private readonly ISupplier<IGridFunction<double>> _widthMask;
+        private readonly double _gridScale;
 
-        public Output(ISupplier<Path> input, ISupplier<IGridFunction<double>> widthMask)
+        public Output(ISupplier<Path> input, ISupplier<IGridFunction<double>> widthMask, double gridScale)
         {
             _input = input;
             _widthMask = widthMask;
+            _gridScale = gridScale;
         }
 
         public Path Get()
@@ -75,7 +78,7 @@ public class NodePathEndCondition : NodeBase
             {
                 var extParams = segment.TraceParams;
 
-                extParams.EndCondition = _widthMask.Get();
+                extParams.EndCondition = _widthMask.Get().Scaled(_gridScale);
 
                 segment.ExtendWithParams(extParams);
             }

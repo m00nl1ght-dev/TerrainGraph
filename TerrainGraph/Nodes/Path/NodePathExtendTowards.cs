@@ -95,7 +95,7 @@ public class NodePathExtendTowards : NodeBase
             SupplierOrFallback(TargetZKnob, TargetZ),
             SupplierOrFallback(LengthKnob, Length),
             SupplierOrFallback(StepSizeKnob, StepSize),
-            TerrainCanvas.GridFullSize
+            TerrainCanvas.GridPathSize
         ));
         return true;
     }

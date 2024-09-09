@@ -94,7 +94,8 @@ public class NodePathSwerve : NodeBase
             GetIfConnected<ICurveFunction<double>>(ByPatternKnob),
             GetIfConnected<ICurveFunction<double>>(ByWidthKnob),
             GetIfConnected<ICurveFunction<double>>(ByCostKnob),
-            GetIfConnected<ICurveFunction<double>>(PatternScalingKnob)
+            GetIfConnected<ICurveFunction<double>>(PatternScalingKnob),
+            TerrainCanvas.GridFullSize / (double) TerrainCanvas.GridPathSize
         ));
         return true;
     }
@@ -107,6 +108,7 @@ public class NodePathSwerve : NodeBase
         private readonly ISupplier<ICurveFunction<double>> _byWidth;
         private readonly ISupplier<ICurveFunction<double>> _byCost;
         private readonly ISupplier<ICurveFunction<double>> _patternScaling;
+        private readonly double _gridScale;
 
         public Output(
             ISupplier<Path> input,
@@ -114,7 +116,8 @@ public class NodePathSwerve : NodeBase
             ISupplier<ICurveFunction<double>> byPattern,
             ISupplier<ICurveFunction<double>> byWidth,
             ISupplier<ICurveFunction<double>> byCost,
-            ISupplier<ICurveFunction<double>> patternScaling)
+            ISupplier<ICurveFunction<double>> patternScaling,
+            double gridScale)
         {
             _input = input;
             _byPosition = byPosition;
@@ -122,6 +125,7 @@ public class NodePathSwerve : NodeBase
             _byWidth = byWidth;
             _byCost = byCost;
             _patternScaling = patternScaling;
+            _gridScale = gridScale;
         }
 
         public Path Get()
@@ -137,7 +141,7 @@ public class NodePathSwerve : NodeBase
                 if (anySuppliers)
                 {
                     extParams.Swerve = new ParamFunc(
-                        _byPosition?.Get(),
+                        _byPosition?.Get().Scaled(_gridScale),
                         _byPattern?.Get(),
                         _byWidth?.Get(),
                         _byCost?.Get(),

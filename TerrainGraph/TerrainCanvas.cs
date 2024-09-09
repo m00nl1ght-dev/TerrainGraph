@@ -20,6 +20,7 @@ public class TerrainCanvas : NodeCanvas
     public override string canvasName => "TerrainGraph";
 
     public virtual int GridFullSize => 100;
+    public virtual int GridPathSize => 100;
     public virtual int GridPreviewSize => 100;
 
     public double GridPreviewRatio => (double) GridFullSize / GridPreviewSize;

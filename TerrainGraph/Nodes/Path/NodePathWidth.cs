@@ -103,7 +103,8 @@ public class NodePathWidth : NodeBase
             GetIfConnected<ICurveFunction<double>>(ByWidthKnob),
             GetIfConnected<ICurveFunction<double>>(PatternScalingKnob),
             GetIfConnected<ICurveFunction<double>>(SideBalanceKnob),
-            GetIfConnected<IGridFunction<double>>(BuildupKnob)
+            GetIfConnected<IGridFunction<double>>(BuildupKnob),
+            TerrainCanvas.GridFullSize / (double) TerrainCanvas.GridPathSize
         ));
         return true;
     }
@@ -117,6 +118,7 @@ public class NodePathWidth : NodeBase
         private readonly ISupplier<ICurveFunction<double>> _patternScaling;
         private readonly ISupplier<ICurveFunction<double>> _sideBalance;
         private readonly ISupplier<IGridFunction<double>> _buildup;
+        private readonly double _gridScale;
 
         public Output(
             ISupplier<Path> input,
@@ -125,7 +127,8 @@ public class NodePathWidth : NodeBase
             ISupplier<ICurveFunction<double>> byWidth,
             ISupplier<ICurveFunction<double>> patternScaling,
             ISupplier<ICurveFunction<double>> sideBalance,
-            ISupplier<IGridFunction<double>> buildup)
+            ISupplier<IGridFunction<double>> buildup,
+            double gridScale)
         {
             _input = input;
             _byPosition = byPosition;
@@ -134,6 +137,7 @@ public class NodePathWidth : NodeBase
             _patternScaling = patternScaling;
             _sideBalance = sideBalance;
             _buildup = buildup;
+            _gridScale = gridScale;
         }
 
         public Path Get()
@@ -145,7 +149,7 @@ public class NodePathWidth : NodeBase
                 var extParams = segment.TraceParams;
 
                 extParams.ExtentLeft = new ParamFunc(
-                    _byPosition?.Get(),
+                    _byPosition?.Get().Scaled(_gridScale),
                     _byPattern?.Get(),
                     _byWidth?.Get(),
                     _patternScaling?.Get(),
@@ -154,7 +158,7 @@ public class NodePathWidth : NodeBase
                 );
 
                 extParams.ExtentRight = new ParamFunc(
-                    _byPosition?.Get(),
+                    _byPosition?.Get().Scaled(_gridScale),
                     _byPattern?.Get(),
                     _byWidth?.Get(),
                     _patternScaling?.Get(),
@@ -162,7 +166,7 @@ public class NodePathWidth : NodeBase
                     false
                 );
 
-                extParams.WidthBuildup = _buildup?.Get();
+                extParams.WidthBuildup = _buildup?.Get().Scaled(_gridScale);
 
                 segment.ExtendWithParams(extParams);
             }

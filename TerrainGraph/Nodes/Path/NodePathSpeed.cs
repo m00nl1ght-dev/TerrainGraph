@@ -56,7 +56,8 @@ public class NodePathSpeed : NodeBase
     {
         OutputKnob.SetValue<ISupplier<Path>>(new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
-            SupplierOrFallback(ByPositionKnob, GridFunction.One)
+            SupplierOrFallback(ByPositionKnob, GridFunction.One),
+            TerrainCanvas.GridFullSize / (double) TerrainCanvas.GridPathSize
         ));
         return true;
     }
@@ -65,13 +66,16 @@ public class NodePathSpeed : NodeBase
     {
         private readonly ISupplier<Path> _input;
         private readonly ISupplier<IGridFunction<double>> _byPosition;
+        private readonly double _gridScale;
 
         public Output(
             ISupplier<Path> input,
-            ISupplier<IGridFunction<double>> byPosition)
+            ISupplier<IGridFunction<double>> byPosition,
+            double gridScale)
         {
             _input = input;
             _byPosition = byPosition;
+            _gridScale = gridScale;
         }
 
         public Path Get()
@@ -82,7 +86,7 @@ public class NodePathSpeed : NodeBase
             {
                 var extParams = segment.TraceParams;
 
-                extParams.Speed = new FromGrid(_byPosition.Get());
+                extParams.Speed = new FromGrid(_byPosition.Get().Scaled(_gridScale));
 
                 segment.ExtendWithParams(extParams);
             }

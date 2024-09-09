@@ -76,7 +76,8 @@ public class NodePathCost : NodeBase
             SupplierOrFallback(InputKnob, Path.Empty),
             GetIfConnected<IGridFunction<double>>(ByPositionKnob),
             GetIfConnected<ICurveFunction<double>>(ByOverlapKnob),
-            GetIfConnected<ICurveFunction<double>>(ByOverlapParentKnob)
+            GetIfConnected<ICurveFunction<double>>(ByOverlapParentKnob),
+            TerrainCanvas.GridFullSize / (double) TerrainCanvas.GridPathSize
         ));
         return true;
     }
@@ -87,17 +88,20 @@ public class NodePathCost : NodeBase
         private readonly ISupplier<IGridFunction<double>> _byPosition;
         private readonly ISupplier<ICurveFunction<double>> _byOverlap;
         private readonly ISupplier<ICurveFunction<double>> _byOverlapParent;
+        private readonly double _gridScale;
 
         public Output(
             ISupplier<Path> input,
             ISupplier<IGridFunction<double>> byPosition,
             ISupplier<ICurveFunction<double>> byOverlap,
-            ISupplier<ICurveFunction<double>> byOverlapParent)
+            ISupplier<ICurveFunction<double>> byOverlapParent,
+            double gridScale)
         {
             _input = input;
             _byPosition = byPosition;
             _byOverlap = byOverlap;
             _byOverlapParent = byOverlapParent;
+            _gridScale = gridScale;
         }
 
         public Path Get()
@@ -109,7 +113,7 @@ public class NodePathCost : NodeBase
                 var extParams = segment.TraceParams;
 
                 extParams.Cost = _byPosition != null || _byOverlap != null ?
-                    new ParamFunc(_byPosition?.Get(), _byOverlap?.Get(), _byOverlapParent?.Get()) : null;
+                    new ParamFunc(_byPosition?.Get().Scaled(_gridScale), _byOverlap?.Get(), _byOverlapParent?.Get()) : null;
 
                 extParams.ResultUnstable = _byOverlap != null;
 
