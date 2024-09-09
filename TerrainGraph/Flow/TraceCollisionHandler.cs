@@ -213,6 +213,12 @@ public class TraceCollisionHandler
         if (b.AnyParentsMatch(s => s.TraceParams.ResultUnstable, true)) return false;
         if (a.TraceParams.AdjustmentPriority != b.TraceParams.AdjustmentPriority) return false;
 
+        var resultTrimA = a.TraceParams.MergeResultTrim;
+        var resultTrimB = b.TraceParams.MergeResultTrim;
+
+        if (resultTrimA < 0 && c.taskA.distFromRoot + c.frameA.dist < -resultTrimA) return false;
+        if (resultTrimB < 0 && c.taskB.distFromRoot + c.frameB.dist < -resultTrimB) return false;
+
         var dot = Vector2d.Dot(c.frameA.normal, c.frameB.normal);
         var perpDot = Vector2d.PerpDot(c.frameA.normal, c.frameB.normal);
 
@@ -463,9 +469,6 @@ public class TraceCollisionHandler
             if (endB.Length > 0) endB.TraceParams.DensityLoss = (frameB.density - targetDensity) / endB.Length;
         }
 
-        var resultTrimA = a.TraceParams.MergeResultTrim;
-        var resultTrimB = b.TraceParams.MergeResultTrim;
-
         if (resultTrimA < 0 || resultTrimB < 0) remainingLength = 0;
         else
         {
@@ -473,30 +476,53 @@ public class TraceCollisionHandler
             if (resultTrimB > 0 && remainingLength > resultTrimB) remainingLength = resultTrimB;
         }
 
-        var merged = new Segment(endA.Path)
+        if (remainingLength > 0)
         {
-            TraceParams = frameA.width > frameB.width ? a.TraceParams : b.TraceParams,
-            Length = remainingLength
-        };
+            var merged = new Segment(endA.Path)
+            {
+                TraceParams = frameA.width > frameB.width ? a.TraceParams : b.TraceParams,
+                Length = remainingLength
+            };
 
-        if (shift < 0) // order matters for TraceCollision.TraverseEnclosed
-        {
-            endA.Attach(merged);
-            endB.Attach(merged);
+            if (shift < 0) // order matters for TraceCollision.TraverseEnclosed
+            {
+                endA.Attach(merged);
+                endB.Attach(merged);
+            }
+            else
+            {
+                endB.Attach(merged);
+                endA.Attach(merged);
+            }
+
+            foreach (var branch in followingBranches)
+            {
+                merged.Attach(branch);
+
+                #if DEBUG
+                PathTracer.DebugOutput($"Re-attached branch {branch.Id}");
+                #endif
+            }
         }
         else
         {
-            endB.Attach(merged);
-            endA.Attach(merged);
-        }
+            foreach (var branch in followingBranches)
+            {
+                if (shift < 0) // order matters for TraceCollision.TraverseEnclosed
+                {
+                    endA.Attach(branch);
+                    endB.Attach(branch);
+                }
+                else
+                {
+                    endB.Attach(branch);
+                    endA.Attach(branch);
+                }
 
-        foreach (var branch in followingBranches)
-        {
-            merged.Attach(branch);
-
-            #if DEBUG
-            PathTracer.DebugOutput($"Re-attaching branch {branch.Id}");
-            #endif
+                #if DEBUG
+                PathTracer.DebugOutput($"Re-attached branch {branch.Id} to both ends");
+                #endif
+            }
         }
 
         foreach (var branch in discardedBranches)
@@ -504,7 +530,7 @@ public class TraceCollisionHandler
             branch.Discard();
 
             #if DEBUG
-            PathTracer.DebugOutput($"Discarding branch {branch.Id}");
+            PathTracer.DebugOutput($"Discarded branch {branch.Id}");
             #endif
         }
 
