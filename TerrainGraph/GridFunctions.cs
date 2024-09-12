@@ -90,7 +90,61 @@ public static class GridFunction
             "SELECT { " +
             $"{nameof(Input)}: {Input}, " +
             $"{nameof(Options)}: {string.Join(", ", Options.Select(v => $"{v:F2}"))}, " +
-            $"{nameof(Thresholds)}: {string.Join(", ", Thresholds.Select(v => $"{v:F2}"))}, " +
+            $"{nameof(Thresholds)}: {string.Join(", ", Thresholds.Select(v => $"{v:F2}"))}" +
+            "}";
+    }
+
+    public class SelectDiscrete<TKey, TVal> : IGridFunction<TVal>
+    {
+        public readonly IGridFunction<TKey> Input;
+        public readonly List<IGridFunction<TVal>> Options;
+        public readonly List<TKey> Keys;
+        public readonly IGridFunction<TVal> Fallback;
+
+        public SelectDiscrete(
+            IGridFunction<TKey> input,
+            List<IGridFunction<TVal>> options,
+            List<TKey> keys,
+            IGridFunction<TVal> fallback)
+        {
+            Input = input;
+            Options = options;
+            Keys = keys;
+            Fallback = fallback;
+        }
+
+        public TVal ValueAt(double x, double z)
+        {
+            var value = Input.ValueAt(x, z);
+
+            for (int i = 0; i < Math.Min(Keys.Count, Options.Count); i++)
+            {
+                if (Equals(value, Keys[i])) return Options[i].ValueAt(x, z);
+            }
+
+            return Fallback.ValueAt(x, z);
+        }
+
+        protected bool Equals(SelectDiscrete<TKey, TVal> other) =>
+            Input.Equals(other.Input) &&
+            Options.SequenceEqual(other.Options) &&
+            Keys.SequenceEqual(other.Keys) &&
+            Equals(Fallback, other.Fallback);
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((SelectDiscrete<TKey, TVal>) obj);
+        }
+
+        public override string ToString() =>
+            "SELECT { " +
+            $"{nameof(Input)}: {Input}, " +
+            $"{nameof(Options)}: {string.Join(", ", Options.Select(v => $"{v:F2}"))}, " +
+            $"{nameof(Keys)}: {string.Join(", ", Keys.Select(v => $"{v:F2}"))}, " +
+            $"{nameof(Fallback)}: {Fallback}" +
             "}";
     }
 
@@ -149,7 +203,7 @@ public static class GridFunction
             "INTERPOLATE { " +
             $"{nameof(Input)}: {Input}, " +
             $"{nameof(Options)}: {string.Join(", ", Options.Select(v => $"{v:F2}"))}, " +
-            $"{nameof(Thresholds)}: {string.Join(", ", Thresholds.Select(v => $"{v:F2}"))}, " +
+            $"{nameof(Thresholds)}: {string.Join(", ", Thresholds.Select(v => $"{v:F2}"))}" +
             "}";
     }
 
