@@ -7,7 +7,6 @@ using static TerrainGraph.GridFunction;
 
 namespace TerrainGraph.Flow;
 
-[HotSwappable]
 public class PathTracer
 {
     private const int MaxTraceFrames = 1_000_000;

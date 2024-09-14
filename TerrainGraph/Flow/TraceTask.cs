@@ -4,7 +4,6 @@ using TerrainGraph.Util;
 
 namespace TerrainGraph.Flow;
 
-[HotSwappable]
 public class TraceTask
 {
     /// <summary>

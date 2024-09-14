@@ -6,7 +6,6 @@ using static TerrainGraph.Flow.Path;
 
 namespace TerrainGraph.Flow;
 
-[HotSwappable]
 public class TraceCollisionHandler
 {
     public int MaxDiversionPoints = 5;

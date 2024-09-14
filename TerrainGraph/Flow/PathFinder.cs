@@ -10,7 +10,6 @@ namespace TerrainGraph.Flow;
 /// algorithm developed by Andreychuk et al.
 /// https://arxiv.org/abs/1811.00797
 /// </summary>
-[HotSwappable]
 public class PathFinder
 {
     public GridValueSupplier<double> LocalPathCost = (_,_) => 0d;

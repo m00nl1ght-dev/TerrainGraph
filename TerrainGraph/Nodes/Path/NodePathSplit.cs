@@ -219,7 +219,6 @@ public class NodePathSplit : NodeBase
         return true;
     }
 
-    [HotSwappable]
     private class Output : ISupplier<Path[]>
     {
         private readonly ISupplier<Path> _input;

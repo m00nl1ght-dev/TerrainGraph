@@ -8,7 +8,6 @@ using UnityEngine;
 
 namespace TerrainGraph;
 
-[HotSwappable]
 [Serializable]
 [Node(false, "Curve/Preview", 185)]
 public class NodeCurvePreview : NodeBase

@@ -5,7 +5,6 @@ using static TerrainGraph.Flow.Path;
 
 namespace TerrainGraph.Flow;
 
-[HotSwappable]
 internal class TraceCollision
 {
     /// <summary>

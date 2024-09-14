@@ -110,7 +110,6 @@ public class Path
         return this;
     }
 
-    [HotSwappable]
     public class Segment
     {
         public readonly Path Path;
@@ -495,7 +494,6 @@ public class Path
             $"{nameof(Range)}: {Range}";
     }
 
-    [HotSwappable]
     public struct TraceParams
     {
         public double StepSize;
