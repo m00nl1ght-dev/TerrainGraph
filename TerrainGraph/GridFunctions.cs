@@ -919,6 +919,17 @@ public static class GridFunction
             Fallback = fallback;
         }
 
+        public Cache(int sizeX, int sizeZ, IGridFunction<T> source, T fallback = default) : this(sizeX, sizeZ, fallback)
+        {
+            for (int x = 0; x < sizeX; x++)
+            {
+                for (int z = 0; z < sizeZ; z++)
+                {
+                    Grid[x, z] = source.ValueAt(x, z);
+                }
+            }
+        }
+
         public T ValueAt(double x, double z)
         {
             var ix = (int) Math.Round(x);
