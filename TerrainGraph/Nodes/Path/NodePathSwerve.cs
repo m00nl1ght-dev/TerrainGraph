@@ -41,44 +41,17 @@ public class NodePathSwerve : NodeBase
 
     public override void NodeGUI()
     {
-        InputKnob.SetPosition(FirstKnobPosition);
         OutputKnob.SetPosition(FirstKnobPosition);
 
         GUILayout.BeginVertical(BoxStyle);
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Input", BoxLayout);
-        GUILayout.EndHorizontal();
+        KnobLabel(InputKnob);
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("~ Position", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        ByPositionKnob.SetPosition();
-
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("~ Pattern", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        ByPatternKnob.SetPosition();
-
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("~ Width", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        ByWidthKnob.SetPosition();
-
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("~ Cost", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        ByCostKnob.SetPosition();
-
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Pattern Scaling", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        PatternScalingKnob.SetPosition();
+        KnobLabel(ByPositionKnob, "~ Position");
+        KnobLabel(ByPatternKnob, "~ Pattern");
+        KnobLabel(ByWidthKnob, "~ Width");
+        KnobLabel(ByCostKnob, "~ Cost");
+        KnobLabel(PatternScalingKnob, "Pattern Scaling");
 
         GUILayout.EndVertical();
 

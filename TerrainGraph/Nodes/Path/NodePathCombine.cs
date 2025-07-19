@@ -38,10 +38,7 @@ public class NodePathCombine : NodeBase
 
         for (int i = 0; i < InputKnobs.Count; i++)
         {
-            GUILayout.BeginHorizontal(BoxStyle);
-            GUILayout.Label("Input " + (i + 1), BoxLayout);
-            InputKnobs[i].SetPosition();
-            GUILayout.EndHorizontal();
+            KnobLabel(InputKnobs[i], "Input " + (i + 1));
         }
 
         GUILayout.EndVertical();

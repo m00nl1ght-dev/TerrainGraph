@@ -24,20 +24,12 @@ public class NodeGridApplyCurve : NodeBase
 
     public override void NodeGUI()
     {
-        InputKnob.SetPosition(FirstKnobPosition);
         OutputKnob.SetPosition(FirstKnobPosition);
 
         GUILayout.BeginVertical(BoxStyle);
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Input", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Curve", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        CurveKnob.SetPosition();
+        KnobLabel(InputKnob);
+        KnobLabel(CurveKnob);
 
         GUILayout.EndVertical();
 

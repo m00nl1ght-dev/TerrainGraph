@@ -33,14 +33,11 @@ public class NodePathExtend : NodeBase
 
     public override void NodeGUI()
     {
-        InputKnob.SetPosition(FirstKnobPosition);
         OutputKnob.SetPosition(FirstKnobPosition);
 
         GUILayout.BeginVertical(BoxStyle);
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Input", BoxLayout);
-        GUILayout.EndHorizontal();
+        KnobLabel(InputKnob);
 
         KnobValueField(LengthKnob, ref Length);
         KnobValueField(StepSizeKnob, ref StepSize);

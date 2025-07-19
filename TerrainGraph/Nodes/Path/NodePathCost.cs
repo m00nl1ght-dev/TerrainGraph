@@ -37,32 +37,15 @@ public class NodePathCost : NodeBase
 
     public override void NodeGUI()
     {
-        InputKnob.SetPosition(FirstKnobPosition);
         OutputKnob.SetPosition(FirstKnobPosition);
 
         GUILayout.BeginVertical(BoxStyle);
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Input", BoxLayout);
-        GUILayout.EndHorizontal();
+        KnobLabel(InputKnob);
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("~ Position", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        ByPositionKnob.SetPosition();
-
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("~ Overlap (P)", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        ByOverlapParentKnob.SetPosition();
-
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("~ Overlap (O)", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        ByOverlapKnob.SetPosition();
+        KnobLabel(ByPositionKnob, "~ Position");
+        KnobLabel(ByOverlapParentKnob, "~ Overlap (P)");
+        KnobLabel(ByOverlapKnob, "~ Overlap (O)");
 
         GUILayout.EndVertical();
 

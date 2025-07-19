@@ -64,17 +64,17 @@ public abstract class NodeSelectBase<TKey, TVal> : NodeBase
 
         GUILayout.BeginVertical(BoxStyle);
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Input", BoxLayout);
-        InputKnobRef.SetPosition();
-        GUILayout.EndHorizontal();
+        KnobLabel(InputKnobRef);
 
         for (int i = 0; i < OptionKnobs.Count; i++)
         {
             var knob = OptionKnobs[i];
             GUILayout.BeginHorizontal(BoxStyle);
 
+            GUI.color = ConfigurableOverrides.Any(c => c.KnobName == knob.name) ? ConfLabelColor : Color.white;
             DrawOptionValue(i);
+            GUI.color = Color.white;
+
             knob.SetPosition();
 
             if (i > 0 || Interpolated)

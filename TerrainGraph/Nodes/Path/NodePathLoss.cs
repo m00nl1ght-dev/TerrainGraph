@@ -36,14 +36,11 @@ public class NodePathLoss : NodeBase
 
     public override void NodeGUI()
     {
-        InputKnob.SetPosition(FirstKnobPosition);
         OutputKnob.SetPosition(FirstKnobPosition);
 
         GUILayout.BeginVertical(BoxStyle);
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Input", BoxLayout);
-        GUILayout.EndHorizontal();
+        KnobLabel(InputKnob);
 
         KnobValueField(WidthLossKnob, ref WidthLoss);
         KnobValueField(DensityLossKnob, ref DensityLoss);

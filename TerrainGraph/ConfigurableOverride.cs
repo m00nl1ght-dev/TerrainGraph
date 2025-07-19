@@ -1,29 +1,42 @@
 using System;
+using System.Xml.Serialization;
 
 namespace TerrainGraph;
 
 [Serializable]
 public class ConfigurableOverride
 {
-    public string ConfigId;
+    public string PropertyId;
+    public string PropertyLabel;
+
+    public int SortOrder;
+
     public string KnobName;
+    public string KnobType;
 
     public double MinValue;
     public double MaxValue;
 
-    [NonSerialized]
+    [XmlIgnore]
     public bool OverrideEnabled;
 
-    [NonSerialized]
+    [XmlIgnore]
     public object OverrideValue;
 
-    [NonSerialized]
+    [XmlIgnore]
     public object LastNaturalValue;
 
     public ISupplier<T> WrapSupplier<T>(ISupplier<T> original)
     {
         if (original != null) return new SupplierWrapper<T>(this, original);
         return OverrideEnabled ? Supplier.Of((T) OverrideValue) : null;
+    }
+
+    public void Reset()
+    {
+        OverrideEnabled = false;
+        OverrideValue = null;
+        LastNaturalValue = null;
     }
 
     private class SupplierWrapper<T> : ISupplier<T>

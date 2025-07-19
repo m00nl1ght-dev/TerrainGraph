@@ -35,26 +35,14 @@ public class NodePathDensity : NodeBase
 
     public override void NodeGUI()
     {
-        InputKnob.SetPosition(FirstKnobPosition);
         OutputKnob.SetPosition(FirstKnobPosition);
 
         GUILayout.BeginVertical(BoxStyle);
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Input", BoxLayout);
-        GUILayout.EndHorizontal();
+        KnobLabel(InputKnob);
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("~ Position", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        ByPositionKnob.SetPosition();
-
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("~ Extent", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        ByExtentKnob.SetPosition();
+        KnobLabel(ByPositionKnob, "~ Position");
+        KnobLabel(ByExtentKnob, "~ Extent");
 
         GUILayout.EndVertical();
 

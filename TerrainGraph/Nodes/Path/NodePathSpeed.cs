@@ -31,20 +31,13 @@ public class NodePathSpeed : NodeBase
 
     public override void NodeGUI()
     {
-        InputKnob.SetPosition(FirstKnobPosition);
         OutputKnob.SetPosition(FirstKnobPosition);
 
         GUILayout.BeginVertical(BoxStyle);
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Input", BoxLayout);
-        GUILayout.EndHorizontal();
+        KnobLabel(InputKnob);
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("~ Position", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        ByPositionKnob.SetPosition();
+        KnobLabel(ByPositionKnob, "~ Position");
 
         GUILayout.EndVertical();
 

@@ -42,25 +42,15 @@ public class NodeValueValidatePosition : NodeBase
     {
         GUILayout.BeginVertical(BoxStyle);
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Position x", BoxLayout);
-        GUILayout.EndHorizontal();
+        KnobLabel(InputXKnob, "Position x");
 
-        InputXKnob.SetPosition();
         OutputXKnob.SetPosition();
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Position z", BoxLayout);
-        GUILayout.EndHorizontal();
+        KnobLabel(InputZKnob, "Position z");
 
-        InputZKnob.SetPosition();
         OutputZKnob.SetPosition();
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Validator", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        ValidatorKnob.SetPosition();
+        KnobLabel(ValidatorKnob, "Validator");
 
         KnobValueField(ExclusionRadiusKnob, ref ExclusionRadius);
 

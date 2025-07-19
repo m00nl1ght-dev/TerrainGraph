@@ -17,14 +17,11 @@ public abstract class NodeCacheBase : NodeBase
 
     public override void NodeGUI()
     {
-        InputKnobRef.SetPosition(FirstKnobPosition);
         OutputKnobRef.SetPosition(FirstKnobPosition);
 
         GUILayout.BeginVertical(BoxStyle);
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("", BoxLayout);
-        GUILayout.EndHorizontal();
+        KnobLabel(InputKnobRef, "");
 
         GUILayout.EndVertical();
     }

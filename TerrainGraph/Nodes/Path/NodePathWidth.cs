@@ -43,50 +43,18 @@ public class NodePathWidth : NodeBase
 
     public override void NodeGUI()
     {
-        InputKnob.SetPosition(FirstKnobPosition);
         OutputKnob.SetPosition(FirstKnobPosition);
 
         GUILayout.BeginVertical(BoxStyle);
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Input", BoxLayout);
-        GUILayout.EndHorizontal();
+        KnobLabel(InputKnob);
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("~ Position", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        ByPositionKnob.SetPosition();
-
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("~ Pattern", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        ByPatternKnob.SetPosition();
-
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("~ Width", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        ByWidthKnob.SetPosition();
-
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Pattern Scaling", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        PatternScalingKnob.SetPosition();
-
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Side Balance", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        SideBalanceKnob.SetPosition();
-
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Buildup", BoxLayout);
-        GUILayout.EndHorizontal();
-
-        BuildupKnob.SetPosition();
+        KnobLabel(ByPositionKnob, "~ Position");
+        KnobLabel(ByPatternKnob, "~ Pattern");
+        KnobLabel(ByWidthKnob, "~ Width");
+        KnobLabel(PatternScalingKnob, "Pattern Scaling");
+        KnobLabel(SideBalanceKnob, "Side Balance");
+        KnobLabel(BuildupKnob, "Buildup");
 
         GUILayout.EndVertical();
 

@@ -66,33 +66,15 @@ public class NodePathTrace : NodeBase
 
     public override void NodeGUI()
     {
+        InputKnob.SetPosition(FirstKnobPosition);
+
         GUILayout.BeginVertical(BoxStyle);
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Main Grid", BoxLayout);
-        InputKnob.SetPosition();
-        MainOutputKnob.SetPosition();
-        GUILayout.EndHorizontal();
-
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Side Grid", BoxLayout);
-        SideOutputKnob.SetPosition();
-        GUILayout.EndHorizontal();
-
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Value Grid", BoxLayout);
-        ValueOutputKnob.SetPosition();
-        GUILayout.EndHorizontal();
-
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Offset Grid", BoxLayout);
-        OffsetOutputKnob.SetPosition();
-        GUILayout.EndHorizontal();
-
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Distance Grid", BoxLayout);
-        DistanceOutputKnob.SetPosition();
-        GUILayout.EndHorizontal();
+        KnobLabel(MainOutputKnob, "Main Grid");
+        KnobLabel(SideOutputKnob, "Side Grid");
+        KnobLabel(ValueOutputKnob, "Value Grid");
+        KnobLabel(OffsetOutputKnob, "Offset Grid");
+        KnobLabel(DistanceOutputKnob, "Distance Grid");
 
         KnobIntField(GridMarginKnob, ref GridMargin);
         KnobValueField(TraceMarginInnerKnob, ref TraceMarginInner);

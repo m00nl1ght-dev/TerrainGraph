@@ -47,15 +47,11 @@ public class NodePathSplit : NodeBase
 
     public override void NodeGUI()
     {
-        InputKnob.SetPosition(FirstKnobPosition);
-
         while (OutputKnobs.Count < 2) AddBranch();
 
         GUILayout.BeginVertical(BoxStyle);
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Input", BoxLayout);
-        GUILayout.EndHorizontal();
+        KnobLabel(InputKnob);
 
         for (int i = 0; i < OutputKnobs.Count; i++)
         {

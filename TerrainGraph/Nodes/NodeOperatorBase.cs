@@ -70,7 +70,10 @@ public abstract class NodeOperatorBase : NodeBase
     protected virtual void InputGUI(int i)
     {
         GUILayout.BeginHorizontal(BoxStyle);
+
+        GUI.color = ConfigurableOverrides.Any(c => c.KnobName == InputKnobs[i].name) ? ConfLabelColor : Color.white;
         GUILayout.Label(i == 0 ? "Base" : ("Input " + i), BoxLayout);
+        GUI.color = Color.white;
 
         if (!InputKnobs[i].connected())
         {

@@ -41,14 +41,11 @@ public class NodeGridMorphGroupFilter : NodeBase
 
     public override void NodeGUI()
     {
-        InputKnob.SetPosition(FirstKnobPosition);
         OutputKnob.SetPosition(FirstKnobPosition);
 
         GUILayout.BeginVertical(BoxStyle);
 
-        GUILayout.BeginHorizontal(BoxStyle);
-        GUILayout.Label("Input", BoxLayout);
-        GUILayout.EndHorizontal();
+        KnobLabel(InputKnob);
 
         KnobValueField(ThresholdKnob, ref Threshold);
         KnobValueField(MinGroupSizeKnob, ref MinGroupSize);

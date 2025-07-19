@@ -50,6 +50,7 @@ public abstract class NodeBase : Node
 
     public override void OnCreate(bool fromGUI)
     {
+        ConfigurableOverrides ??= [];
         RefreshDynamicKnobs();
         if (fromGUI) PrepareGUI();
     }
@@ -62,11 +63,35 @@ public abstract class NodeBase : Node
 
     public virtual void RefreshDynamicKnobs() { }
 
+    protected static readonly Color ConfLabelColor = new(0.6f, 0.6f, 1f);
+
+    protected void KnobLabel(ValueConnectionKnob knob, string label = null)
+    {
+        GUILayout.BeginHorizontal(BoxStyle);
+        GUI.color = ConfigurableOverrides.Any(c => c.KnobName == knob.name) ? ConfLabelColor : Color.white;
+        GUILayout.Label(label ?? knob.name, BoxLayout);
+        GUI.color = Color.white;
+        GUILayout.EndHorizontal();
+        knob.SetPosition();
+    }
+
+    protected void KnobLabelDouble(ValueConnectionKnob knob, string label = null)
+    {
+        GUILayout.BeginHorizontal(BoxStyle);
+        GUI.color = ConfigurableOverrides.Any(c => c.KnobName == knob.name) ? ConfLabelColor : Color.white;
+        GUILayout.Label(label ?? knob.name, DoubleBoxLayout);
+        GUI.color = Color.white;
+        GUILayout.EndHorizontal();
+        knob.SetPosition();
+    }
+
     protected void KnobValueField(ValueConnectionKnob knob, ref double value, string label = null)
     {
         GUILayout.BeginHorizontal(BoxStyle);
 
+        GUI.color = ConfigurableOverrides.Any(c => c.KnobName == knob.name) ? ConfLabelColor : Color.white;
         GUILayout.Label(label ?? knob.name, BoxLayout);
+        GUI.color = Color.white;
 
         GUILayout.FlexibleSpace();
 
@@ -118,6 +143,43 @@ public abstract class NodeBase : Node
 
         GUILayout.EndHorizontal();
     }
+
+    public override void FillNodeActionsMenu(NodeEditorInputInfo inputInfo, GenericMenu menu)
+    {
+        base.FillNodeActionsMenu(inputInfo, menu);
+
+        if (ActiveKnobConfigHandler == null) return;
+
+        menu.AddSeparator("");
+
+        foreach (var knob in inputKnobs)
+        {
+            if (knob is ValueConnectionKnob valueKnob)
+            {
+                menu.AddItem(new GUIContent("Config/Inputs/" + valueKnob.name), false, () =>
+                {
+                    ActiveKnobConfigHandler.Invoke(this, valueKnob);
+                    canvas.OnNodeChange(this);
+                });
+            }
+        }
+
+        foreach (var knob in outputKnobs)
+        {
+            if (knob is ValueConnectionKnob valueKnob)
+            {
+                menu.AddItem(new GUIContent("Config/Outputs/" + valueKnob.name), false, () =>
+                {
+                    ActiveKnobConfigHandler.Invoke(this, valueKnob);
+                    canvas.OnNodeChange(this);
+                });
+            }
+        }
+    }
+
+    public delegate void KnobConfigHandler(NodeBase node, ValueConnectionKnob knob);
+
+    public static KnobConfigHandler ActiveKnobConfigHandler { get; set; }
 
     public delegate void DropdownHandler(List<string> potentialValues, Action<int> action);
 
@@ -173,14 +235,22 @@ public abstract class NodeBase : Node
 
     protected ISupplier<T> SupplierOrFallback<T>(ValueConnectionKnob input, T fallback)
     {
-        return GetIfConnected<T>(input) ?? Supplier.Of(fallback);
+        if (input == null) return Supplier.Of(fallback);
+
+        var supplier = input.connected() ? input.GetValue<ISupplier<T>>() : null;
+        supplier ??= Supplier.Of(fallback);
+
+        var conf = ConfigurableOverrides.Find(co => co.KnobName == input.name);
+        return conf != null ? conf.WrapSupplier(supplier) : supplier;
     }
 
     protected ISupplier<T> GetIfConnected<T>(ValueConnectionKnob input)
     {
         if (input == null) return null;
-        var conf = ConfigurableOverrides.Find(co => co.KnobName == input.name);
+
         var supplier = input.connected() ? input.GetValue<ISupplier<T>>() : null;
+
+        var conf = ConfigurableOverrides.Find(co => co.KnobName == input.name);
         return conf != null ? conf.WrapSupplier(supplier) : supplier;
     }
 
