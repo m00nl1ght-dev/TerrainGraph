@@ -129,7 +129,7 @@ public class NodeCurveLinear : NodeBase
 
     public override bool Calculate()
     {
-        OutputKnob.SetValue<ISupplier<ICurveFunction<double>>>(new Output(
+        SetOutput(OutputKnob, new Output(
             SupplierOrFallback(BiasKnob, Bias),
             SupplierOrFallback(ClampMinKnob, ClampMin),
             SupplierOrFallback(ClampMaxKnob, ClampMax),

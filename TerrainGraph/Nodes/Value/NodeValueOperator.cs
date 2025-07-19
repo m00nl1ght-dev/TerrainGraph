@@ -69,7 +69,7 @@ public class NodeValueOperator : NodeOperatorBase
             inputs.Add(SupplierOrFallback(InputKnobs[i], Values[i]));
         }
 
-        OutputKnob.SetValue<ISupplier<double>>(new Output(
+        SetOutput(OutputKnob, new Output(
             applyChance, stackCount, inputs, OperationType,
             smoothness, CombinedSeed, TerrainCanvas.CreateRandomInstance()
         ));

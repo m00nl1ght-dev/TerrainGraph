@@ -86,7 +86,7 @@ public class NodeValueRandom : NodeBase
 
     public override bool Calculate()
     {
-        OutputKnob.SetValue<ISupplier<double>>(new Output(
+        SetOutput(OutputKnob, new Output(
             SupplierOrFallback(AverageKnob, Average),
             SupplierOrFallback(DeviationKnob, Deviation),
             CombinedSeed, DynamicSeed, TerrainCanvas.CreateRandomInstance()

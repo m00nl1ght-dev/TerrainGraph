@@ -37,7 +37,7 @@ public class NodeValueSelectPath : NodeSelectBase<double, byte>
 
         var options = OptionKnobs.Select(option => SupplierOrFallback(option, Path.Empty)).ToList();
 
-        OutputKnob.SetValue<ISupplier<Path>>(
+        SetOutput(OutputKnob,
             new Output<Path>(
                 input, options, Thresholds.ToList(), null
             )

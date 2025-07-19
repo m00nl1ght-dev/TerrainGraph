@@ -98,11 +98,11 @@ public class NodeValueValidatePosition : NodeBase
             cache, TerrainCanvas.GridFullSize, Attempts.InRange(1, 1000)
         );
 
-        OutputXKnob.SetValue<ISupplier<double>>(
+        SetOutput(OutputXKnob,
             new Supplier.CompoundCached<Vector2d,double>(output, t => t.x, cache)
         );
 
-        OutputZKnob.SetValue<ISupplier<double>>(
+        SetOutput(OutputZKnob,
             new Supplier.CompoundCached<Vector2d,double>(output, t => t.z, cache)
         );
 

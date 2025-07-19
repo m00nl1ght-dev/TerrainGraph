@@ -47,7 +47,7 @@ public class NodeGridApplyCurve : NodeBase
 
     public override bool Calculate()
     {
-        OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output(
+        SetOutput(OutputKnob, new Output(
             SupplierOrFallback(InputKnob, GridFunction.Zero),
             SupplierOrFallback(CurveKnob, CurveFunction.One)
         ));

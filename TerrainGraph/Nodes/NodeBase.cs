@@ -23,6 +23,8 @@ public abstract class NodeBase : Node
     public int RandSeed = SeedSource.Next();
     public int CombinedSeed => RandSeed ^ TerrainCanvas.RandSeed;
 
+    public List<ConfigurableOverride> ConfigurableOverrides = [];
+
     public PreviewTask OngoingPreviewTask { get; set; }
 
     public const int FirstKnobPosition = 37;
@@ -171,15 +173,27 @@ public abstract class NodeBase : Node
 
     protected ISupplier<T> SupplierOrFallback<T>(ValueConnectionKnob input, T fallback)
     {
-        ISupplier<T> val = null;
-        if (input != null && input.connected()) val = input.GetValue<ISupplier<T>>();
-        return val ?? Supplier.Of(fallback);
+        return GetIfConnected<T>(input) ?? Supplier.Of(fallback);
     }
 
     protected ISupplier<T> GetIfConnected<T>(ValueConnectionKnob input)
     {
-        if (input == null || !input.connected()) return null;
-        return input.GetValue<ISupplier<T>>();
+        if (input == null) return null;
+        var conf = ConfigurableOverrides.Find(co => co.KnobName == input.name);
+        var supplier = input.connected() ? input.GetValue<ISupplier<T>>() : null;
+        return conf != null ? conf.WrapSupplier(supplier) : supplier;
+    }
+
+    protected void SetOutput<T>(ValueConnectionKnob output, ISupplier<T> supplier)
+    {
+        if (output == null) return;
+        var conf = ConfigurableOverrides.Find(co => co.KnobName == output.name);
+        output.SetValue(conf != null ? conf.WrapSupplier(supplier) : supplier);
+    }
+
+    protected void SetOutputValue<T>(ValueConnectionKnob output, T value)
+    {
+        SetOutput(output, Supplier.Of(value));
     }
 
     protected ValueConnectionKnob FindDynamicKnob(ValueConnectionKnobAttribute attribute)

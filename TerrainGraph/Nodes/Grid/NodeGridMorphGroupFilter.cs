@@ -100,7 +100,7 @@ public class NodeGridMorphGroupFilter : NodeBase
             0d, TerrainCanvas.GridFullSize
         );
 
-        OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
+        SetOutput(OutputKnob,
             new Supplier.Cached<IGridFunction<double>>(output, cache)
         );
 

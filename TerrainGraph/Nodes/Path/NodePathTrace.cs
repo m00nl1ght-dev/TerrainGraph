@@ -145,23 +145,23 @@ public class NodePathTrace : NodeBase
 
         var scale = TerrainCanvas.GridPathSize / (double) TerrainCanvas.GridFullSize;
 
-        MainOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
+        SetOutput(MainOutputKnob,
             new Supplier.CompoundCached<PathTracer,IGridFunction<double>>(output, t => t.MainGrid.Scaled(scale), cache)
         );
 
-        SideOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
+        SetOutput(SideOutputKnob,
             new Supplier.CompoundCached<PathTracer,IGridFunction<double>>(output, t => t.SideGrid.Scaled(scale), cache)
         );
 
-        ValueOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
+        SetOutput(ValueOutputKnob,
             new Supplier.CompoundCached<PathTracer,IGridFunction<double>>(output, t => t.ValueGrid.Scaled(scale), cache)
         );
 
-        OffsetOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
+        SetOutput(OffsetOutputKnob,
             new Supplier.CompoundCached<PathTracer,IGridFunction<double>>(output, t => t.OffsetGrid.Scaled(scale), cache)
         );
 
-        DistanceOutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
+        SetOutput(DistanceOutputKnob,
             new Supplier.CompoundCached<PathTracer,IGridFunction<double>>(output, t => t.DistanceGrid.Scaled(scale), cache)
         );
 

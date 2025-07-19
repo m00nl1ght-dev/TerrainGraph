@@ -35,7 +35,7 @@ public class NodeCurveOperator : NodeOperatorBase
             inputs.Add(SupplierOrFallback(InputKnobs[i], CurveFunction.Of(Values[i])));
         }
 
-        OutputKnob.SetValue<ISupplier<ICurveFunction<double>>>(new Output(
+        SetOutput(OutputKnob, new Output(
             applyChance, stackCount, inputs, OperationType, smoothness,
             CombinedSeed, TerrainCanvas.CreateRandomInstance()
         ));

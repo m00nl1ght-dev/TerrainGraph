@@ -64,7 +64,7 @@ public class NodePathDensity : NodeBase
 
     public override bool Calculate()
     {
-        OutputKnob.SetValue<ISupplier<Path>>(new Output(
+        SetOutput(OutputKnob, new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
             GetIfConnected<IGridFunction<double>>(ByPositionKnob),
             GetIfConnected<ICurveFunction<double>>(ByExtentKnob),

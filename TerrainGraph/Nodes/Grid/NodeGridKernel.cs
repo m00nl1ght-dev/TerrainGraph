@@ -82,7 +82,7 @@ public class NodeGridKernel : NodeBase
 
     public override bool Calculate()
     {
-        OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output(
+        SetOutput(OutputKnob, new Output(
             SupplierOrFallback(InputKnob, GridFunction.Zero),
             SupplierOrFallback(SizeKnob, Size),
             SupplierOrFallback(StepKnob, Step),

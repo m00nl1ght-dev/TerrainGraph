@@ -213,7 +213,7 @@ public class NodePathSplit : NodeBase
         for (int i = 0; i < OutputKnobs.Count; i++)
         {
             var index = i;
-            OutputKnobs[i].SetValue<ISupplier<Path>>(new Supplier.CompoundCached<Path[],Path>(output, t => t[index], cache));
+            SetOutput(OutputKnobs[i], new Supplier.CompoundCached<Path[],Path>(output, t => t[index], cache));
         }
 
         return true;

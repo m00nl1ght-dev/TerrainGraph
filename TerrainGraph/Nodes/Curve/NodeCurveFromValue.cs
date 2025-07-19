@@ -67,7 +67,7 @@ public class NodeCurveFromValue : NodeBase
 
     public override bool Calculate()
     {
-        OutputKnob.SetValue<ISupplier<ICurveFunction<double>>>(new Output<double>(
+        SetOutput(OutputKnob, new Output<double>(
             SupplierOrFallback(InputKnob, Value)
         ));
         return true;

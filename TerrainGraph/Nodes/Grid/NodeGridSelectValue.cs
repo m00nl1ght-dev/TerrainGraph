@@ -41,7 +41,7 @@ public class NodeGridSelectValue : NodeSelectBase<double, double>
             options.Add(SupplierOrFallback(OptionKnobs[i], GridFunction.Of(Values[i])));
         }
 
-        OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(
+        SetOutput(OutputKnob,
             new GridOutput<double>(
                 input, options, Thresholds.ToList(),
                 Interpolated ? MathUtil.Lerp : null

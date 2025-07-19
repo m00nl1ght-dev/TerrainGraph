@@ -61,7 +61,7 @@ public class NodeValueAngleDelta : NodeBase
 
     public override bool Calculate()
     {
-        OutputKnob.SetValue<ISupplier<double>>(new Output(
+        SetOutput(OutputKnob, new Output(
             SupplierOrFallback(FirstKnob, First),
             SupplierOrFallback(SecondKnob, Second)
         ));

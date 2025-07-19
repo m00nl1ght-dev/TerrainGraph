@@ -67,7 +67,7 @@ public class NodeGridFromValue : NodeBase
 
     public override bool Calculate()
     {
-        OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output<double>(
+        SetOutput(OutputKnob, new Output<double>(
             SupplierOrFallback(InputKnob, Value)
         ));
         return true;

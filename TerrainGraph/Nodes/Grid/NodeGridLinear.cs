@@ -258,7 +258,7 @@ public class NodeGridLinear : NodeBase
 
     public override bool Calculate()
     {
-        OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output(
+        SetOutput(OutputKnob, new Output(
             SupplierOrFallback(BiasKnob, Bias),
             SupplierOrFallback(ClampMinKnob, ClampMin),
             SupplierOrFallback(ClampMaxKnob, ClampMax),

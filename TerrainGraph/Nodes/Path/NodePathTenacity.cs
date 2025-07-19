@@ -80,7 +80,7 @@ public class NodePathTenacity : NodeBase
 
     public override bool Calculate()
     {
-        OutputKnob.SetValue<ISupplier<Path>>(new Output(
+        SetOutput(OutputKnob, new Output(
             SupplierOrFallback(InputKnob, Path.Empty),
             SupplierOrFallback(AngleTenacityKnob, AngleTenacity),
             SupplierOrFallback(SplitTenacityKnob, SplitTenacity),

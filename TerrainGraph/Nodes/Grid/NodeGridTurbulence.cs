@@ -66,12 +66,12 @@ public class NodeGridTurbulence : NodeBase
 
     public override bool Calculate()
     {
-        OutputXKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output(
+        SetOutput(OutputXKnob, new Output(
             SupplierOrFallback(IntensityXKnob, IntensityX),
             CombinedSeed, TerrainCanvas.CreateRandomInstance(),
             true, TerrainCanvas.GridFullSize
         ));
-        OutputZKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output(
+        SetOutput(OutputZKnob, new Output(
             SupplierOrFallback(IntensityZKnob, IntensityZ),
             CombinedSeed, TerrainCanvas.CreateRandomInstance(),
             false, TerrainCanvas.GridFullSize

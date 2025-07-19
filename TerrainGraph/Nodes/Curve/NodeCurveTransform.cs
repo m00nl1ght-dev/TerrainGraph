@@ -68,7 +68,7 @@ public class NodeCurveTransform : NodeBase
 
     public override bool Calculate()
     {
-        OutputKnob.SetValue<ISupplier<ICurveFunction<double>>>(new Output(
+        SetOutput(OutputKnob, new Output(
             SupplierOrFallback(InputKnob, CurveFunction.Zero),
             SupplierOrFallback(DisplaceKnob, Displace),
             SupplierOrFallback(ScaleKnob, Scale)

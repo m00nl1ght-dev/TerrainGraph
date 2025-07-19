@@ -41,7 +41,7 @@ public class NodeValueSelectCurveValue : NodeSelectBase<double, double>
             options.Add(SupplierOrFallback(OptionKnobs[i], Of(Values[i])));
         }
 
-        OutputKnob.SetValue<ISupplier<ICurveFunction<double>>>(
+        SetOutput(OutputKnob,
             new Output<ICurveFunction<double>>(
                 input, options, Thresholds.ToList(),
                 Interpolated ? (t, a, b) => Lerp.Of(a, b, t) : null

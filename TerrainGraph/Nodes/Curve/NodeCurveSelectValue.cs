@@ -41,7 +41,7 @@ public class NodeCurveSelectValue : NodeSelectBase<double, double>
             options.Add(SupplierOrFallback(OptionKnobs[i], CurveFunction.Of(Values[i])));
         }
 
-        OutputKnob.SetValue<ISupplier<ICurveFunction<double>>>(
+        SetOutput(OutputKnob,
             new CurveOutput<double>(
                 input, options, Thresholds.ToList(),
                 Interpolated ? MathUtil.Lerp : null

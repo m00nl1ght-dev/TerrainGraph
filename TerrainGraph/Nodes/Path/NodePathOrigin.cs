@@ -101,7 +101,7 @@ public class NodePathOrigin : NodeBase
 
     public override bool Calculate()
     {
-        OutputKnob.SetValue<ISupplier<Path>>(new Output(
+        SetOutput(OutputKnob, new Output(
             SupplierOrFallback(PosXKnob, PosX),
             SupplierOrFallback(PosZKnob, PosZ),
             SupplierOrFallback(DirectionKnob, Direction),

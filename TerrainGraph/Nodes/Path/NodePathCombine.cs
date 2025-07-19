@@ -89,7 +89,7 @@ public class NodePathCombine : NodeBase
     {
         var inputs = InputKnobs.Select(input => SupplierOrFallback(input, Path.Empty)).ToList();
 
-        OutputKnob.SetValue<ISupplier<Path>>(new Output(
+        SetOutput(OutputKnob, new Output(
             inputs
         ));
 

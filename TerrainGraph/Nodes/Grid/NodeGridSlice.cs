@@ -59,7 +59,7 @@ public class NodeGridSlice : NodeBase
 
     public override bool Calculate()
     {
-        OutputKnob.SetValue<ISupplier<ICurveFunction<double>>>(new Output(
+        SetOutput(OutputKnob, new Output(
             SupplierOrFallback(InputKnob, GridFunction.Zero),
             SupplierOrFallback(PositionKnob, Position)
         ));

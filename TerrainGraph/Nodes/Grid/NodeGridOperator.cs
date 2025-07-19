@@ -37,7 +37,7 @@ public class NodeGridOperator : NodeOperatorBase
             inputs.Add(SupplierOrFallback(InputKnobs[i], GridFunction.Of(Values[i])));
         }
 
-        OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output(
+        SetOutput(OutputKnob, new Output(
             applyChance, stackCount, inputs, OperationType, smoothness,
             CombinedSeed, TerrainCanvas.CreateRandomInstance()
         ));

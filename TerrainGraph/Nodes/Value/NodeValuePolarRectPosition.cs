@@ -86,11 +86,11 @@ public class NodeValuePolarRectPosition : NodeBase
             SupplierOrFallback(MarginKnob, Margin)
         );
 
-        OutputXKnob.SetValue<ISupplier<double>>(
+        SetOutput(OutputXKnob,
             new Supplier.CompoundCached<Vector2d,double>(output, t => t.x, cache)
         );
 
-        OutputZKnob.SetValue<ISupplier<double>>(
+        SetOutput(OutputZKnob,
             new Supplier.CompoundCached<Vector2d,double>(output, t => t.z, cache)
         );
 

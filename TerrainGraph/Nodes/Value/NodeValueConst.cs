@@ -30,7 +30,7 @@ public class NodeValueConst : NodeBase
         GUILayout.BeginHorizontal(BoxStyle);
 
         Value = RTEditorGUI.FloatField(GUIContent.none, (float) Value, FullBoxLayout);
-        
+
         GUILayout.EndHorizontal();
         GUILayout.EndVertical();
 
@@ -40,7 +40,7 @@ public class NodeValueConst : NodeBase
 
     public override bool Calculate()
     {
-        OutputKnob.SetValue<ISupplier<double>>(Supplier.Of(Value));
+        SetOutputValue(OutputKnob, Value);
         return true;
     }
 }

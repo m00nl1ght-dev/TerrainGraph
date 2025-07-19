@@ -21,7 +21,7 @@ public class NodeGridCache : NodeCacheBase
 
     public override bool Calculate()
     {
-        OutputKnob.SetValue<ISupplier<IGridFunction<double>>>(new Output<IGridFunction<double>>(
+        SetOutput(OutputKnob, new Output<IGridFunction<double>>(
             SupplierOrFallback(InputKnob, GridFunction.Zero)
         ));
         return true;

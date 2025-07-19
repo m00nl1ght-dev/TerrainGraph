@@ -43,7 +43,7 @@ public class NodeValueSelectValue : NodeSelectBase<double, double>
             options.Add(SupplierOrFallback(OptionKnobs[i], Values[i]));
         }
 
-        OutputKnob.SetValue<ISupplier<double>>(
+        SetOutput(OutputKnob,
             new Output<double>(
                 input, options, Thresholds.ToList(),
                 Interpolated ? MathUtil.Lerp : null
