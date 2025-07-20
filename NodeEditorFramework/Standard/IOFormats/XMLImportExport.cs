@@ -152,7 +152,7 @@ namespace NodeEditorFramework.IO
 				throw new ArgumentException("Location Arguments");
 			string path = (string)args[0];
 
-			using (FileStream fs = new FileStream(path, FileMode.Open))
+			using (FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read))
 			{
 				XmlDocument data = new XmlDocument();
 				data.Load(fs);
