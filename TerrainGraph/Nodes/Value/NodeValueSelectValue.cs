@@ -45,7 +45,7 @@ public class NodeValueSelectValue : NodeSelectBase<double, double>
 
         SetOutput(OutputKnob,
             new Output<double>(
-                input, options, Thresholds.ToList(),
+                input, options, BuildThresholds(),
                 Interpolated ? MathUtil.Lerp : null
             )
         );

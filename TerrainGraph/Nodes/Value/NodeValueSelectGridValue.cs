@@ -43,7 +43,7 @@ public class NodeValueSelectGridValue : NodeSelectBase<double, double>
 
         SetOutput(OutputKnob,
             new Output<IGridFunction<double>>(
-                input, options, Thresholds.ToList(),
+                input, options, BuildThresholds(),
                 Interpolated ? (t, a, b) => Lerp.Of(a, b, t) : null
             )
         );

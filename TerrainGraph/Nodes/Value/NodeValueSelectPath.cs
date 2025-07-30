@@ -39,7 +39,7 @@ public class NodeValueSelectPath : NodeSelectBase<double, byte>
 
         SetOutput(OutputKnob,
             new Output<Path>(
-                input, options, Thresholds.ToList(), null
+                input, options, BuildThresholds(), null
             )
         );
 

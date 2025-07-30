@@ -148,7 +148,7 @@ public abstract class NodeBase : Node
     {
         base.FillNodeActionsMenu(inputInfo, menu);
 
-        if (ActiveKnobConfigHandler == null) return;
+        if (ActiveConfigDialogHandler == null) return;
 
         menu.AddSeparator("");
 
@@ -158,7 +158,7 @@ public abstract class NodeBase : Node
             {
                 menu.AddItem(new GUIContent("Config/Inputs/" + valueKnob.name), false, () =>
                 {
-                    ActiveKnobConfigHandler.Invoke(this, valueKnob);
+                    ActiveConfigDialogHandler.Invoke(this, valueKnob.name, valueKnob.styleID);
                     canvas.OnNodeChange(this);
                 });
             }
@@ -170,16 +170,16 @@ public abstract class NodeBase : Node
             {
                 menu.AddItem(new GUIContent("Config/Outputs/" + valueKnob.name), false, () =>
                 {
-                    ActiveKnobConfigHandler.Invoke(this, valueKnob);
+                    ActiveConfigDialogHandler.Invoke(this, valueKnob.name, valueKnob.styleID);
                     canvas.OnNodeChange(this);
                 });
             }
         }
     }
 
-    public delegate void KnobConfigHandler(NodeBase node, ValueConnectionKnob knob);
+    public delegate void ConfigDialogHandler(NodeBase node, string name, string typeId);
 
-    public static KnobConfigHandler ActiveKnobConfigHandler { get; set; }
+    public static ConfigDialogHandler ActiveConfigDialogHandler { get; set; }
 
     public delegate void DropdownHandler(List<string> potentialValues, Action<int> action);
 

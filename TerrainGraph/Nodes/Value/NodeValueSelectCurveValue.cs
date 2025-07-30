@@ -43,7 +43,7 @@ public class NodeValueSelectCurveValue : NodeSelectBase<double, double>
 
         SetOutput(OutputKnob,
             new Output<ICurveFunction<double>>(
-                input, options, Thresholds.ToList(),
+                input, options, BuildThresholds(),
                 Interpolated ? (t, a, b) => Lerp.Of(a, b, t) : null
             )
         );

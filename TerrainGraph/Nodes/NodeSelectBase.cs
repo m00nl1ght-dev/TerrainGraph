@@ -81,7 +81,10 @@ public abstract class NodeSelectBase<TKey, TVal> : NodeBase
             {
                 GUILayout.FlexibleSpace();
                 var tIdx = Interpolated ? i : i - 1;
+
+                GUI.color = ConfigurableOverrides.Any(c => c.KnobName == $"Threshold {tIdx}") ? ConfLabelColor : Color.white;
                 DrawOptionKey(tIdx);
+                GUI.color = Color.white;
             }
 
             GUILayout.EndHorizontal();
@@ -152,6 +155,20 @@ public abstract class NodeSelectBase<TKey, TVal> : NodeBase
     {
         base.FillNodeActionsMenu(inputInfo, menu);
 
+        if (ActiveConfigDialogHandler != null && typeof(TKey) == typeof(double))
+        {
+            for (int i = 0; i < Thresholds.Count; i++)
+            {
+                var index = i;
+
+                menu.AddItem(new GUIContent($"Config/Thresholds/Threshold {index}"), false, () =>
+                {
+                    ActiveConfigDialogHandler.Invoke(this, $"Threshold {index}", ValueFunctionConnection.Id);
+                    canvas.OnNodeChange(this);
+                });
+            }
+        }
+
         if (!Interpolated && SupportsInterpolation)
         {
             menu.AddSeparator("");
@@ -197,6 +214,30 @@ public abstract class NodeSelectBase<TKey, TVal> : NodeBase
                 canvas.OnNodeChange(this);
             });
         }
+    }
+
+    protected List<TKey> BuildThresholds()
+    {
+        var list = new List<TKey>();
+
+        for (int i = 0; i < Thresholds.Count; i++)
+        {
+            var threshold = Thresholds[i];
+
+            var config = ConfigurableOverrides.Find(c => c.KnobName == $"Threshold {i}");
+            if (config != null)
+            {
+                config.LastNaturalValue = threshold;
+                if (config.OverrideEnabled)
+                {
+                    threshold = (TKey) config.OverrideValue;
+                }
+            }
+
+            list.Add(threshold);
+        }
+
+        return list;
     }
 
     protected class Output<T> : ISupplier<T>
