@@ -49,6 +49,10 @@ namespace NodeEditorFramework
 					{
 						#region Event-Attributes recognition and storing
 
+						// Skip methods without input attributes, GetCustomAttributes creates instances of every attribute
+						if (!HasInputAttribute (method))
+							continue;
+
 						// Check the method's attributes for input handler definitions
 						Delegate actionDelegate = null;
 						foreach (object attr in method.GetCustomAttributes (true))
@@ -102,6 +106,17 @@ namespace NodeEditorFramework
 
 			eventHandlers.Sort ((handlerA, handlerB) => handlerA.Key.priority.CompareTo (handlerB.Key.priority));
 			hotkeyHandlers.Sort ((handlerA, handlerB) => handlerA.Key.priority.CompareTo (handlerB.Key.priority));
+		}
+
+		/// <summary>
+		/// Checks whether the method has one of the four input attributes, without creating attribute instances
+		/// </summary>
+		private static bool HasInputAttribute (MethodInfo method)
+		{
+			return method.IsDefined (typeof(EventHandlerAttribute), true)
+				|| method.IsDefined (typeof(HotkeyAttribute), true)
+				|| method.IsDefined (typeof(ContextEntryAttribute), true)
+				|| method.IsDefined (typeof(ContextFillerAttribute), true);
 		}
 
 		#endregion
